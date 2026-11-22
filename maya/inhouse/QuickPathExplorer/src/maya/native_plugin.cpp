@@ -141,8 +141,38 @@ void restoreGeometry(const QJsonObject& value) {
     auto* parent = MQtUtil::findControl(control);
     if (parent && parent->window() != MQtUtil::mainWindow()) parent->window()->setGeometry(rect);
 }
-/** @brief Maya所有のドックへ自分の画面だけを取り付ける。 @param restore uiScriptからの復元か。 */
-void show(bool restore = false) {
+/** @brief メニュー操作時だけ、Maya中央へ既定寸法のフロートを配置する。
+ * @param resetSize 初回だけ既定寸法へ戻すか。枠確定後の補正では位置だけを更新する。
+ * @note Mayaの遅延リペア後に現在の親を取得する。ホスト本体や他の共有タブは変更しない。
+ */
+void centerMenuWindow(bool resetSize) {
+    if (!browser || !exists()) return;
+    auto* parent = MQtUtil::findControl(control);
+    auto* main = MQtUtil::mainWindow();
+    if (!parent || !main || parent->window() == main) return;
+    auto* window = parent->window();
+    auto* screen = main->screen();
+    if (!screen) screen = QApplication::primaryScreen();
+    if (!screen) return;
+    const QRect available = screen->availableGeometry().adjusted(20, 20, -20, -20);
+    if (resetSize) {
+        window->showNormal();
+        window->resize(QSize(1200, 800).boundedTo(available.size()));
+    }
+    QRect frame = window->frameGeometry();
+    frame.moveCenter(main->frameGeometry().center());
+    frame.moveLeft(qBound(available.left(), frame.left(), qMax(available.left(), available.right() - frame.width() + 1)));
+    frame.moveTop(qBound(available.top(), frame.top(), qMax(available.top(), available.bottom() - frame.height() + 1)));
+    // Mayaのフロート枠はQtのposとframeGeometryの原点が一致しないことがある。
+    window->move(window->pos() + frame.topLeft() - window->frameGeometry().topLeft());
+    window->raise();
+    window->activateWindow();
+}
+/** @brief Maya所有のドックへ自分の画面だけを取り付ける。
+ * @param restore uiScriptからの復元か。
+ * @param fromMenu 位置復元を使わず既定の中央フロートへ開くか。
+ */
+void show(bool restore = false, bool fromMenu = false) {
     if (building) return;
     building = true;
     try {
@@ -160,11 +190,13 @@ void show(bool restore = false) {
         const QString script = "if (`exists " QPE_COMMAND "`) " QPE_COMMAND " -restore; else evalDeferred \"if (!`exists " QPE_COMMAND "` && `workspaceControl -exists " + QString(control) + "`) workspaceControl -e -visible false " + control + "\";";
         if (!existed) {
             qpe::mayaCommand(QString("workspaceControl -label \"" QPE_LABEL "\" -floating true -retain true -loadImmediately true -initialWidth 1200 -initialHeight 800 -uiScript ") + qpe::melQuote(script) + ' ' + control);
-            if (!previous["floating"].toBool(true)) qpe::mayaCommand(QString("workspaceControl -e -dockToMainWindow right false ") + control);
+            if (!fromMenu && !previous["floating"].toBool(true)) qpe::mayaCommand(QString("workspaceControl -e -dockToMainWindow right false ") + control);
         } else if (!restore) {
             // Qt5ではrestore直後にフロート親が再生成される。表示を先に済ませてから中身を付ける。
             qpe::mayaCommand(QString("workspaceControl -e -visible true ") + control);
         }
+        // 浮動化によりQt5の親が変わるため、内容を接続する前にホストへ依頼する。
+        if (fromMenu) qpe::mayaCommand(QString("workspaceControl -e -floating true -visible true -resizeWidth 1200 -resizeHeight 800 ") + control);
         auto* parent = MQtUtil::findControl(control);
         if (!parent) throw std::runtime_error("Maya workspaceControl is unavailable");
         if (!browser || !parent->isAncestorOf(browser)) {
@@ -187,7 +219,24 @@ void show(bool restore = false) {
         qpe::mayaCommand(QString("workspaceControl -e -closeCommand ") + qpe::melQuote(QString("if (`exists " QPE_COMMAND "`) " QPE_COMMAND " -closed %1;").arg(closeGeneration)) + " -uiScript " + qpe::melQuote(script) + ' ' + control);
         if (!dockTimer) { dockTimer = new QTimer(lifetime); dockTimer->setInterval(750); QObject::connect(dockTimer.data(), &QTimer::timeout, dockTimer.data(), [] { repairBottomDock(); saveDock(); }); }
         dockTimer->start();
-        if (!existed) QTimer::singleShot(0, browser, [previous] { restoreGeometry(previous); saveDock(); });
+        // 古い位置復元の予約が、後から押したメニュー起動を上書きしないよう世代を固定する。
+        const int generation = closeGeneration;
+        if (fromMenu) {
+            browser->perform("area:balanced");
+            QTimer::singleShot(0, lifetime, [generation] {
+                if (quitting || removing || generation != closeGeneration || !userOpened) return;
+                centerMenuWindow(true); saveDock();
+                // Windowsの非クライアント枠はドック解除の次の描画で確定する。
+                // 一度だけ位置を補正し、その間に閉じた/再起動した画面には触れない。
+                QTimer::singleShot(50, lifetime, [generation] {
+                    if (quitting || removing || generation != closeGeneration || !userOpened || QApplication::mouseButtons() != Qt::NoButton) return;
+                    centerMenuWindow(false); saveDock();
+                });
+            });
+        } else if (!existed) QTimer::singleShot(0, lifetime, [previous, generation] {
+            if (quitting || removing || generation != closeGeneration || !userOpened) return;
+            restoreGeometry(previous); saveDock();
+        });
         building = false;
         saveDock();
     } catch (...) { building = false; throw; }
@@ -233,7 +282,7 @@ public:
             if (option == "-invoke" && args.length() == 4) {
                 qpe::mayaPerform(QString::fromUtf8(args.asString(1).asUTF8()), {QString::fromUtf8(args.asString(2).asUTF8())}, QJsonDocument::fromJson(args.asString(3).asUTF8()).object()); return MS::kSuccess;
             }
-            show(option == "-restore");
+            show(option == "-restore", option == "-menu");
             if (option == "-path" && args.length() == 2) browser->navigate(QString::fromUtf8(args.asString(1).asUTF8()));
             if (option == "-refresh") browser->refresh();
             return MS::kSuccess;
@@ -258,7 +307,7 @@ MStatus initializePlugin(MObject object) {
         try {
             int ready = 0; MGlobal::executeCommand("menu -exists \"MayaWindow|mainWindowMenu\"", ready);
             if (!ready) { if (++attempts >= 120) menuTimer->stop(); return; }
-            qpe::mayaCommand("if (!`menuItem -exists " QPE_MENU "`) { buildViewMenu MayaWindow|mainWindowMenu; menuItem -parent \"MayaWindow|mainWindowMenu\" -label \"" QPE_LABEL "\" -sourceType mel -command \"" QPE_COMMAND "\" " QPE_MENU "; }");
+            qpe::mayaCommand("if (!`menuItem -exists " QPE_MENU "`) { buildViewMenu MayaWindow|mainWindowMenu; menuItem -parent \"MayaWindow|mainWindowMenu\" -label \"" QPE_LABEL "\" -sourceType mel -command \"" QPE_COMMAND " -menu\" " QPE_MENU "; }");
             if (auto* action = MQtUtil::findMenuItem(QPE_MENU)) { action->setIcon(QIcon(":/qpe/icons/quickPathExplorer.png")); menuTimer->stop(); }
         } catch (const std::exception& e) { menuTimer->stop(); MGlobal::displayWarning(e.what()); }
     });

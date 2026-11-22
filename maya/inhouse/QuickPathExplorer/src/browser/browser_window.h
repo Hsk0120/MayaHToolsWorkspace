@@ -134,10 +134,10 @@ private:
     void showDetails(const QString& path);
     /** @brief 変更したQPE設定だけを保存する。 */
     void saveSession();
-    /** @brief 単体版のWindows上の位置と最大化状態を保存する。 @return 作業領域座標の配置。 */
+    /** @brief 単体版の通常復帰位置・実表示位置と最大化状態を保存する。 @return 作業領域座標の配置。 */
     QJsonObject standalonePlacement() const;
-    /** @brief Qtによる初期表示後に単体版の配置を戻す。 @param saved 保存済みのWindows配置。 */
-    void restoreStandalonePlacement(const QJsonObject& saved);
+    /** @brief 初期表示後に単体版の配置を戻す。 @param saved 保存済みのWindows配置。 @return 有効な配置の復元を予約できたか。 */
+    bool restoreStandalonePlacement(const QJsonObject& saved);
     /** @brief Drives/Favorites/Recentを再構築する。 */
     void updatePlaces();
     /** @brief 設定書込みをまとめる。 */
@@ -159,7 +159,7 @@ private:
     int textSize_ = 12;
     int uiPercent_ = 100;
     QString density_ = "compact";
-    QString theme_ = "system";
+    QString theme_ = "maya";
     HostServices host_;
     FileJobs* jobs_;
     // FileJobsは直列実行。startedからfinishedまでの操作を完了通知に使う。

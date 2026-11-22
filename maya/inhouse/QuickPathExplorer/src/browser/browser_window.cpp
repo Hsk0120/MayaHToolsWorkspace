@@ -85,6 +85,16 @@
 
 namespace qpe {
 namespace {
+/** @brief 旧標準の黒系配色を一度だけ共通Mayaグレーへ移行する。
+ * @param appearance ホスト別表示設定。
+ * @param fallback 旧版の独立したテーマ設定。
+ * @return 現在使用するテーマID。移行後の明示選択は保存して尊重する。
+ */
+QString appearanceTheme(const QJsonObject& appearance, const QString& fallback) {
+    const auto theme = appearance["theme"].toString(fallback);
+    if (appearance["paletteVersion"].toInt() < 1 && (theme == "system" || theme == "dark")) return "maya";
+    return theme;
+}
 constexpr int PathRole = Qt::UserRole + 1;
 constexpr int DirectoryRole = Qt::UserRole + 2;
 constexpr int SortRole = Qt::UserRole + 3;
@@ -552,7 +562,8 @@ public:
         vertical->setObjectName("browserVertical");
         vertical->setChildrenCollapsible(false);
         connect(vertical, &QSplitter::splitterMoved, this, [this] {
-            preferredColumnHeight_ = vertical_->sizes().value(0);
+            const auto sizes = vertical_->sizes();
+            preferredColumnRatio_ = double(sizes.value(0)) / qMax(1, sizes.value(0) + sizes.value(1));
             areaMode_ = "custom";
             emit layoutChanged();
         });
@@ -753,7 +764,9 @@ public:
         footer_->setObjectName("footer");
         footer_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         commands->addWidget(footer_);
-        vertical->setSizes({360, 420});
+        vertical->setStretchFactor(0, 1);
+        vertical->setStretchFactor(1, 1);
+        vertical->setSizes({1, 1});
         applyMetrics();
         connect(filter_, &QLineEdit::textChanged, this, [this](const QString& text) { proxy_->setFilterFixedString(text); updateConditions(); });
         // files_等の子ビューを構築してから入力監視を開始する。
@@ -1052,8 +1065,10 @@ public:
         navigate(target, false); if (state["mode"].isString()) setMode(state["mode"].toString());
         setAreaMode(state["areaMode"].toString("custom"));
         const auto sizes = state["areaSizes"].toArray();
-        if (areaMode_ == "custom" && sizes.size() == 2 && sizes[0].toInt() >= 0 && sizes[1].toInt() >= 0 && sizes[0].toInt() + sizes[1].toInt() > 0)
+        if (areaMode_ == "custom" && sizes.size() == 2 && sizes[0].toInt() >= 0 && sizes[1].toInt() >= 0 && sizes[0].toInt() + sizes[1].toInt() > 0) {
+            preferredColumnRatio_ = double(sizes[0].toInt()) / (sizes[0].toInt() + sizes[1].toInt());
             vertical_->setSizes({sizes[0].toInt(), sizes[1].toInt()});
+        }
         setProperty("pinned", state["pinned"].toBool()); setProperty("locationLocked", state["locked"].toBool());
     }
     /** @brief フォルダー/ファイル領域の比率だけを変更し、選択や一覧は再生成しない。 @param mode columns/balanced/files/custom。 */
@@ -1061,7 +1076,7 @@ public:
         areaMode_ = QStringList{"columns", "balanced", "files"}.contains(mode) ? mode : "custom";
         if (areaMode_ != "custom") {
             const int total = qMax(100, vertical_->height() - vertical_->handleWidth());
-            const double ratio = areaMode_ == "columns" ? 0.75 : areaMode_ == "files" ? 0.25 : 0.45;
+            const double ratio = preferredColumnRatio_ = areaMode_ == "columns" ? 0.75 : areaMode_ == "files" ? 0.25 : 0.5;
             vertical_->setSizes({int(total * ratio), int(total * (1.0 - ratio))});
         }
         emit layoutChanged();
@@ -1389,15 +1404,19 @@ private:
         const QString fontKey = font().toString() + '/' + QString::number(scale);
         QVector<int> widths;
         for (const auto& column : columns_) {
+            // 新しい列にもテーマの枠幅を確定してから測る。未polish時の0pxをキャッシュしない。
+            column.view->ensurePolished();
+            const int chrome = qRound(52 * scale) + qMax(
+                column.view->style()->pixelMetric(QStyle::PM_ScrollBarExtent) + 2 * column.view->frameWidth(),
+                column.view->width() - column.view->viewport()->width());
+            const QString widthKey = fontKey + '/' + QString::number(chrome);
             int width = column.view->property("contentWidth").toInt();
-            if (column.view->property("widthFont").toString() != fontKey) {
+            if (column.view->property("widthFont").toString() != widthKey) {
                 width = qRound(100 * scale);
                 // 縦スクロールバーが出ても文字が省略されないよう、その予約幅も含める。
-                const int chrome = qRound(52 * scale) + column.view->style()->pixelMetric(QStyle::PM_ScrollBarExtent)
-                    + 2 * column.view->frameWidth();
                 for (int row = 0; row < column.model->rowCount(); ++row)
                     width = qMax(width, column.view->fontMetrics().horizontalAdvance(column.model->item(row)->text()) + chrome);
-                column.view->setProperty("widthFont", fontKey); column.view->setProperty("contentWidth", width);
+                column.view->setProperty("widthFont", widthKey); column.view->setProperty("contentWidth", width);
             }
             const int desired = columnWidthMode_ == "names" ? manualWidths_.value(column.path, qMin(width, 1000)) : qMin(width, 320);
             widths.append(column.view->isHidden() ? 0 : desired);
@@ -1513,28 +1532,20 @@ private:
         }
         return QWidget::eventFilter(watched, event);
     }
-    /** @brief 一覧が潰れた時だけ、上段から2行分の表示領域を譲る。
-     * @note 最小サイズは設定せず、Mayaの低いドックでも親の縮小を妨げない。Qtの配置確定後に呼ぶ。
+    /** @brief 確定した領域高へ選択中の比率を適用し、低いドックでは一覧2行を優先する。
+     * @note ピクセル高を記憶すると起動中の仮サイズが後の配分を奪うため、比率だけを保持する。
+     * 最小サイズは設定せず、Mayaのドック縮小を妨げない。Qtの配置確定後に呼ぶ。
      */
     void keepFilesVisible() {
         if (!scroll_->isVisible() || (!files_->isVisible() && !thumbnails_->isVisible())) return;
-        const int rowHeight = qMax(files_->fontMetrics().height() + 8, files_->sizeHintForRow(0));
-        const int missing = rowHeight * 2 - (files_->isVisible() ? files_->viewport()->height() : thumbnails_->viewport()->height());
         const auto sizes = vertical_->sizes();
-        if (missing <= 0) {
-            // Qt5では親の再配分が先に上段を0にする場合がある。最後に収まった高さを
-            // 保持し、一覧2行を残せる分だけ復元する。手動の分割変更時は基準も更新する。
-            const int restore = qMin(-missing, qMax(0, preferredColumnHeight_ - sizes.value(0)));
-            if (restore > 0) vertical_->setSizes({sizes.value(0) + restore, sizes.value(1) - restore});
-            preferredColumnHeight_ = qMax(preferredColumnHeight_, sizes.value(0) + restore);
-            return;
-        }
-        const int available = qMax(0, sizes.value(0));
-        const int shift = qMin(missing, available);
-        if (shift > 0) {
-            preferredColumnHeight_ = qMax(preferredColumnHeight_, sizes.value(0));
-            vertical_->setSizes({sizes.value(0) - shift, sizes.value(1) + shift});
-        }
+        const int total = sizes.value(0) + sizes.value(1);
+        if (total <= 0) return;
+        const int viewportHeight = files_->isVisible() ? files_->viewport()->height() : thumbnails_->viewport()->height();
+        const int rowHeight = qMax(files_->fontMetrics().height() + 8, files_->sizeHintForRow(0));
+        const int minimumFiles = qMax(0, sizes.value(1) - viewportHeight) + rowHeight * 2;
+        const int columns = qBound(0, qRound(total * preferredColumnRatio_), qMax(0, total - minimumFiles));
+        if (sizes.value(0) != columns) vertical_->setSizes({columns, total - columns});
     }
     /** @brief 狭いドックでも名前を読める幅を残し、他の情報は横スクロールで確認する。 */
     void fitFileName() {
@@ -1590,8 +1601,8 @@ private:
     QScrollArea* scroll_;
     QSplitter* vertical_;
     QSplitter* lowerSplitter_ = nullptr;
-    int preferredColumnHeight_ = 0;
-    QString areaMode_ = "custom";
+    double preferredColumnRatio_ = 0.5;
+    QString areaMode_ = "balanced";
     QHBoxLayout* columnLayout_;
     FileTree* files_ = nullptr;
     FolderList* thumbnails_ = nullptr;
@@ -1987,7 +1998,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     fontKey(QKeySequence(Qt::CTRL | Qt::Key_Minus), [this] { textSize_ = qMax(10, textSize_ - 1); applyAppearance(); });
     bind(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T), [this] { reopenTab(); });
     bind(QKeySequence(Qt::CTRL | Qt::Key_W), [this] { emit tabs_->tabCloseRequested(tabs_->currentIndex()); });
-    if (host_.maya) theme_ = "dark";
+    if (host_.maya) theme_ = "maya";
     installCommandKeys();
     updatePlaces();
     applyAppearance();
@@ -2002,23 +2013,41 @@ bool BrowserWindow::busy() const { return jobs_->busy(); }
 void BrowserWindow::scheduleSave() { if (!restoring_ && saveTimer_) saveTimer_->start(); }
 QJsonObject BrowserWindow::standalonePlacement() const {
     WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};
-    if (!internalWinId() || !GetWindowPlacement(reinterpret_cast<HWND>(internalWinId()), &placement)) return {};
+    const auto handle = reinterpret_cast<HWND>(internalWinId());
+    if (!handle || !GetWindowPlacement(handle, &placement)) return {};
     const auto rect = placement.rcNormalPosition;
-    return {{"rect", QJsonArray{int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)}},
-            {"maximized", placement.showCmd == SW_SHOWMAXIMIZED || isMaximized()}};
+    const bool maximized = IsZoomed(handle) || placement.showCmd == SW_SHOWMAXIMIZED
+        || (IsIconic(handle) && (placement.flags & WPF_RESTORETOMAXIMIZED));
+    QJsonObject saved{{"rect", QJsonArray{int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)}}, {"maximized", maximized}};
+    if (!maximized && !IsIconic(handle)) {
+        RECT visible{}; MONITORINFO monitor{sizeof(MONITORINFO)};
+        if (GetWindowRect(handle, &visible) && GetMonitorInfoW(MonitorFromWindow(handle, MONITOR_DEFAULTTONEAREST), &monitor)) {
+            // スナップ中のrcNormalPositionはスナップ前の位置。現在の外枠を別に保持する。
+            // SetWindowPlacementは作業領域座標なので、画面座標のまま渡さない。
+            const bool toolWindow = (GetWindowLongPtrW(handle, GWL_EXSTYLE) & WS_EX_TOOLWINDOW) != 0;
+            const int dx = toolWindow ? 0 : monitor.rcWork.left - monitor.rcMonitor.left;
+            const int dy = toolWindow ? 0 : monitor.rcWork.top - monitor.rcMonitor.top;
+            saved["visibleRect"] = QJsonArray{int(visible.left) - dx, int(visible.top) - dy, int(visible.right) - dx, int(visible.bottom) - dy};
+        }
+    }
+    return saved;
 }
-void BrowserWindow::restoreStandalonePlacement(const QJsonObject& saved) {
-    const auto rect = saved["rect"].toArray();
-    if (rect.size() != 4 || rect[2].toInt() <= rect[0].toInt() || rect[3].toInt() <= rect[1].toInt()) return;
+bool BrowserWindow::restoreStandalonePlacement(const QJsonObject& saved) {
+    auto rect = saved["rect"].toArray();
+    const auto valid = [](const QJsonArray& value) { return value.size() == 4 && value[2].toInt() > value[0].toInt() && value[3].toInt() > value[1].toInt(); };
+    if (!saved["maximized"].toBool() && valid(saved["visibleRect"].toArray())) rect = saved["visibleRect"].toArray();
+    if (!valid(rect)) return false;
     // Qtの初期表示で枠が確定した後、同じWindows作業領域座標で戻す。
     QTimer::singleShot(0, this, [this, rect, maximized = saved["maximized"].toBool()] {
         const auto handle = reinterpret_cast<HWND>(internalWinId());
         WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};
         if (!handle || !isVisible() || !GetWindowPlacement(handle, &placement)) return;
         placement.rcNormalPosition = {rect[0].toInt(), rect[1].toInt(), rect[2].toInt(), rect[3].toInt()};
+        placement.flags = 0;
         placement.showCmd = maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
         SetWindowPlacement(handle, &placement);
     });
+    return true;
 }
 void BrowserWindow::saveSession() {
     if (restoring_ || !pages_->count()) return;
@@ -2036,7 +2065,7 @@ void BrowserWindow::saveSession() {
         workspace["secondVisible"] = !secondPane_->isHidden() || secondPane_->property("responsiveHidden").toBool();
         if (auto* second = secondPane_->findChild<BrowserPage*>("secondPage")) workspace["secondState"] = second->state();
     }
-    try { writeSettings({{host_.maya ? "nativeMayaWorkspace" : "nativeWorkspace", workspace}, {host_.maya ? "nativeMayaAppearance" : "nativeAppearance", QJsonObject{{"theme", theme_}, {"textSize", textSize_}, {"uiPercent", uiPercent_}, {"density", density_}}},
+    try { writeSettings({{host_.maya ? "nativeMayaWorkspace" : "nativeWorkspace", workspace}, {host_.maya ? "nativeMayaAppearance" : "nativeAppearance", QJsonObject{{"theme", theme_}, {"paletteVersion", 1}, {"textSize", textSize_}, {"uiPercent", uiPercent_}, {"density", density_}}},
         {"nativeHidden", hidden_}, {"nativeReadOptions", details_->options()}, {"pathHistory", QJsonArray::fromStringList(pathHistory_)}}); }
     catch (const std::exception& error) { setStatus(uiText("Settings not saved: ") + uiText(QString::fromUtf8(error.what()))); }
 }
@@ -2057,12 +2086,14 @@ void BrowserWindow::restoreSession(const QString& fallback, bool restoreTabs) {
         textSize_ = qBound(10, appearance["textSize"].toInt(state["nativeTextSize"].toInt(oldAppearance["fontSize"].toInt(12))), 24);
         uiPercent_ = qBound(75, appearance["uiPercent"].toInt(oldAppearance["uiPercent"].toInt(100)), 200);
         density_ = appearance["density"].toString(oldAppearance["density"].toString("compact"));
-        theme_ = appearance["theme"].toString(host_.maya ? "dark" : state["standaloneTheme"].toString("system")); hidden_ = state["nativeHidden"].toBool(state["showHidden"].toBool());
+        theme_ = appearanceTheme(appearance, host_.maya ? "maya" : state["standaloneTheme"].toString("maya")); hidden_ = state["nativeHidden"].toBool(state["showHidden"].toBool());
         details_->restore(readOptionsFromSettings(state)); closedTabs_ = workspace["closed"].toArray();
         if (!restoreTabs) addTab(fallback.isEmpty() ? QDir::homePath() : fallback);
         if (restoreTabs) for (const auto& value : workspace["states"].toArray()) {
             auto tab = value.toObject(); if (tab["path"].toString().isEmpty()) continue;
             if (!legacyLayout.isEmpty()) { tab["areaMode"] = legacyLayout["browserMode"]; tab["areaSizes"] = legacyLayout["vertical"]; }
+            // 起動時は以前の極端な配分を再適用せず、上下を均等に開始する。
+            tab["areaMode"] = "balanced";
             addTab(tab["path"].toString()); page()->restoreState(tab);
         }
         if (!pages_->count()) for (const auto& value : workspace["paths"].toArray()) if (value.isString() && !value.toString().isEmpty()) addTab(value.toString());
@@ -2073,14 +2104,15 @@ void BrowserWindow::restoreSession(const QString& fallback, bool restoreTabs) {
         }
         if (!pages_->count()) addTab(fallback.isEmpty() ? state["lastPath"].toString(QDir::homePath()) : fallback);
         tabs_->setCurrentIndex(qBound(0, workspace["current"].toInt(), tabs_->count() - 1));
-        if (!host_.maya && workspace.contains("geometry")) restoreGeometry(QByteArray::fromBase64(workspace["geometry"].toString().toLatin1()));
-        else if (!host_.maya && legacyLayout["size"].toArray().size() == 2) {
+        // Qt geometryは標準タイトルバーの寸法を前提とするため、ネイティブ配置と二重適用しない。
+        const bool nativePlacement = !host_.maya && !parentWidget() && restoreStandalonePlacement(workspace["windowPlacement"].toObject());
+        if (!nativePlacement && !host_.maya && workspace.contains("geometry")) restoreGeometry(QByteArray::fromBase64(workspace["geometry"].toString().toLatin1()));
+        else if (!nativePlacement && !host_.maya && legacyLayout["size"].toArray().size() == 2) {
             const auto size = legacyLayout["size"].toArray(); resize(qBound(320, size[0].toInt(1200), 3000), qBound(240, size[1].toInt(800), 2000));
         }
-        if (!host_.maya && !parentWidget()) restoreStandalonePlacement(workspace["windowPlacement"].toObject());
         if (workspace.contains("secondState")) {
             if (!secondPane_) perform("secondPane");
-            if (auto* second = secondPane_->findChild<BrowserPage*>("secondPage")) second->restoreState(workspace["secondState"].toObject());
+            if (auto* second = secondPane_->findChild<BrowserPage*>("secondPage")) { auto state = workspace["secondState"].toObject(); state["areaMode"] = "balanced"; second->restoreState(state); }
             secondPane_->setVisible(workspace["secondVisible"].toBool());
         }
         // 旧版の3分割(左/中央/右)は新しい2分割へ適用しない。タブ・表示状態はそのまま復元する。
@@ -2109,6 +2141,7 @@ void BrowserWindow::updatePlaces() {
         }
     };
     group("Favorites", favorites_); group("Recent", recents_);
+    auto* libraries = new QTreeWidgetItem(sidebar_, {uiText("Libraries")}); libraries->setExpanded(true);
     const struct { const KNOWNFOLDERID* id; const char* label; } folders[] = {
         {&FOLDERID_Desktop, "Desktop"}, {&FOLDERID_Documents, "Documents"}, {&FOLDERID_Downloads, "Downloads"},
         {&FOLDERID_Pictures, "Pictures"}, {&FOLDERID_Music, "Music"}, {&FOLDERID_Videos, "Videos"}
@@ -2121,7 +2154,7 @@ void BrowserWindow::updatePlaces() {
         const auto path = SUCCEEDED(result) && registered ? QDir::cleanPath(QDir::fromNativeSeparators(QString::fromWCharArray(registered))) : QString();
         CoTaskMemFree(registered);
         if (path.isEmpty()) continue;
-        auto* item = new QTreeWidgetItem(sidebar_, {uiText(QString::fromLatin1(folder.label))});
+        auto* item = new QTreeWidgetItem(libraries, {uiText(QString::fromLatin1(folder.label))});
         item->setData(0, PathRole, path); item->setData(0, DirectoryRole, true);
         item->setToolTip(0, QDir::toNativeSeparators(path)); item->setIcon(0, nativeFolderIcon());
     }
@@ -2231,7 +2264,7 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
         if (QStringList{"search", "duplicates", "compare", "size", "hash", "diagnose"}.contains(action)) { query(action); return; }
         if (action == "startFolder") { if (page()) page()->setStartFolder(paths.value(0)); return; }
         if (action == "exportSettings") { const auto file = QFileDialog::getSaveFileName(this, uiText("Export QPE settings"), {}, "JSON (*.json)"); if (!file.isEmpty()) { const auto include = UiMessageBox::question(this, uiText("Export settings"), uiText("Include computer-specific paths, favorites, tags and saved searches?"), QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::No); if (include != QMessageBox::Cancel) exportPreferences(file, include == QMessageBox::Yes); } return; }
-        if (action == "importSettings") { const auto file = QFileDialog::getOpenFileName(this, uiText("Import QPE settings"), {}, "JSON (*.json)"); if (!file.isEmpty() && UiMessageBox::question(this, uiText("Import settings"), uiText("Replace matching QPE settings?"), QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) == QMessageBox::Yes) { importPreferences(file); const auto state = readSettings(); const auto appearance = state[host_.maya ? "nativeMayaAppearance" : "nativeAppearance"].toObject(); const auto legacy = state[host_.maya ? "mayaAppearance" : "standaloneAppearance"].toObject(); textSize_ = qBound(10, appearance["textSize"].toInt(legacy["fontSize"].toInt(textSize_)), 24); theme_ = appearance["theme"].toString(host_.maya ? theme_ : state["standaloneTheme"].toString(theme_)); uiPercent_ = qBound(75, appearance["uiPercent"].toInt(legacy["uiPercent"].toInt(uiPercent_)), 200); density_ = appearance["density"].toString(legacy["density"].toString(density_)); applyAppearance(); installCommandKeys(); updatePlaces(); } return; }
+        if (action == "importSettings") { const auto file = QFileDialog::getOpenFileName(this, uiText("Import QPE settings"), {}, "JSON (*.json)"); if (!file.isEmpty() && UiMessageBox::question(this, uiText("Import settings"), uiText("Replace matching QPE settings?"), QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) == QMessageBox::Yes) { importPreferences(file); const auto state = readSettings(); const auto appearance = state[host_.maya ? "nativeMayaAppearance" : "nativeAppearance"].toObject(); const auto legacy = state[host_.maya ? "mayaAppearance" : "standaloneAppearance"].toObject(); textSize_ = qBound(10, appearance["textSize"].toInt(legacy["fontSize"].toInt(textSize_)), 24); theme_ = appearanceTheme(appearance, host_.maya ? theme_ : state["standaloneTheme"].toString(theme_)); uiPercent_ = qBound(75, appearance["uiPercent"].toInt(legacy["uiPercent"].toInt(uiPercent_)), 200); density_ = appearance["density"].toString(legacy["density"].toString(density_)); applyAppearance(); installCommandKeys(); updatePlaces(); } return; }
         if (action == "saveTabs" || action == "loadTabs" || action == "deleteTabs") {
             const auto settings = readSettings(); auto sets = settings.contains("nativeTabSets") ? settings["nativeTabSets"].toObject() : settings["tabSets"].toObject(); bool ok = false;
             const auto name = action == "saveTabs" ? UiInputDialog::getText(this, uiText("Save tab set"), uiText("Name"), QLineEdit::Normal, {}, &ok)
@@ -2614,11 +2647,12 @@ void BrowserWindow::applyAppearance() {
     setStyleSheet(QString());
     QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
     const bool light = theme_ == "finder" || theme_ == "light" || (theme_ == "system" && settings.value("AppsUseLightTheme", 1).toInt());
-    const bool mayaDark = host_.maya && !light;
-    const QString window = light ? "#f9f9f9" : mayaDark ? "#30343a" : "#222222", base = light ? "#ffffff" : mayaDark ? "#22262b" : "#191919";
-    const QString text = light ? "#1a1a1a" : "#f2f2f2", border = light ? "#e5e5e5" : mayaDark ? "#535b65" : "#383838";
-    const QString selection = light ? "#d9d9d9" : mayaDark ? "#365b79" : "#505050", alternate = light ? "#fafafa" : mayaDark ? "#272c32" : "#1d1d1d";
-    const QString menuHighlight = light ? "#ededed" : "#353535", menuDisabled = light ? "#757575" : "#999999";
+    const bool mayaStyle = host_.maya || theme_ == "maya";
+    const bool mayaDark = mayaStyle && !light;
+    const QString window = light ? "#f9f9f9" : mayaDark ? "#444444" : "#222222", base = light ? "#ffffff" : mayaDark ? "#2b2b2b" : "#191919";
+    const QString text = light ? "#1a1a1a" : "#f2f2f2", border = light ? "#e5e5e5" : mayaDark ? "#666666" : "#383838";
+    const QString selection = light ? "#d9d9d9" : mayaDark ? "#365b79" : "#505050", alternate = light ? "#fafafa" : mayaDark ? "#323232" : "#1d1d1d";
+    const QString menuHighlight = light ? "#ededed" : mayaDark ? "#5d5d5d" : "#353535", menuDisabled = light ? "#757575" : "#999999";
     QFont font = QApplication::font();
     // 12pxを標準として、文字と操作部品へ同じ倍率を適用する。
     const qreal scale = appearanceScale();
@@ -2628,9 +2662,9 @@ void BrowserWindow::applyAppearance() {
     static_cast<NavigationTabs*>(tabs_)->setScale(scale);
     const int rowHeight = qMax(qRound((density_ == "comfortable" ? 28 : 24) * scale), QFontMetrics(font).height() + qRound(6 * scale));
     setProperty("qpeUiScale", scale); setProperty("qpeRowHeight", rowHeight);
-    setProperty("qpeSecondaryText", host_.maya ? (light ? "#555d67" : "#b8c2ce") : QString());
+    setProperty("qpeSecondaryText", mayaStyle ? (light ? "#555d67" : "#c8c8c8") : QString());
     for (auto* view : findChildren<QAbstractItemView*>()) {
-        view->setProperty("qpeSecondaryText", host_.maya ? (light ? "#555d67" : "#b8c2ce") : QString());
+        view->setProperty("qpeSecondaryText", mayaStyle ? (light ? "#555d67" : "#c8c8c8") : QString());
         view->setProperty("qpeRowHeight", rowHeight);
         view->setProperty("qpeUiScale", scale);
         if (view->objectName() != "thumbnails") view->setIconSize(QSize(px(16), px(16)));
@@ -2638,7 +2672,7 @@ void BrowserWindow::applyAppearance() {
     auto colors = palette();
     colors.setColor(QPalette::Window, QColor(window)); colors.setColor(QPalette::WindowText, QColor(text));
     colors.setColor(QPalette::Base, QColor(base)); colors.setColor(QPalette::Text, QColor(text));
-    colors.setColor(QPalette::Button, QColor(window)); colors.setColor(QPalette::ButtonText, QColor(text));
+    colors.setColor(QPalette::Button, QColor(mayaDark ? "#5d5d5d" : window)); colors.setColor(QPalette::ButtonText, QColor(text));
     colors.setColor(QPalette::Highlight, QColor(selection)); colors.setColor(QPalette::HighlightedText, QColor(text));
     colors.setColor(QPalette::AlternateBase, QColor(alternate));
     // ホストがダークでも、明示ライト表示の容量バー背景を暗色で残さない。
@@ -2678,11 +2712,11 @@ void BrowserWindow::applyAppearance() {
                   "QScrollBar:vertical { width:%5px; } QScrollBar:horizontal { height:%5px; }"
                   "QScrollBar::handle { min-height:%6px; min-width:%6px; }")
             .arg(px(6)).arg(px(2)).arg(px(7)).arg(px(3)).arg(qMax(6, px(8))).arg(px(24)).arg(px(18)));
-    if (host_.maya) {
+    if (mayaStyle) {
         // 外周・領域・フォーカスはQPE所有ウィジェットだけで描き、Mayaのパレットを変更しない。
         const QString accent = light ? "#2673a6" : "#70b8e8";
         const QString current = light ? "#cce5f5" : "#285f85";
-        const QString ancestor = light ? "#e0e5ea" : "#414953";
+        const QString ancestor = light ? "#e0e5ea" : "#535353";
         setStyleSheet(styleSheet() + QString(
             "QWidget#qpeNativeWindow { border:1px solid %1; }"
             "QTreeView#places { background:%2; border-right:1px solid %1; }"
@@ -2696,7 +2730,7 @@ void BrowserWindow::applyAppearance() {
             "QListView#folderColumn[qpeCurrentBranch=\"true\"]::item:selected { background:%5; }"
             "QHeaderView::section { background:%2; color:%6; }"
             "QTabBar#folderTabs::tab:selected { border-top:2px solid %3; }"
-        ).arg(border, window, accent, ancestor, current, light ? "#555d67" : "#b8c2ce"));
+        ).arg(border, window, accent, ancestor, current, light ? "#555d67" : "#c8c8c8"));
     }
     // stylesheet再適用時に保持される子の旧パレットも更新する。
     // ホストや他ツールのパレットは変更せず、自分の所有するウィジェットだけに配布する。

@@ -84,7 +84,7 @@ void importPreferences(const QString& path) {
     }
     for (const auto& key : {"nativeMayaAppearance", "nativeAppearance"}) {
         const auto appearance = values[key].toObject(); checkInteger(appearance, "textSize", 10, 24);
-        if (appearance.contains("theme") && !QStringList{"system", "dark", "light"}.contains(appearance["theme"].toString())) throw std::invalid_argument("Invalid theme");
+        if (appearance.contains("theme") && !QStringList{"maya", "system", "dark", "light", "finder"}.contains(appearance["theme"].toString())) throw std::invalid_argument("Invalid theme");
     }
     // 関連付けアプリを使う現在の仕様では、旧版の独自ビューアーパスを復活させない。
     values.remove("previewExecutable"); writeSettings(values);

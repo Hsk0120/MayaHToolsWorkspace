@@ -140,6 +140,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -199,6 +202,18 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-11-22): ユーザーのpush依頼により、QPEの上下均等・メニュー中央フロート・共通Mayaグレー・Windows配置復元・ライブラリ分類を関連文書/テスト/Windows exe/年別mllとまとめてコミット対象へ選定。既存の検証記録と配布7バイナリのSHA256一致を再確認。他担当の変更は含めない。
+
+- Codex (2026-11-22): QPEのWindows標準6フォルダーをRecent下の折りたためる「ライブラリ」へ集約(日英)。登録先・Shellアイコン・移動を維持。関連C++テスト2件(初期化/終了込み4件)合格、Maya 2022/2027のQt GUIで日文表示・開閉各9確認合格、Sphinx警告なし。Windows exe/2022〜2027 mllを再ビルド・反映しハッシュ一致。2023〜2026実機操作は未実施。証拠は`.maya-output/qpe-libraries-20261122/`、録画はQtプログラム操作・Qt描画。コミット/pushなし。
+
+- Codex (2026-11-22): Windows QPEの配置復元を修正(src/browser・tests・README・exe)。スナップ前の通常復帰rectとは別に実表示visibleRectを作業領域座標で保存し、ネイティブ配置とQt geometryの二重復元を解消。OS最大化後の最小化終了も最大化状態を保持。修正前の四隅復元失敗を再現し、修正後は四隅各3回・最大化/最小化・旧配置互換を検証。回帰141合格/3環境skip。Computer Use実マウス移動/最大化/Alt+F4後、別exeプロセスの位置・最大化一致を確認。Winキー実入力/スナップグループ/モニター構成・DPI変更は未確認。Windows exeを退避後に通常配置へ反映しSHA一致、Maya固有処理は変更なし。証拠.maya-output/qpe-snap-restore-20261122/。Qt/Win32配置回帰の描画動画を既存Driveへ非公開保存しURL/権限を確認: https://drive.google.com/file/d/1rcpzBKfnRlnWdSPZHhbpMRE1_wT_gEUc/view 。未コミット・未push。
+
+- Codex (2026-11-22): QPEの標準配色をMaya/Windows共通のMayaグレーへ変更(外周#444444・一覧#2b2b2b)。旧dark/system設定を一度だけ移行し、その後の明示テーマ選択は維持。テーマ枠幅を含むカラム幅キャッシュを修正し、他ウィンドウのフォーカス回帰テストは表示完了を待つよう調整。C++回帰140件合格・3件環境条件skip、Sphinx警告0。専用Maya2022/2027各6確認で設定移行・左右ペイン・選択・ホストパレット不変・保存を確認(Qtプログラム操作、実OS入力ではない)。Windows exeとMaya2022〜2027 mllを退避後に反映・SHA照合。2023〜2026 GUIは未実施。証拠.maya-output/qpe-gray-theme-20261122/。動画 https://drive.google.com/file/d/1aGK_e1v5Jhj4DBY1TAf_3dT64OfLrn68/view と画像2件を既存Driveへ非公開保存しURL/ownerのみの権限を読み戻し。未コミット・未push。
+
+| Codex | 2026-11-22 | QPE メニュー起動の中央フロート化 | Windowsメニュー専用-menu入口で保存位置/ドックを使わず既定1200×800・上下均等へ。フォルダー/設定と起動時復元を維持。復元予約の世代管理、Mayaの枠確定後14pxずれ補正。Maya2022/2027で実登録メニューコマンドによるGUI内Qt各6ケース成功(移動済み/ドック/非表示/連打/起動復元保持)、startup単体7成功、Sphinx成功。2022〜2027 mll配置/SHA一致、復旧コピーあり。証拠 .maya-output/qpe-menu-center-20261122、非公開Drive動画1tOWDUzu0Hz0QjWOMWDdRTvqhHPgzUyDA。実マウスメニュー選択/2023〜2026 GUIは未実施。未コミット。 |
+
+| Codex | 2026-11-22 | QPE 上下50:50 | 起動時に保存済みの極端な配分を戻さず均等化。高さ固定の復元を比率へ変更し、手動配分・低いドックの一覧優先は維持。静的Qt139合格/3skip、Sphinx成功。Maya2027は実マウス下部ドック縮小/拡大(132:131→248:248)、2022はQtフロート3ケース成功。2022専用prefsのドック全体0高と画面取得失敗により下部ドックは未確認。exe/2022〜2027 mll配置・SHA256一致、復旧コピーあり。証拠 .maya-output/qpe-balanced-20261122、Drive動画1vfysK3HtLgDODh3fAD1wjOGa6PK-XQLD。未コミット。 |
 
 - Claude Code (2026-11-22): Gitで管理しない手元だけのツールが自分の .mod を持てるようにした。起動バッチ(`maya/maya_core.bat`・`maya_core.command`)が `maya/external/<名前>/workspace_modules` をMAYA_MODULE_PATHへ足す。再配布できないツールはsubmoduleにせず、フォルダーごと `.gitignore` で対象外にして、説明・設定・起動処理もその中に置く。Maya 2022〜2027のGUIで読み込みを確認。macOSの `.command` は未実行。
 

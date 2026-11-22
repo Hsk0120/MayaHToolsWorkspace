@@ -70,6 +70,7 @@
 #include "../src/core/media_decoder.h"
 #include "../third_party/miniz/miniz.h"
 #include <QImage>
+#include <QPainter>
 #include <QStyleOptionFrame>
 #include <QStandardPaths>
 #include <QImageReader>
@@ -223,7 +224,11 @@ private slots:
         window.resize(1200, 600); window.show(); QTRY_VERIFY(window.ready());
         const auto columns = window.findChildren<QListView*>("folderColumn"); QCOMPARE(columns.size(), 1);
         auto* column = columns.first(); QTRY_VERIFY(column->verticalScrollBar()->isVisible());
-        QTRY_VERIFY(column->viewport()->width() >= column->fontMetrics().horizontalAdvance("Folder_00") + 52);
+        QTRY_VERIFY2(column->viewport()->width() >= column->fontMetrics().horizontalAdvance("Folder_00") + 52,
+            qPrintable(QString("viewport=%1 required=%2 frame=%3 scrollbar=%4 cached=%5 width=%6 key=%7 font=%8")
+                .arg(column->viewport()->width()).arg(column->fontMetrics().horizontalAdvance("Folder_00") + 52)
+                .arg(column->frameWidth()).arg(column->verticalScrollBar()->width()).arg(column->property("contentWidth").toInt())
+                .arg(column->width()).arg(column->property("widthFont").toString()).arg(column->font().toString())));
         window.close();
     }
     /** @brief UNCの親検査は共有内を保持し、サーバー自体をファイルとして検査しない。 */
@@ -484,24 +489,37 @@ private slots:
         });
         window.findChild<QToolButton*>("toolsButton")->click(); QVERIFY(seen); window.close();
     }
-    /** @brief 標準フォルダーはRecent直下で登録先を指し、移動後も選択を維持する。 */
+    /** @brief 標準フォルダーをRecent下のライブラリへまとめ、折りたたみと登録先への移動を保つ。 */
     void userFoldersSidebar() {
         qpe::BrowserWindow window; window.navigate(path("A")); window.show();
         auto* places = window.findChild<QTreeWidget*>("places"); QVERIFY(places);
         QCOMPARE(places->topLevelItem(1)->text(0), QString("Recent"));
-        auto* desktop = places->topLevelItem(2); QCOMPARE(desktop->text(0), QString("Desktop"));
-        QCOMPARE(places->topLevelItem(8)->text(0), QString("Drives"));
+        QCOMPARE(places->topLevelItemCount(), 4);
+        auto* libraries = places->topLevelItem(2); QCOMPARE(libraries->text(0), QString("Libraries"));
+        QVERIFY(libraries->data(0, Qt::UserRole + 1).toString().isEmpty());
+        QCOMPARE(libraries->childCount(), 6); QVERIFY(libraries->isExpanded());
+        auto* desktop = libraries->child(0); QCOMPARE(desktop->text(0), QString("Desktop"));
+        QCOMPARE(places->topLevelItem(3)->text(0), QString("Drives"));
         QCOMPARE(desktop->data(0, Qt::UserRole + 1).toString(), QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::DesktopLocation)));
-        auto* documents = places->topLevelItem(3); QCOMPARE(documents->text(0), QString("Documents"));
+        auto* documents = libraries->child(1); QCOMPARE(documents->text(0), QString("Documents"));
         QCOMPARE(documents->data(0, Qt::UserRole + 1).toString(), QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)));
-        for (int row = 2; row < 8; ++row) {
-            QVERIFY(places->topLevelItem(row)->data(0, Qt::UserRole + 2).toBool());
-            QVERIFY(!places->topLevelItem(row)->icon(0).isNull());
-            QCOMPARE(places->topLevelItem(row)->childCount(), 0);
+        const QStringList labels{"Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos"};
+        for (int row = 0; row < labels.size(); ++row) {
+            QCOMPARE(libraries->child(row)->text(0), labels[row]);
+            QVERIFY(libraries->child(row)->data(0, Qt::UserRole + 2).toBool());
+            QVERIFY(!libraries->child(row)->icon(0).isNull());
+            QCOMPARE(libraries->child(row)->childCount(), 0);
         }
         const auto desktopIcon = desktop->icon(0).cacheKey();
         auto* toggle = window.findChild<QToolButton*>("navigationPaneButton"); toggle->click();
         QTRY_VERIFY_WITH_TIMEOUT(desktop->icon(0).cacheKey() != desktopIcon, 10000);
+        places->setCurrentItem(libraries);
+        QTest::keyClick(places, Qt::Key_Left);
+        QVERIFY(!libraries->isExpanded()); QVERIFY(places->visualItemRect(desktop).isEmpty());
+        emit places->itemClicked(libraries, 0);
+        QCOMPARE(window.currentPath(), qpe::DirectoryStore::normalized(path("A")));
+        QTest::keyClick(places, Qt::Key_Right);
+        QVERIFY(libraries->isExpanded()); QVERIFY(!places->visualItemRect(desktop).isEmpty());
         for (int cycle = 0; cycle < 20; ++cycle) {
             toggle->click(); QTest::qWait(20);
             toggle->click(); QTest::qWait(20);
@@ -2208,6 +2226,47 @@ private slots:
         recorder.stop();
         window.close();
     }
+    /** @brief 両ホストの標準グレー、旧設定の移行と明示テーマの保持を確認する。 */
+    void sharedMayaGrayTheme() {
+        const auto before = qpe::readSettings();
+        const auto cleanup = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        const auto globalPalette = QApplication::palette();
+        for (bool maya : {false, true}) {
+            const QString key = maya ? "nativeMayaAppearance" : "nativeAppearance";
+            for (const QString previous : {QString(), QString("dark"), QString("system")}) {
+                qpe::saveJson(qpe::settingsPath(), {{key, previous.isEmpty() ? QJsonObject{} : QJsonObject{{"theme", previous}}}});
+                qpe::HostServices host; host.maya = maya;
+                qpe::BrowserWindow window(nullptr, host); window.restoreSession(path("A"), false);
+                window.resize(1200, 800); window.show(); QTRY_VERIFY(window.ready());
+                QCOMPARE(window.palette().color(QPalette::Window), QColor("#444444"));
+                auto* files = window.findChild<QTreeView*>("files");
+                QCOMPARE(files->palette().color(QPalette::Base), QColor("#2b2b2b"));
+                QCOMPARE(files->palette().color(QPalette::AlternateBase), QColor("#323232"));
+                QVERIFY(files->palette().color(QPalette::Text).lightness() > 200);
+                QCOMPARE(QApplication::palette(), globalPalette);
+                const auto evidence = qEnvironmentVariable("QPE_THEME_EVIDENCE");
+                if (!evidence.isEmpty() && previous.isEmpty()) {
+                    files->setCurrentIndex(files->model()->index(0, 0));
+                    window.grab().save(evidence + (maya ? "/maya-host-mode.png" : "/windows.png"));
+                }
+                window.close();
+                const auto saved = qpe::readSettings()[key].toObject();
+                QCOMPARE(saved["theme"].toString(), QString("maya"));
+                QCOMPARE(saved["paletteVersion"].toInt(), 1);
+            }
+        }
+        // 移行後に明示したWindows Darkは再起動でも黒系のまま維持する。
+        qpe::saveJson(qpe::settingsPath(), {{"nativeAppearance", QJsonObject{{"theme", "dark"}, {"paletteVersion", 1}}}});
+        {
+            qpe::BrowserWindow window; window.restoreSession(path("A"), false);
+            QCOMPARE(window.palette().color(QPalette::Base), QColor("#191919"));
+            window.close();
+        }
+        qpe::writeSettings({{"nativeAppearance", QJsonObject{{"theme", "maya"}, {"paletteVersion", 1}}}});
+        const auto exported = path("maya-theme-preferences.json");
+        qpe::exportPreferences(exported); qpe::importPreferences(exported);
+        QCOMPARE(qpe::readSettings()["nativeAppearance"].toObject()["theme"].toString(), QString("maya"));
+    }
     /** @brief Maya単一タブの省略・復元と現在地色を検証し、外部Qtへ配色を漏らさない。 */
     void mayaVisualHierarchy() {
         const auto before = qpe::readSettings();
@@ -2517,7 +2576,7 @@ private slots:
         }
         qpe::saveJson(qpe::settingsPath(), {});
     }
-    /** @brief 上下比率の切替が選択を保持し、閉じて再生成しても復元される。 */
+    /** @brief 上下比率は使用中に変更でき、次回起動では均等に戻る。 */
     void areaLayoutPersistence() {
         qpe::saveJson(qpe::settingsPath(), {});
         {
@@ -2538,13 +2597,41 @@ private slots:
         {
             qpe::BrowserWindow window; window.restoreSession(); window.show(); QTRY_VERIFY(window.ready());
             auto* vertical = window.findChild<QSplitter*>("browserVertical"); QVERIFY(vertical);
-            QTRY_VERIFY(vertical->sizes()[0] < vertical->sizes()[1]);
-            const auto sizes = saved["areaSizes"].toArray();
-            const double before = double(sizes[0].toInt()) / (sizes[0].toInt() + sizes[1].toInt());
-            const double after = double(vertical->sizes()[0]) / (vertical->sizes()[0] + vertical->sizes()[1]);
-            QVERIFY(qAbs(before - after) < 0.08);
+            QTRY_VERIFY(qAbs(vertical->sizes()[0] - vertical->sizes()[1]) <= 1);
         }
         qpe::saveJson(qpe::settingsPath(), {});
+    }
+    /** @brief 極端な保存高と起動時の仮サイズが、復元後の上下均等表示へ混入しない。 */
+    void balancedStartupAndResize() {
+        const auto before = qpe::readSettings();
+        for (bool maya : {false, true}) {
+            for (int oldTop : {0, 999}) {
+                qpe::HostServices host; host.maya = maya;
+                const QString key = maya ? "nativeMayaWorkspace" : "nativeWorkspace";
+                qpe::saveJson(qpe::settingsPath(), {{key, QJsonObject{{"states", QJsonArray{
+                    QJsonObject{{"path", path("A")}, {"areaMode", "custom"}, {"areaSizes", QJsonArray{oldTop, 1000 - oldTop}}}}}}}});
+                qpe::BrowserWindow window(nullptr, host);
+                window.resize(1100, 120); window.restoreSession(); window.show();
+                QTRY_VERIFY(window.ready());
+                auto* split = window.findChild<QSplitter*>("browserVertical"); QVERIFY(split);
+                auto* files = window.findChild<QTreeView*>("files"); QVERIFY(files);
+                for (int height : {800, 350, 900}) {
+                    window.resize(1100, height);
+                    QTRY_VERIFY(qAbs(split->sizes()[0] - split->sizes()[1]) <= 1);
+                    QVERIFY(files->viewport()->height() > files->fontMetrics().height() * 2);
+                }
+                window.resize(1100, 160); QTest::qWait(80);
+                QVERIFY(split->sizes()[1] >= split->sizes()[0]);
+                window.hide(); window.resize(1100, 700); window.show();
+                QTRY_VERIFY(qAbs(split->sizes()[0] - split->sizes()[1]) <= 1);
+                // 手動の境界は、非同期一覧更新やリサイズで均等へ巻き戻さない。
+                split->setSizes({200, 400}); emit split->splitterMoved(split->sizes()[0], 1);
+                window.resize(1100, 900); window.refresh(); QTRY_VERIFY(window.ready());
+                QTRY_VERIFY(qAbs(double(split->sizes()[0]) / (split->sizes()[0] + split->sizes()[1]) - 1.0 / 3.0) < 0.02);
+                window.close();
+            }
+        }
+        qpe::saveJson(qpe::settingsPath(), before);
     }
     /** @brief URLドロップのコピー/Shift移動/UndoとリモートURL拒否。Qtイベントによる検証。 */
     void fileDrops() {
@@ -3080,6 +3167,69 @@ private slots:
             }
         }
     }
+    /** @brief スナップの表示位置と通常復帰位置が違っても、閉じた画面位置を復元する。 */
+    void standaloneSnapPlacement() {
+        const auto before = qpe::readSettings();
+        const auto cleanup = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        qpe::saveJson(qpe::settingsPath(), {});
+        QJsonObject seed;
+        MONITORINFO monitor{sizeof(MONITORINFO)};
+        const auto evidence = qEnvironmentVariable("QPE_SNAP_EVIDENCE");
+        int frameNumber = 0;
+        const auto capture = [&](qpe::BrowserWindow& window, const QString& label) {
+            if (evidence.isEmpty()) return;
+            QDir().mkpath(evidence);
+            RECT frame{}; GetWindowRect(reinterpret_cast<HWND>(window.winId()), &frame);
+            QImage canvas(monitor.rcWork.right - monitor.rcWork.left, monitor.rcWork.bottom - monitor.rcWork.top + 60, QImage::Format_RGB32);
+            canvas.fill(QColor("#161616")); QPainter painter(&canvas);
+            painter.drawPixmap(QRect(frame.left - monitor.rcWork.left, frame.top - monitor.rcWork.top, frame.right - frame.left, frame.bottom - frame.top), window.grab());
+            painter.fillRect(0, canvas.height() - 60, canvas.width(), 60, QColor("#161616"));
+            auto font = painter.font(); font.setPixelSize(25); painter.setFont(font); painter.setPen(Qt::white);
+            painter.drawText(20, canvas.height() - 20, "Qt / Win32 placement regression: " + label); painter.end();
+            canvas.save(evidence + QString("/frame-%1.png").arg(frameNumber++, 5, 10, QChar('0')));
+        };
+        {
+            qpe::BrowserWindow window; window.restoreSession(path("A"), false); window.show(); QTRY_VERIFY(window.ready());
+            const auto handle = reinterpret_cast<HWND>(window.winId());
+            QVERIFY(GetMonitorInfoW(MonitorFromWindow(handle, MONITOR_DEFAULTTONEAREST), &monitor));
+            QVERIFY(SetWindowPos(handle, nullptr, monitor.rcWork.left + 60, monitor.rcWork.top + 70, 600, 400, SWP_NOZORDER));
+            window.close(); seed = qpe::readSettings();
+        }
+        const int width = (monitor.rcWork.right - monitor.rcWork.left) / 2;
+        const int height = (monitor.rcWork.bottom - monitor.rcWork.top) / 2;
+        for (int quadrant = 0; quadrant < 4; ++quadrant) {
+            const int left = monitor.rcWork.left + (quadrant % 2) * width;
+            const int top = monitor.rcWork.top + (quadrant / 2) * height;
+            const int dx = monitor.rcWork.left - monitor.rcMonitor.left;
+            const int dy = monitor.rcWork.top - monitor.rcMonitor.top;
+            auto settings = seed; auto workspace = settings["nativeWorkspace"].toObject();
+            auto placement = workspace["windowPlacement"].toObject();
+            // OSスナップでは通常復帰rectと実表示が異なる。Qt geometryも古い通常サイズに残す。
+            placement["visibleRect"] = QJsonArray{left - dx, top - dy, left + width - dx, top + height - dy};
+            placement["maximized"] = false; workspace["windowPlacement"] = placement;
+            settings["nativeWorkspace"] = workspace; qpe::saveJson(qpe::settingsPath(), settings);
+            for (int repeat = 0; repeat < 3; ++repeat) {
+                qpe::BrowserWindow window; window.restoreSession(path("A"), false); window.show(); QTRY_VERIFY(window.ready());
+                const auto handle = reinterpret_cast<HWND>(window.winId());
+                const auto actual = [handle] { RECT r{}; GetWindowRect(handle, &r); return QRect(r.left, r.top, r.right - r.left, r.bottom - r.top); };
+                QTRY_COMPARE(actual(), QRect(left, top, width, height));
+                capture(window, QString("corner %1, reopen %2").arg(quadrant + 1).arg(repeat + 1));
+                QVERIFY(!IsZoomed(handle)); window.close();
+                QVERIFY(qpe::readSettings()["nativeWorkspace"].toObject()["windowPlacement"].toObject().contains("visibleRect"));
+            }
+        }
+        // OSからの最大化と、その後の最小化終了でも最大化で再開する。
+        qpe::saveJson(qpe::settingsPath(), seed);
+        for (int repeat = 0; repeat < 3; ++repeat) {
+            qpe::BrowserWindow window; window.restoreSession(path("A"), false); window.show(); QTRY_VERIFY(window.ready());
+            const auto handle = reinterpret_cast<HWND>(window.winId());
+            if (!repeat) SendMessageW(handle, WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+            QTRY_VERIFY(IsZoomed(handle));
+            capture(window, QString("maximized, reopen %1").arg(repeat + 1));
+            if (repeat == 1) { SendMessageW(handle, WM_SYSCOMMAND, SC_MINIMIZE, 0); QTRY_VERIFY(IsIconic(handle)); }
+            window.close();
+        }
+    }
     /** @brief タブがあふれる狭幅でもドラッグ用のWindowsキャプションを残す。 */
     void crowdedTabsLeaveNativeDragSpace() {
         qpe::BrowserWindow window;
@@ -3139,7 +3289,9 @@ private slots:
         currentFiles = pages->currentWidget()->findChild<QTreeView*>("files");
         QTRY_VERIFY(currentFiles->hasFocus());
         // 他の入力欄で作業中のプログラム呼出しはフォーカスを変更しない。
-        QLineEdit other; other.show(); other.activateWindow(); other.setFocus();
+        QLineEdit other; other.show();
+        // Windowsで未表示のHWNDへ行ったactivateが失われないよう、表示完了を先に待つ。
+        QVERIFY(QTest::qWaitForWindowExposed(&other)); other.activateWindow(); other.setFocus();
         QTRY_VERIFY(other.hasFocus());
         window.addTab(path("B")); QTRY_VERIFY(window.ready());
         QVERIFY(other.hasFocus());
