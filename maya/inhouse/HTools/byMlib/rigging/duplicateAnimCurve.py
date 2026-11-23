@@ -34,7 +34,7 @@ def _connect_attr(src_attr, dst_attr):
     """
     if dst_attr.isLocked():
         raise RuntimeError(f"Attribute is locked: {dst_attr.getFullName()}")
-    if dst_attr.isConnectedTo(src_attr, destination=False):
+    if dst_attr.isConnected(src_attr, destination=False):
         raise RuntimeError(f"Already connected: {src_attr.getFullName()} -> {dst_attr.getFullName()}")
     dst_attr.connect(src_attr, force=True, unlock=False)
 
@@ -89,7 +89,7 @@ def _list_keyable_scalar_plugs(node):
         # compound（translate 等）は子属性に展開して処理する。
         if plug.isCompound():
             for child in plug.getChildren():
-                plugs[f"{node_name}.{child.getLongName()}"] = child
+                plugs[f"{node_name}.{child.getAttributeName()}"] = child
             continue
 
         # lock / multi は安全のため除外。
@@ -98,7 +98,7 @@ def _list_keyable_scalar_plugs(node):
         if plug.isMulti():
             continue
 
-        plugs[f"{node_name}.{plug.getLongName()}"] = plug
+        plugs[f"{node_name}.{plug.getAttributeName()}"] = plug
 
     return [(name, plugs[name]) for name in sorted(plugs)]
 

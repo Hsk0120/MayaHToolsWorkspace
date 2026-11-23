@@ -198,7 +198,7 @@ class SplineRig:
         Returns:
             SplineIK: 保存済みグラフ。
         """
-        return SplineIK(self.root.getPlug('graph').getSource().getNode())
+        return SplineIK(self.root.getPlug('graph').getConnections(input=True).getNode())
 
     def mode(self):
         """選択モードを取得する。
@@ -387,11 +387,11 @@ class SplineRig:
         for source, joint in zip(sources, self.getMembers("deform")):
             for attr in ("translate", "rotate"):
                 target = joint.getPlug(attr)
-                if target.getSource() is not None:
-                    target.disconnect(target.getSource())
+                if target.getConnections(input=True) is not None:
+                    target.disconnect(target.getConnections(input=True))
                 source.getPlug(attr).connectTo(target)
-        self.root.getPlug('fkGroup').getSource().getNode().getPlug('visibility').set(not active)
-        self.root.getPlug('controlGroup').getSource().getNode().getPlug('visibility').set(active)
+        self.root.getPlug('fkGroup').getConnections(input=True).getNode().getPlug('visibility').set(not active)
+        self.root.getPlug('controlGroup').getConnections(input=True).getNode().getPlug('visibility').set(active)
         from .splineStretchLayer import SplineStretchLayer
 
         SplineStretchLayer(self).update()
@@ -443,7 +443,7 @@ class SplineRig:
         try:
             rig = cls(roots[0])
             expected = rig.getMembers("ik" if rig.active() else "fk")[0].getPlug("rotate")
-            actual = rig.getMembers('deform')[0].getPlug('rotate').getSource()
+            actual = rig.getMembers('deform')[0].getPlug('rotate').getConnections(input=True)
             from .splineStretchLayer import SplineStretchLayer
 
             if (
@@ -464,6 +464,6 @@ class SplineRig:
 
         settings = SplineStretchLayer(self).settings()
         if settings is not None:
-            mlib.delete(settings.getPlug('graph').getSource().getNode())
+            mlib.delete(settings.getPlug('graph').getConnections(input=True).getNode())
         mlib.delete(self.graph().container)
         mlib.delete(self.root)

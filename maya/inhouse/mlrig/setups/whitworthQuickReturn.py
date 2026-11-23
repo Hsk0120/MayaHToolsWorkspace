@@ -128,7 +128,7 @@ class WhitworthQuickReturn(TwistDistribution):
         if connect:
             targets = [lever.getPlug(rotateChannel)] + ([ram.getPlug(translateChannel)] if ram else [])
             for target in targets:
-                if target.getSource(skipConversionNodes=True) is not None:
+                if target.getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The target is already connected: " + str(target))
 
         radius, distance = float(crankRadius), float(pivotDistance)

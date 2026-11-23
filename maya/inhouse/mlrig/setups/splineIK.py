@@ -27,7 +27,7 @@ class SplineIK:
         Returns:
             Node: 参照先。
         """
-        return self.container.getPlug(name).getSource().getNode()
+        return self.container.getPlug(name).getConnections(input=True).getNode()
 
     @classmethod
     @undoTransaction("mlrig.SplineIK.create")
@@ -69,7 +69,7 @@ class SplineIK:
                 raise ValueError("Expected joints")
             if i and [node.getUuid() for node in joint.getParents()] != [joints[i - 1].getUuid()]:
                 raise ValueError("Expected a continuous joint chain")
-            if any((joint.getPlug('rotate' + a).getSource() is not None for a in 'XYZ')):
+            if any((joint.getPlug('rotate' + a).getConnections(input=True) is not None for a in 'XYZ')):
                 raise ValueError("Joint rotation already has an input")
         graph = cls(mlib.createContainer(name=name))
         # CVの初期位置はワールド位置の数値を親のローカルに置く(controlPointsは直後に接続で上書きする)。
@@ -122,13 +122,13 @@ class SplineIK:
         handle = self.member("handle")
         target = handle.getPlug("inCurve")
         if enabled:
-            if target.getSource() is None:
+            if target.getConnections(input=True) is None:
                 shape = self.member("curve").getShapes()[0]
                 shape.getPlug("worldSpace")[0].connectTo(target)
             handle.getPlug("nodeState").set(0)
             handle.getPlug("ikBlend").set(1)
         else:
             handle.getPlug("ikBlend").set(0)
-            if target.getSource() is not None:
-                target.disconnect(target.getSource())
+            if target.getConnections(input=True) is not None:
+                target.disconnect(target.getConnections(input=True))
             handle.getPlug("nodeState").set(2)

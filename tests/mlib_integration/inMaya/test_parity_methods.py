@@ -23,16 +23,16 @@ class ApiMethodsTest(unittest.TestCase):
         node = Node(cmds.createNode("transform", name="control"))
         cp = cy.Node(node.getName()).plug("tx")
         hp = node.getPlug("tx")
-        for h_name, c_name in (("getName", "name"), ("getShortName", "shortName"),
-                               ("getLongName", "longName")):
-            self.assertEqual(getattr(hp, h_name)(), getattr(cp, c_name)())
+        self.assertEqual(hp.getName(), cp.name())
+        for kind, c_name in (("short", "shortName"), ("long", "longName")):
+            self.assertEqual(hp.getAttributeName(kind), getattr(cp, c_name)())
         # アトリビュートのパスは名前の「.」から後ろで取る(mlib に attrName 相当の専用メソッドは無い)。
         self.assertEqual("." + hp.getName().partition(".")[2], cp.attrName())
         self.assertEqual(hp.getNode(), node)
         enum = node.addAttr("mode", at="enum", en="off:on", dv=1)
         ce = cy.Node(node.getName()).plug("mode")
-        self.assertEqual(enum.getEnumName(), ce.enumName(ce.get()))
-        self.assertEqual(enum.getEnumName(0), ce.enumName(0))
+        self.assertEqual(enum.getEnumNames(current=True), ce.enumName(ce.get()))
+        self.assertEqual(enum.getEnumNames(value=0), ce.enumName(0))
         self.assertTrue(node.hasAttr("mode"))
         enum.delete()
         self.assertFalse(node.hasAttr("mode"))
@@ -47,9 +47,9 @@ class ApiMethodsTest(unittest.TestCase):
         a.tx.connectTo(conversion.getPlug("input"))
         conversion.output.connectTo(b.tx)
         cb = cy.Node(b.getName())
-        self.assertEqual(b.tx.getSource(skipConversionNodes=True).getName(), cb.tx.source().name())
-        self.assertEqual(b.tx.getSource(skipConversionNodes=False).getNode(), conversion)
-        self.assertEqual([p.getName() for p in a.tx.getDestinations(skipConversionNodes=True)], [p.name() for p in cy.Node(a.getName()).tx.destinations()])
+        self.assertEqual(b.tx.getConnections(input=True, skipConversionNodes=True).getName(), cb.tx.source().name())
+        self.assertEqual(b.tx.getConnections(input=True).getNode(), conversion)
+        self.assertEqual([p.getName() for p in a.tx.getConnections(outputs=True, skipConversionNodes=True)], [p.name() for p in cy.Node(a.getName()).tx.destinations()])
         for kwargs in ({}, {"asNode": True}, {"scn": True}, {"asPair": True},
                        {"t": "unitConversion", "et": True}, {"s": False}):
             def names(items, get_name):
@@ -68,10 +68,10 @@ class ApiMethodsTest(unittest.TestCase):
                              names(cb.connections(**kwargs), lambda item: item.name()))
         self.assertEqual(b.getConnections(source=True, destination=False, index=0).getNode(), conversion)
         self.assertIsNone(b.getConnections(source=True, destination=False, index=100))
-        b.tx.disconnectInput()
-        self.assertIsNone(b.tx.getSource())
+        b.tx.disconnectAll(destination=False)
+        self.assertIsNone(b.tx.getConnections(input=True))
         cmds.undo()
-        self.assertEqual(b.tx.getSource(skipConversionNodes=True).getNode(), a)
+        self.assertEqual(b.tx.getConnections(input=True, skipConversionNodes=True).getNode(), a)
 
     def test_dag(self):
         """親・子・表示・Shape欠落を比較する。"""
@@ -109,11 +109,11 @@ class ApiMethodsTest(unittest.TestCase):
         self.assertTrue(node.tx.isLocked())
         cmds.undo()
         self.assertFalse(node.tx.isLocked())
-        node.tx.setChannelBox(True)
-        self.assertFalse(node.tx.isKeyable())
-        self.assertTrue(node.tx.isChannelBox())
+        node.tx.setFlags(channelBox=True)
+        self.assertFalse(node.tx.getFlags()["keyable"])
+        self.assertTrue(node.tx.getFlags()["channelBox"])
         cmds.undo()
-        self.assertTrue(node.tx.isKeyable())
+        self.assertTrue(node.tx.getFlags()["keyable"])
 
     def test_arrays(self):
         """疎配列・値だけの要素・接続・ロックを区別する。"""
@@ -136,7 +136,7 @@ class ApiMethodsTest(unittest.TestCase):
         messages = node.addAttr("links", at="message", multi=True)
         # 未作成の要素も参照を返すが、参照の取得だけでは要素を作らない。
         self.assertEqual(messages.getElement(0).getName(), node.getName() + ".links[0]")
-        self.assertEqual(messages.getElements(), [])
+        self.assertEqual(messages.getElement(), [])
         self.assertNotIn(0, messages)
 
     def test_transform_short_names(self):

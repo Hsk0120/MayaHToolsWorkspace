@@ -85,7 +85,7 @@ def _exists(rig):
         bool: 表示用モジュールの参照があればTrue。
     """
     return (
-        rig.root.hasAttr("channelModule") and rig.root.getPlug('channelModule').getSource() is not None
+        rig.root.hasAttr("channelModule") and rig.root.getPlug('channelModule').getConnections(input=True) is not None
     )
 
 
@@ -303,7 +303,7 @@ def refresh_jobs():
             del _jobs[key]
     for plug in [item.getFullName() for item in mlib.ls("*.mlrigChannelRoot", recursive=True)] or []:
         module = plug.rsplit(".", 1)[0]
-        source = mlib.getPlug(plug).getSource()
+        source = mlib.getPlug(plug).getConnections(input=True)
         if source is None:
             continue
         root = source.getNode()

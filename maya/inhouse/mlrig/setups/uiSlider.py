@@ -149,5 +149,5 @@ class UiSlider(TwistDistribution):
             unused = ["translateZ"] + [role + axis for role in ("rotate", "scale") for axis in "XYZ"]
             unused += ["translate" + axis for axis, values in zip("XY", ranges) if values == (0.0, 0.0)]
             for attribute in unused:
-                control.getPlug(attribute).setKeyable(False)
+                control.getPlug(attribute).setFlags(keyable=False)
         return graph

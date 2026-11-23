@@ -205,13 +205,13 @@ class ConeReader:
     @property
     def driver(self):
         """ドライバーの矢印transform名。"""
-        source = self.container.getPlug("driver").getSource()
+        source = self.container.getPlug("driver").getConnections(input=True)
         return None if source is None else source.getNode().getName()
 
     @property
     def cone(self):
         """コーンのtransform名。"""
-        source = self.container.getPlug("cone").getSource()
+        source = self.container.getPlug("cone").getConnections(input=True)
         return None if source is None else source.getNode().getName()
 
     def _node(self, kind, suffix):

@@ -27,7 +27,7 @@ class SplineStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.getPlug('stretchGroup').getSource() if root.hasAttr("stretchGroup") else None
+        source = root.getPlug('stretchGroup').getConnections(input=True) if root.hasAttr("stretchGroup") else None
         return source.getNode() if source is not None else None
 
     @staticmethod
@@ -147,23 +147,23 @@ class SplineStretchLayer:
         if group is None:
             return
         active = self.active()
-        owner = group.getPlug('graph').getSource().getNode()
-        measure = group.getPlug('measurement').getSource().getNode()
+        owner = group.getPlug('graph').getConnections(input=True).getNode()
+        measure = group.getPlug('measurement').getConnections(input=True).getNode()
         curve = self.rig.graph().member("curve")
         target = measure.getPlug("inputCurve")
-        if active and target.getSource() is None:
+        if active and target.getConnections(input=True) is None:
             shape = curve.getShapes()[0]
             shape.getPlug("local").connectTo(target)
-        elif not active and target.getSource() is not None:
-            target.disconnect(target.getSource())
+        elif not active and target.getConnections(input=True) is not None:
+            target.disconnect(target.getConnections(input=True))
         measure.getPlug("nodeState").set(0 if active else 2)
         lengths = json.loads(group.getPlug("restLengths").get())
         for i, (joint, length) in enumerate(zip(self.rig.getMembers("ik")[1:], lengths)):
             target = joint.getPlug("translateX")
-            if target.getSource() is not None:
-                target.disconnect(target.getSource())
+            if target.getConnections(input=True) is not None:
+                target.disconnect(target.getConnections(input=True))
             if active:
-                group.getPlug('outputs')[i].getSource().getNode().getPlug('output').connectTo(target)
+                group.getPlug('outputs')[i].getConnections(input=True).getNode().getPlug('output').connectTo(target)
             else:
                 target.set(length)
         for source, joint in zip(
@@ -171,8 +171,8 @@ class SplineStretchLayer:
         ):
             for axis in "XYZ":
                 target = joint.getPlug("scale" + axis)
-                if target.getSource() is not None:
-                    target.disconnect(target.getSource())
+                if target.getConnections(input=True) is not None:
+                    target.disconnect(target.getConnections(input=True))
                 output = (
                     owner.getPlug("volumeScale")
                     if active and axis != "X"
@@ -189,5 +189,5 @@ class SplineStretchLayer:
         group = self.settings()
         return (
             group is not None
-            and (self.rig.getMembers('ik')[1].getPlug('translateX').getSource() is not None) != self.active()
+            and (self.rig.getMembers('ik')[1].getPlug('translateX').getConnections(input=True) is not None) != self.active()
         )

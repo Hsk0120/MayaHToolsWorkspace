@@ -44,7 +44,7 @@ class AimAxisConversion:
             AimAxisConversion | None: 既存の変換。
         """
         source = Node(constraint)
-        for plug in source.getPlug('message').getDestinations():
+        for plug in source.getPlug('message').getConnections(outputs=True):
             if plug.getNode().getType() in ("container", "network") and plug.getNode().hasAttr(_TAG):
                 return cls(plug.getNode())
         return None
@@ -177,7 +177,7 @@ class AimAxisConversion:
             destination = target.getPlug("rotate" + axis.upper())
             if axis in axes:
                 output = owner.getPlug("output" + axis.upper())
-                (output if use_container else output.getSource()).connectTo(destination)
+                (output if use_container else output.getConnections(input=True)).connectTo(destination)
             elif axis in original:
                 destination.set(values[i], unit="rad")
         return graph
@@ -192,7 +192,7 @@ class AimAxisConversion:
             ValueError: 対象の削除、接続の手編集、設定の新しい入力やロックがある場合。
         """
         owner = self.container
-        links = [owner.getPlug(attr).getSource() for attr in ("sourceConstraint", "drivenNode")]
+        links = [owner.getPlug(attr).getConnections(input=True) for attr in ("sourceConstraint", "drivenNode")]
         if any(link is None for link in links):
             raise ValueError("元のAimまたは対象が削除されているため復元できません。")
         source, target = [link.getNode() for link in links]
@@ -206,10 +206,10 @@ class AimAxisConversion:
             plug = source.getPlug(attr)
             if plug.get(unit="rad") == value:
                 continue
-            parent = plug.getParent() if plug.isChild() else None
+            parent = plug.getParent() if plug.isCompound(child=True) else None
             if (source.isLocked() or source.isFromReferencedFile() or plug.isLocked()
-                    or plug.getSource() is not None
-                    or (parent is not None and (parent.isLocked() or parent.getSource() is not None))):
+                    or plug.getConnections(input=True) is not None
+                    or (parent is not None and (parent.isLocked() or parent.getConnections(input=True) is not None))):
                 raise ValueError("元Aimの設定に入力またはロックがあるため復元できません: " + plug.getFullName())
             updates.append((plug, value))
         touched = set(data["axes"]) | set(data["original"])
@@ -217,12 +217,12 @@ class AimAxisConversion:
             dest = target.getPlug("rotate" + axis.upper())
             expected = owner.getPlug("output" + axis.upper()) if axis in data["axes"] else None
             if expected is not None and owner.getType() == "network":
-                expected = expected.getSource()
+                expected = expected.getConnections(input=True)
             if (dest.isLocked() or target.getPlug("rotate").isLocked() or target.isLocked()
-                    or target.isFromReferencedFile() or dest.getSource() != expected):
+                    or target.isFromReferencedFile() or dest.getConnections(input=True) != expected):
                 raise ValueError("変換後の接続・ロックが変更されています。復元対象: " + dest.getFullName())
         for axis in data["axes"]:
-            target.getPlug("rotate" + axis.upper()).disconnectInput()
+            target.getPlug("rotate" + axis.upper()).disconnectAll(destination=False)
         for plug, value in updates:
             plug.set(value, unit="rad")
         for i, axis in enumerate("xyz"):
@@ -255,8 +255,8 @@ class AimAxisConversion:
         attrs.extend(("worldUpType", "enableRestPosition", "useOldOffsetCalculation"))
         settings = {}
         for plug in [source.getPlug(attr) for attr in attrs] + source.getWeightPlugs():
-            parent = plug.getParent() if plug.isChild() else None
-            if plug.getSource() is None and (parent is None or parent.getSource() is None):
+            parent = plug.getParent() if plug.isCompound(child=True) else None
+            if plug.getConnections(input=True) is None and (parent is None or parent.getConnections(input=True) is None):
                 settings[plug.getFullName().split(".", 1)[1]] = plug.get(unit="rad")
         return settings
 
@@ -270,7 +270,7 @@ class AimAxisConversion:
         """
         targets = {}
         for _, dest in source.getRotateConnections():
-            if isinstance(dest.getNode(), Transform) and dest.getLongName() in (
+            if isinstance(dest.getNode(), Transform) and dest.getAttributeName() in (
                     "rotate", "rotateX", "rotateY", "rotateZ"):
                 targets[dest.getNode().getUuid()] = dest.getNode()
         if len(targets) != 1:
@@ -278,11 +278,11 @@ class AimAxisConversion:
         target = next(iter(targets.values()))
         if target.isFromReferencedFile() or target.isLocked() or source.isFromReferencedFile() or source.isLocked():
             raise ValueError("参照・ロックされたAimまたは対象は変換できません。")
-        compound = target.getPlug('rotate').getSource() == source.getPlug("constraintRotate")
+        compound = target.getPlug('rotate').getConnections(input=True) == source.getPlug("constraintRotate")
         original = {}
         for axis in "xyz":
             dest = target.getPlug("rotate" + axis.upper())
-            incoming = dest.getSource()
+            incoming = dest.getConnections(input=True)
             own = source.getPlug("constraintRotate" + axis.upper())
             if compound or incoming == own:
                 original[axis] = "constraintRotate" + axis.upper()

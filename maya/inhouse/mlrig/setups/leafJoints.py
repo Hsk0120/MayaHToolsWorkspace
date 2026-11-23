@@ -142,7 +142,7 @@ class LeafJoints(TwistDistribution):
         branches, leaves = [], []
         index = 0
         while self.container.hasAttr("branch" + str(index)):
-            branches.append(self.container.getPlug("branch" + str(index)).getSource(skipConversionNodes=True).getNode())
-            leaves.append(self.container.getPlug("leaf" + str(index)).getSource(skipConversionNodes=True).getNode())
+            branches.append(self.container.getPlug("branch" + str(index)).getConnections(input=True, skipConversionNodes=True).getNode())
+            leaves.append(self.container.getPlug("leaf" + str(index)).getConnections(input=True, skipConversionNodes=True).getNode())
             index += 1
         return branches, leaves

@@ -347,8 +347,7 @@ def loadPreset(node, path):
                 raise TypeError(f"整数を指定してください: {name}")
         if name not in ("gravity", "wind"):
             plug = solver_node.getPlug(name)
-            minimum = plug.getMin() if plug.hasMin() else None
-            maximum = plug.getMax() if plug.hasMax() else None
+            minimum, maximum = plug.getRange()
             if (minimum is not None and value < minimum) or (maximum is not None and value > maximum) or (name == "planarConstraint" and value not in range(4)):
                 raise ValueError(f"設定範囲外です: {name}")
     for name, entries in curves.items():

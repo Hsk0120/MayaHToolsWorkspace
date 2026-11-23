@@ -151,7 +151,7 @@ class OverShoulderCamera(TwistDistribution):
         if connect:
             for attr in ("translate", "rotate"):
                 for axis in ("", "X", "Y", "Z"):
-                    if transform.getPlug(attr + axis).getSource(skipConversionNodes=True) is not None:
+                    if transform.getPlug(attr + axis).getConnections(input=True, skipConversionNodes=True) is not None:
                         raise ValueError("The camera {} is already connected: {}".format(attr, transform))
         if mlib.objExists(name):
             raise ValueError("OverShoulderCamera container already exists: " + name)

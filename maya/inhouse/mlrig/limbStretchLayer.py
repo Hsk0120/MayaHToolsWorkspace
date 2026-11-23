@@ -26,7 +26,7 @@ class LimbStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.getPlug('stretchGroup').getSource() if root.hasAttr("stretchGroup") else None
+        source = root.getPlug('stretchGroup').getConnections(input=True) if root.hasAttr("stretchGroup") else None
         return source.getNode() if source is not None else None
 
     @staticmethod
@@ -111,7 +111,7 @@ class LimbStretchLayer:
         units.getPlug("conversionFactor").set(1)
         units.getPlug("output").connectTo(group.getPlug("inputLength"))
         soft_input = mlib.getPlug(rig._member("softGraph") + ".distance")
-        soft_input.getSource().connectTo(group.getPlug('softDistance'))
+        soft_input.getConnections(input=True).connectTo(group.getPlug('softDistance'))
         normalize = self._node(owner, "multiplyDivide", "normalizedSoftDistance")
         normalize.getPlug("operation").set(2)
         group.getPlug("softDistance").connectTo(normalize.getPlug("input1X"))
@@ -217,37 +217,37 @@ class LimbStretchLayer:
         if group is None:
             return
         rig, active = self.rig, self.active()
-        owner = group.getPlug('graph').getSource().getNode()
+        owner = group.getPlug('graph').getConnections(input=True).getNode()
         target = owner.getPlug("inputLength")
-        if target.getSource() is not None:
-            target.disconnect(target.getSource())
+        if target.getConnections(input=True) is not None:
+            target.disconnect(target.getConnections(input=True))
         if active:
             group.getPlug("inputLength").connectTo(target)
         else:
             target.set(owner.getPlug("restLength").get())
         for i, length in enumerate(json.loads(group.getPlug("restLengths").get())):
             target = mlib.getPlug(rig._member("ik" + str(i + 1)) + ".translateX")
-            if target.getSource() is not None:
-                target.disconnect(target.getSource())
+            if target.getConnections(input=True) is not None:
+                target.disconnect(target.getConnections(input=True))
             if active:
-                group.getPlug('outputs')[i].getSource().getNode().getPlug('output').connectTo(target)
+                group.getPlug('outputs')[i].getConnections(input=True).getNode().getPlug('output').connectTo(target)
             else:
                 target.set(length)
         soft = mlib.getPlug(rig._member("softGraph") + ".distance")
-        if soft.getSource() is not None:
-            soft.disconnect(soft.getSource())
+        if soft.getConnections(input=True) is not None:
+            soft.disconnect(soft.getConnections(input=True))
         source = (
-            group.getPlug('softNormalize').getSource().getNode().getPlug('outputX')
+            group.getPlug('softNormalize').getConnections(input=True).getNode().getPlug('outputX')
             if active
             else group.getPlug("softDistance")
         )
         source.connectTo(soft)
         for i in range(3):
             target = mlib.getPlug(rig._member("joint" + str(i)) + ".offsetParentMatrix")
-            if target.getSource() is not None:
-                target.disconnect(target.getSource())
+            if target.getConnections(input=True) is not None:
+                target.disconnect(target.getConnections(input=True))
             source = (
-                group.getPlug('matrices')[i].getSource().getNode().getPlug('matrixSum')
+                group.getPlug('matrices')[i].getConnections(input=True).getNode().getPlug('matrixSum')
                 if active
                 else mlib.getPlug(rig._local_matrix(("ik" if rig.mode() == "ik" else "fk") + str(i)))
             )

@@ -106,7 +106,7 @@ class AckermannSteering(TwistDistribution):
         channel = "rotate" + axis.upper()
         if connect:
             for wheel in wheels:
-                if wheel.getPlug(channel).getSource(skipConversionNodes=True) is not None:
+                if wheel.getPlug(channel).getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The rotation of the wheel is already connected: " + wheel.getFullName())
 
         graph = cls(mlib.createContainer(name=name))

@@ -104,7 +104,7 @@ class SoftIK:
             output = builder.condition(role, left, right, yes, no)
         node = output.getNode()
         for attr in ("firstTerm", "secondTerm", "colorIfTrueR", "colorIfFalseR"):
-            source = node.getPlug(attr).getSource()
+            source = node.getPlug(attr).getConnections(input=True)
             if source is not None and source.getNode().getType() == "unitConversion":
                 builder.container.addMembers(source.getNode())
         return output
@@ -127,7 +127,7 @@ class SoftIK:
             if isinstance(value, (str, mlib.Plug)):
                 source = to_plug(value)
                 source.connectTo(destination)
-                immediate = destination.getSource()
+                immediate = destination.getConnections(input=True)
                 if immediate is not None and immediate.getNode() != source.getNode():
                     conversion = immediate.getNode()
                     if conversion.getType() == "unitConversion":

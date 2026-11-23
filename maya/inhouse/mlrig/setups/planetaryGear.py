@@ -170,7 +170,7 @@ class PlanetaryGear(TwistDistribution):
         targets = list(planets) + ([nodes[driven]] if driven in nodes else [])
         if connect:
             for target in targets:
-                if target.getPlug(channel).getSource(skipConversionNodes=True) is not None:
+                if target.getPlug(channel).getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The rotation is already connected: " + target.getFullName())
 
         zs, zp = float(sunTeeth), float(planetTeeth)

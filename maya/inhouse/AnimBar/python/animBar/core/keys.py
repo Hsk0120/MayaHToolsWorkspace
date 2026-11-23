@@ -83,7 +83,7 @@ def isEditable(plug):
     Returns:
         bool: 書き換えられればTrue。
     """
-    return not plug.isLocked() and (plug.getSource() is None or animCurveOf(plug) is not None)
+    return not plug.isLocked() and (plug.getConnections(input=True) is None or animCurveOf(plug) is not None)
 
 
 def timelineRange():
@@ -430,7 +430,7 @@ def drivenPlug(curve):
         output = _blend_output(plug)
         if output is None:
             return plug
-        following = output.getDestinations(skipConversionNodes=True)
+        following = output.getConnections(outputs=True, skipConversionNodes=True)
         plug = following[0] if following else None
     return plug
 
@@ -445,7 +445,7 @@ def _blend_output(plug):
         Plug | None: 出力のアトリビュート。ブレンドのノードでなければNone。
     """
     node = plug.getNode()
-    name = plug.getLongName()
+    name = plug.getAttributeName()
     if node.isType("animBlendNodeBase"):
         # 回転・移動の3軸をまとめたブレンド(inputAX → outputX)と、1つの値のブレンド(inputA → output)がある。
         axis = name[-1] if name[-1] in "XYZ" and name.startswith("input") else ""

@@ -38,7 +38,7 @@ def copyAnimation(nodes=None, timeRange=None):
         for plug in keys.animatedPlugs(node, channelBox=False):
             snapshot = keys.curveSnapshot(keys.animCurveOf(plug), timeRange)
             if snapshot["keys"]:
-                curves[plug.getLongName()] = snapshot
+                curves[plug.getAttributeName()] = snapshot
                 times.extend(entry[0] for entry in snapshot["keys"])
                 count += 1
         order.append(name)

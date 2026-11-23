@@ -179,7 +179,7 @@ class EyeHighlight(TwistDistribution):
             if highlight.isAncestorOf(node):
                 raise ValueError("The eye, camera and light must not be children of the highlight: " + str(node))
         opm = highlight.getPlug("offsetParentMatrix")
-        if opm.getSource() is not None:
+        if opm.getConnections(input=True) is not None:
             raise ValueError("Highlight offsetParentMatrix is already connected")
         if opm.isLocked():
             raise ValueError("Highlight offsetParentMatrix must be writable")

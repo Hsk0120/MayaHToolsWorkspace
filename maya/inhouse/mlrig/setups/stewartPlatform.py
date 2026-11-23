@@ -135,7 +135,7 @@ class StewartPlatform(TwistDistribution):
                 targets += [barrel.getPlug(channel + axis) for channel in ("translate", "rotate") for axis in ("", "X", "Y", "Z")]
             targets += [piston.getPlug(slideChannel) for piston in pistons or []]
             for target in targets:
-                if target.getSource(skipConversionNodes=True) is not None:
+                if target.getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The target is already connected: " + str(target))
 
         def position(node):

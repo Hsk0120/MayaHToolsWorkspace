@@ -62,7 +62,7 @@ class LayerTest(_Case):
     def test_layer_curve_is_found(self):
         """レイヤーを介したアトリビュートでも、選んだレイヤーのカーブとアトリビュートを探せる。"""
         node = mlib.getNode(_layered())
-        plugs = [plug.getLongName() for plug in keys.animatedPlugs(node, channelBox=False)]
+        plugs = [plug.getAttributeName() for plug in keys.animatedPlugs(node, channelBox=False)]
         self.assertIn("translateX", plugs)
         self.assertIn("rotateX", plugs)
         curve = keys.animCurveOf(node.getPlug("tx"))
@@ -100,7 +100,7 @@ class LayerTest(_Case):
         curve = keys.animCurveOf(plug)
         self.assertEqual(curve.getName(), "blended_translateX")
         self.assertEqual(keys.drivenPlug(curve), plug)
-        self.assertIn("translateX", [p.getLongName() for p in keys.keyablePlugs(mlib.getNode(node), channelBox=False)])
+        self.assertIn("translateX", [p.getAttributeName() for p in keys.keyablePlugs(mlib.getNode(node), channelBox=False)])
 
     def test_plain_connection_is_not_editable(self):
         """アニメーション以外から入力のあるアトリビュートは対象にしない。"""
@@ -108,7 +108,7 @@ class LayerTest(_Case):
         driver = cmds.createNode("transform", name="driver", skipSelect=True)
         cmds.connectAttr(driver + ".tx", node + ".tx")
         self.assertFalse(keys.isEditable(mlib.getNode(node).getPlug("tx")))
-        self.assertNotIn("translateX", [p.getLongName() for p in keys.keyablePlugs(mlib.getNode(node), False)])
+        self.assertNotIn("translateX", [p.getAttributeName() for p in keys.keyablePlugs(mlib.getNode(node), False)])
 
 
 class ScaleModeTest(_Case):

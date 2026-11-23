@@ -125,7 +125,7 @@ class CamFollower(TwistDistribution):
         if cam.getFullName() == follower.getFullName():
             raise ValueError("The cam and the follower must be different nodes")
         rotateChannel, translateChannel = "rotate" + axis.upper(), "translate" + followerAxis.upper()
-        if connect and follower.getPlug(translateChannel).getSource(skipConversionNodes=True) is not None:
+        if connect and follower.getPlug(translateChannel).getConnections(input=True, skipConversionNodes=True) is not None:
             raise ValueError("The translation of the follower is already connected: " + follower.getFullName())
 
         upAngle, holdAngle, downAngle = (math.radians(value) for value in (riseAngle, dwellAngle, returnAngle))

@@ -22,7 +22,7 @@ def _connect_attr(source_plug, target_plug, force=False):
 	"""
 	if target_plug.isLocked():
 		raise RuntimeError("Attribute is locked: {0}".format(target_plug))
-	if target_plug.isConnectedTo(source_plug, destination=False):
+	if target_plug.isConnected(source_plug, destination=False):
 		raise RuntimeError(
 			"Already connected: {0} -> {1}".format(source_plug, target_plug)
 		)

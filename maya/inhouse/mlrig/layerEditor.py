@@ -462,7 +462,7 @@ class LayerEditor(QtWidgets.QDialog):
             root_item (QTreeWidgetItem): モジュール行。
         """
         uuid = rig.root.getUuid()
-        fk = self._row(root_item, 'FK骨列', {'root': uuid, 'role': 'fk', 'target': rig.root.getPlug('fkGroup').getSource().getNode().getUuid()}, not rig.active())
+        fk = self._row(root_item, 'FK骨列', {'root': uuid, 'role': 'fk', 'target': rig.root.getPlug('fkGroup').getConnections(input=True).getNode().getUuid()}, not rig.active())
         for i, bone in enumerate(rig.getMembers("fk")):
             self._row(
                 fk,
@@ -483,7 +483,7 @@ class LayerEditor(QtWidgets.QDialog):
                 "カーブ {:02d}".format(i + 1),
                 {"root": uuid, "role": "spline:" + str(i), "target": control.getUuid()},
             )
-        group = rig.root.getPlug('deformGroup').getSource().getNode()
+        group = rig.root.getPlug('deformGroup').getConnections(input=True).getNode()
         self._row(
             root_item,
             "変形骨（{}本）".format(len(rig.getJoints())),
@@ -537,7 +537,7 @@ class LayerEditor(QtWidgets.QDialog):
                 "ドライバー {:02d}".format(index + 1),
                 {"root": uuid, "role": "driver:" + str(index), "target": chain[0].getUuid()},
             )
-        group = rig.root.getPlug('followerGroup').getSource().getNode()
+        group = rig.root.getPlug('followerGroup').getConnections(input=True).getNode()
         self._row(
             root_item,
             "変形骨（{}列）".format(len(rig.chains())),
@@ -569,7 +569,7 @@ class LayerEditor(QtWidgets.QDialog):
             members = {
                 i: g
                 for i, g in groups.items()
-                if kind == "spring" or g.getPlug('poseGraph').getSource() is not None
+                if kind == "spring" or g.getPlug('poseGraph').getConnections(input=True) is not None
             }
             active = rig.layer_enabled(kind) and rig.lod() == 1 and bool(members)
             if kind == "spring":
@@ -617,7 +617,7 @@ class LayerEditor(QtWidgets.QDialog):
             row.setCheckState(
                 0, QtCore.Qt.Checked if group.getPlug("enabled").get() else QtCore.Qt.Unchecked
             )
-            self._row(row, '操作コントロール', dict(root=rig.root.getUuid(), role='tweakControl:' + identifier, target=group.getPlug('control').getSource().getNode().getUuid()))
+            self._row(row, '操作コントロール', dict(root=rig.root.getUuid(), role='tweakControl:' + identifier, target=group.getPlug('control').getConnections(input=True).getNode().getUuid()))
             self._attributes.add(
                 group.getUuid(),
                 attribute=group.getPlug("enabled"),
@@ -900,7 +900,7 @@ class LayerEditor(QtWidgets.QDialog):
         )
         if not node.hasAttr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
-        mlib.select(node.getPlug('curve').getSource().getNode(), replace=True)
+        mlib.select(node.getPlug('curve').getConnections(input=True).getNode(), replace=True)
         if mlib.Environment.isBatch():
             raise RuntimeError("GraphEditor requires Maya GUI")
         mel.eval("GraphEditor;")

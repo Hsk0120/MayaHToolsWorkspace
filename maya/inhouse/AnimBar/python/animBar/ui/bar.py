@@ -870,7 +870,7 @@ class AnimBar(QtWidgets.QWidget):
         if not nodes:
             raise ValueError("Select a control with a space attribute")
         node = nodes[0]
-        names = [plug.getLongName() for plug in node.getPlugs(userDefined=True) if plug.getType() == "enum"]
+        names = [plug.getAttributeName() for plug in node.getPlugs(userDefined=True) if plug.getType() == "enum"]
         if not names:
             raise ValueError("The control has no enum attribute to switch")
         name, ok = QtWidgets.QInputDialog.getItem(self, "Switch Space", "Attribute:", names, 0, False)

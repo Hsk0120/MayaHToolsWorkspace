@@ -72,7 +72,7 @@ class ChainNet(TwistDistribution):
         if connect:
             for chain in slaves:
                 for node in chain:
-                    if node.getPlug("offsetParentMatrix").getSource(skipConversionNodes=True) is not None:
+                    if node.getPlug("offsetParentMatrix").getConnections(input=True, skipConversionNodes=True) is not None:
                         raise ValueError("The offsetParentMatrix of the slave must be unconnected: "
                                          + node.getFullName())
 

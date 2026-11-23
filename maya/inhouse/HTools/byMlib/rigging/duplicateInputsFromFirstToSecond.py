@@ -52,7 +52,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
                 if not target.hasAttr(attribute):
                     raise RuntimeError("No object matches name: " + dst_name)
                 dst_plug = target.getPlug(attribute)
-                if dst_plug.isConnectedTo(src_plug, destination=False):
+                if dst_plug.isConnected(src_plug, destination=False):
                     skipped += 1
                     continue
                 if dst_plug.isLocked():

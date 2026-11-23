@@ -96,7 +96,7 @@ class GenevaDrive(TwistDistribution):
         if driver.getFullName() == wheel.getFullName():
             raise ValueError("The driver and the wheel must be different nodes")
         channel = "rotate" + axis.upper()
-        if connect and wheel.getPlug(channel).getSource(skipConversionNodes=True) is not None:
+        if connect and wheel.getPlug(channel).getConnections(input=True, skipConversionNodes=True) is not None:
             raise ValueError("The rotation of the wheel is already connected: " + wheel.getFullName())
 
         ratio = math.sin(math.pi / slots)

@@ -162,8 +162,8 @@ def resetValues(nodes=None, attributes=None, key=None):
         plugs = keys.keyablePlugs(node)
         if attributes is not None:
             wanted = set(attributes)
-            plugs = [plug for plug in plugs if plug.getLongName() in wanted or
-                     (plug.getParent() is not None and plug.getParent().getLongName() in wanted)]
+            plugs = [plug for plug in plugs if plug.getAttributeName() in wanted or
+                     (plug.getParent() is not None and plug.getParent().getAttributeName() in wanted)]
         for plug in plugs:
             plug.reset()
             if key or (key is None and keys.animCurveOf(plug) is not None):

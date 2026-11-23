@@ -108,7 +108,7 @@ class DollyZoom(TwistDistribution):
         if not math.isfinite(weight) or not 0.0 <= weight <= 1.0:
             raise ValueError("weight must be from 0 to 1: " + str(weight))
         focal = shape.getPlug("focalLength")
-        if connect and focal.getSource(skipConversionNodes=True) is not None:
+        if connect and focal.getConnections(input=True, skipConversionNodes=True) is not None:
             raise ValueError("The camera focalLength is already connected: " + str(focal))
         if mlib.objExists(name):
             raise ValueError("DollyZoom container already exists: " + name)

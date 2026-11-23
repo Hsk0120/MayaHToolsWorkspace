@@ -244,7 +244,7 @@ class SecondaryLayer:
             PoseRbf: 出力値を編集できる計算オブジェクト。
         """
         group = self.add(driver_index)
-        if group.getPlug('poseGraph').getSource() is not None:
+        if group.getPlug('poseGraph').getConnections(input=True) is not None:
             raise ValueError("Pose graph already exists; edit its set_values instead")
         count = len(self._members(group, "sources")) * 3
         if not values or any(len(row) != count for row in values):
@@ -253,13 +253,13 @@ class SecondaryLayer:
         allowed = {node.getUuid() for chain in self.rig.driver_chains() for node in chain}
         for driver in drivers:
             plug = mlib.getPlug(driver)
-            if plug.getNode().getUuid() not in allowed or plug.getLongName() not in ("rotateX", "rotateY", "rotateZ"):
+            if plug.getNode().getUuid() not in allowed or plug.getAttributeName() not in ("rotateX", "rotateY", "rotateZ"):
                 raise ValueError("Use original driver joint rotation attributes")
         graph = PoseRbf.create(drivers, poses, values, scales, name=group.getName() + "_poses")
         graph.container.getPlug("message").connectTo(group.getPlug("poseGraph"))
         root = self.rig.root
         root.getPlug("mlrigOwned").appendMessage(graph.container)
-        owner = group.getPlug('graph').getSource().getNode()
+        owner = group.getPlug('graph').getConnections(input=True).getNode()
         for index in range(count):
             weight = self._node(owner, "multDoubleLinear", "poseWeight{}".format(index))
             graph.container.getPlug("outputs")[index].connectTo(weight.getPlug("input1"))
@@ -304,21 +304,21 @@ class SecondaryLayer:
             pose = (
                 self.rig.lod() == 1
                 and self.rig.layer_enabled("pose")
-                and group.getPlug('poseGraph').getSource() is not None
+                and group.getPlug('poseGraph').getConnections(input=True) is not None
             )
             curves = self._members(group, "curves")
             for index, blend in enumerate(self._members(group, "blends")):
                 weight = blend.getPlug("weight")
-                if weight.getSource() is not None:
-                    weight.disconnect(weight.getSource())
+                if weight.getConnections(input=True) is not None:
+                    weight.disconnect(weight.getConnections(input=True))
                 if spring:
                     group.getPlug("intensity").connectTo(weight)
                 else:
                     weight.set(0)
                 for axis_index, axis in enumerate("XYZ"):
                     target = blend.getPlug("inRotate" + axis + "2")
-                    if target.getSource() is not None:
-                        target.disconnect(target.getSource())
+                    if target.getConnections(input=True) is not None:
+                        target.disconnect(target.getConnections(input=True))
                     curve = curves[index * 3 + axis_index]
                     curve.getPlug("nodeState").set(0 if spring else 2)
                     if spring:
@@ -327,8 +327,8 @@ class SecondaryLayer:
             for index, compose in enumerate(self._members(group, "poses")):
                 for axis_index, axis in enumerate("XYZ"):
                     target = compose.getPlug("inputRotate" + axis)
-                    if target.getSource() is not None:
-                        target.disconnect(target.getSource())
+                    if target.getConnections(input=True) is not None:
+                        target.disconnect(target.getConnections(input=True))
                     if pose:
                         weights[index * 3 + axis_index].getPlug("output").connectTo(target)
                     else:
@@ -351,13 +351,13 @@ class SecondaryLayer:
             pose = (
                 self.rig.lod() == 1
                 and self.rig.layer_enabled("pose")
-                and group.getPlug('poseGraph').getSource() is not None
+                and group.getPlug('poseGraph').getConnections(input=True) is not None
             )
-            if (self._members(group, 'blends')[0].getPlug('weight').getSource() is not None) != bool(
+            if (self._members(group, 'blends')[0].getPlug('weight').getConnections(input=True) is not None) != bool(
                 spring
             ):
                 return True
-            if (self._members(group, 'poses')[0].getPlug('inputRotateX').getSource() is not None) != bool(
+            if (self._members(group, 'poses')[0].getPlug('inputRotateX').getConnections(input=True) is not None) != bool(
                 pose
             ):
                 return True

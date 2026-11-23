@@ -65,7 +65,7 @@ BはカメラのsetView/copyViewFrom/setCenterOfInterestPointをfast=True専用�
 | mlib の名前 | Maya コマンド | OpenMaya |
 | --- | --- | --- |
 | マルチアトリビュート: `MultiPlug`・`Plug.isMulti()` | `addAttr -multi` | `MPlug.isArray` |
-| マルチアトリビュートの要素: `Plug.isMultiElement()`・`Plug.getMulti()`(要素が属するマルチアトリビュート) | `attr[番号]` | `MPlug.isElement`・`MPlug.array()` |
+| マルチアトリビュートの要素: `Plug.isMulti(element=True)`・`Plug.getMulti()`(要素が属するマルチアトリビュート) | `attr[番号]` | `MPlug.isElement`・`MPlug.array()` |
 | 要素の番号(論理番号): `Plug.getIndex()`・`MultiPlug.getIndices()` | `[番号]` | `MPlug.logicalIndex()` |
 | コンパウンドアトリビュート: `CompoundPlug`・`Plug.isCompound()` | `addAttr -at compound` | `MPlug.isCompound` |
 | コンパウンドアトリビュートの子: `Plug.isChild()`・`Plug.getParent()` | `-parent` | `MPlug.isChild`・`MPlug.parent()` |
@@ -1307,3 +1307,31 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
   - まとめなかったもの: `Face.getPointAtUV`/`getUVAtPoint`(向きが逆の変換)、`Edge.getVertices`・`Face.getVertices`・`UV.getPosition` などの種類ごとの変換、
     `Vertices.grow`/`shrink`、`Face.getShadingEngine`/`getMaterial`。
   - 内部: 軸の名前と1成分の値の検査は `components/component.py` の `_axis_index`・`_axis_numbers`・`_edited_row`・`_require_single_row` に置いた(頂点・CV と UV で共有)。
+- 領域1b(Plug): `plugs/` の公開メソッドを、機能を残して引数でまとめた(公開の名前は38個減)。これより前の節に残る古い名前(`getSource`・`getElements`・`isMultiElement` など)は、下の書き方に読み替える。
+  - 範囲(−14): `getMin`・`getMax`・`getSoftMin`・`getSoftMax`・`getSoftRange`・`hasMin`・`hasMax`・`hasSoftMin`・`hasSoftMax` → `getRange(*, soft=False)`((最小, 最大)。無い側は None)。
+    `setMin`・`setMax`・`setSoftMin`・`setSoftMax`・`setSoftRange` → `setRange(minimum, maximum, *, soft=False)`。**省略した側は変えず、None は制限を外す**(`setMin(a)` は `setRange(a)`、`setMax(b)` は `setRange(maximum=b)`)。
+    両方省略は TypeError。片側だけのときは設定済みの反対側との矛盾を、両方のときは min > max を ValueError にする(今までの2つの検査を使い分ける)。片側だけでも Undo チャンクを開かない(1回の addAttr)。
+    None で外した制限は、Maya の Undo では戻らない(以前の `setMin(None)` と同じ)。
+  - 接続の判定(−3): `isSource()` → `isConnected(source=False)`、`isDestination()` → `isConnected(destination=False)`(引数は調べる相手の側なので、名前と逆に見える)、
+    `isConnectedTo(other, ...)` → `isConnected(other, ...)`。
+  - 状態(−4、−3、+1): `setKeyable`・`setChannelBox`・`show`・`hide` → `setFlags(...)`。`setFlags` に `leaf=`(末端の子だけ。`children` と同時は TypeError)を足した。
+    keyable と Channel Box 表示は Maya が排他にする(`keyable=True` は Channel Box 表示を外し、`channelBox=True` は keyable を外す。fast でも同じ)が、Maya の Undo は外した側を戻さないので、
+    `setFlags` が `keyable=True` のときは先に Channel Box 表示を外す書き込みを分け、`channelBox=True` だけのときは `keyable=False` も一緒に書く(旧 `setKeyable`/`setChannelBox` の動き。Undo 1回で元の2つの状態へ戻る)。
+    `show()` → `setFlags(keyable=True, children=True)`、`show(keyable=False)` → `setFlags(channelBox=True, children=True)`、`hide()` → `setFlags(keyable=False, channelBox=False, children=True)`。
+    `isKeyable`・`isChannelBox`・`isHidden` → 新しい `getFlags()`(`locked`・`keyable`・`channelBox`・`hidden` の辞書)。`isLocked`・`setLocked`・`isFromReferencedFile` は残した。
+  - 入力の切断(−1): `disconnectInput()` → `disconnectAll(destination=False)`(入力だけなら Undo チャンクを開かない)。
+  - MultiPlug(−3): `getConnectedIndices()` → `getIndices(connected=True)`、`getElementByPhysicalIndex(i)` → `getElement(i, physical=True)`、`getElements()` → `getElement()`
+    (index を省くと、すでにある要素の Plugs。番号を渡すと、まだ無い要素も返す。`multi[i]`・反復は変わらない)。
+  - 構造の判定(−2): `isMultiElement()` → `isMulti(element=True)`、`isChild()` → `isCompound(child=True)`。`getMulti` は残した。
+  - 親(−1): `getAllParents(includeMulti)` → `getParent(all=True, includeMulti=...)`(`all=True` はマルチアトリビュートの要素も通るので、`all=False` の繰り返しとは同じにならない)。
+  - アニメーションカーブ(−1): `getAnimCurveType(timeInput=)` → `getAnimCurve(suitableType=True, timeInput=)`。「つながっているカーブの型」ではなく「この Plug に合うカーブの型」なので、引数名を `type` にしなかった。
+  - enum(−2): `getEnumName()` → `getEnumNames(current=True)`、`getEnumName(v)` → `getEnumNames(value=v)`、`getEnumValue(name)` → `getEnumNames(name=name)`。
+    引数なしは今までどおり全部の `(名前, 値)`。「今の値の名前」を `current=True` に分けて、引数なしの意味がぶつからないようにした。
+  - 存在(−1): `isExisting()` → `isValid(elements=True)`(既定の `isValid()` は変えていない)。
+  - 接続の相手(−2): `getSource(...)` → `getConnections(input=True, ...)`(Plug か None)、`getDestinations(...)` → `getConnections(outputs=True, ...)`(Plugs)。
+    どちらも「この Plug 自身」だけを見る(子・要素をたどらない)短い指定で、`source=False`・`checkChildren=False`・`index=0`(input のとき)などと同時に指定すると TypeError。絞り込みが無いときは今までと同じく MPlug へ直接問い合わせる。
+    `getConnections(destination=False)` は子・要素もたどる Plugs を返すので、`getSource()` の置き換えには使わない(`is None` が常に False になる)。型スタブのオーバーロードは `getConnections` にまとめた。
+  - 名前(−2): `getLongName()`・`getShortName()`・`getNiceName()` → `getAttributeName(kind="long"|"short"|"nice")`(`long` という引数名は「完全パス」の意味と紛れるので使わない)。
+    `getFullName` → `getName(full=True)` と `Plugs.getNames`/`getFullNames` は、Node と合わせて後の段で行う。
+  - まとめなかったもの: `isLocked`/`setLocked`(広く使われている)、Node と共通の基底へ上げる案(実装が別で、基底に置けるのは名前だけ)、`RampPlug`(似た名前の対が無い)、
+    `set`/`setIfChanged`・`connect`/`connectTo`・`getDefault`/`isDefaultValue`・`setKey`/`setKeyTangent`。

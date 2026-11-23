@@ -52,7 +52,7 @@ def _key_transform(node, time, translate=True, rotate=True):
     names = ([axis for axis in ("tx", "ty", "tz")] if translate else []) + \
             ([axis for axis in ("rx", "ry", "rz")] if rotate else [])
     writable = [name for name in names if not node.getPlug(name).isLocked() and
-                (node.getPlug(name).getSource() is None or keys.animCurveOf(node.getPlug(name)) is not None)]
+                (node.getPlug(name).getConnections(input=True) is None or keys.animCurveOf(node.getPlug(name)) is not None)]
     if writable:
         node.setKey(writable, time=time)
 
@@ -187,13 +187,13 @@ def clearTempPivots():
     now = Time.getCurrent()
     for pivot in pivots:
         constraints = []
-        for destination in pivot.getPlug("message").getDestinations():
+        for destination in pivot.getPlug("message").getConnections(outputs=True):
             if destination.getNode() not in constraints:
                 constraints.append(destination.getNode())
         for target in constraints:
             if not target.isValid():
                 continue
-            driven = [destination.getNode() for destination in target.getPlug("constraintTranslateX").getDestinations()]
+            driven = [destination.getNode() for destination in target.getPlug("constraintTranslateX").getConnections(outputs=True)]
             matrices = [(node, node.getMatrix(worldSpace=True)) for node in driven]
             mlib.delete(target)
             for node, matrix in matrices:

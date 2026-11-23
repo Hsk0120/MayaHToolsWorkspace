@@ -54,7 +54,7 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         for attr in attributes:
             if mlib.getPlug(node + "." + attr).isLocked():
                 raise ValueError("Locked control channel: " + node + "." + attr)
-            source = mlib.getPlug(node + "." + attr).getSource()
+            source = mlib.getPlug(node + "." + attr).getConnections(input=True)
             if source is not None and not source.getNode().getType().startswith("animCurve"):
                 raise ValueError("Control channel is driven by a non-animation node")
     try:

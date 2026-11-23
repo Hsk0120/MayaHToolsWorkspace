@@ -37,7 +37,7 @@ class ControlHierarchyTest(unittest.TestCase):
         self.assertFalse(transform.getPlug("translate").isLocked())
         self.assertFalse(transform.getPlug("translateX").isLocked())
         self.assertFalse(transform.getPlug("rotateY").isLocked())
-        self.assertIsNone(transform.getPlug('translateX').getSource(skipConversionNodes=False))
+        self.assertIsNone(transform.getPlug('translateX').getConnections(input=True))
 
     def test_transform_create_offset_groups_preserves_world_position(self):
         parent = self.create_transform("mlibNodeApiOffsetParent")

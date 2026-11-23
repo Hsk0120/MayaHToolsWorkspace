@@ -143,7 +143,7 @@ class SkirtLegOffset(TwistDistribution):
                     raise ValueError("connect requires the skirts to be direct children of the parent: "
                                      + skirt.getFullName())
                 plug = skirt.getPlug("offsetParentMatrix")
-                if plug.getSource(skipConversionNodes=True) is not None or not Matrix(plug.get()).isEquivalent(Matrix(), 1e-9):
+                if plug.getConnections(input=True, skipConversionNodes=True) is not None or not Matrix(plug.get()).isEquivalent(Matrix(), 1e-9):
                     raise ValueError("The offsetParentMatrix of the skirt must be identity and unconnected: "
                                      + skirt.getFullName())
 

@@ -141,9 +141,9 @@ def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False
                 node = plug.getNode()
                 nodes[node.getName()] = node.getType()
                 # 変換ノードを省略しない直接の入力元と出力先(経路外の接続も含む)。
-                source = plug.getSource()
+                source = plug.getConnections(input=True)
                 edges = [(source, plug)] if source is not None else []
-                edges.extend((plug, dest) for dest in plug.getDestinations())
+                edges.extend((plug, dest) for dest in plug.getConnections(outputs=True))
                 connections.update((a.getFullName(), b.getFullName()) for a, b in edges)
                 if isinstance(node, mlib.DagNode):
                     child = node.getName()

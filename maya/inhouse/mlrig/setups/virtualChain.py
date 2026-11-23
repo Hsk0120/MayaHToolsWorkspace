@@ -56,7 +56,7 @@ class VirtualChain(TwistDistribution):
                 if other != path and other.startswith(path + "|"):
                     raise ValueError("controls must not be ancestors of each other: " + path)
         for node in nodes[1:]:
-            if node.getPlug("offsetParentMatrix").getSource() is not None:
+            if node.getPlug("offsetParentMatrix").getConnections(input=True) is not None:
                 raise ValueError("offsetParentMatrix is already connected: " + node.getFullName())
         if mlib.objExists(name):
             raise ValueError("VirtualChain container already exists: " + name)

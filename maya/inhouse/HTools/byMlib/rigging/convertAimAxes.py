@@ -124,7 +124,7 @@ class AimAxisConversionWindow:
                 raise ValueError("Select the aimConstraint node, not the joint.")
             if (node.getType() in ("container", "network")
                     and node.hasAttr("mlrigAimAxisConversion")):
-                link = node.getPlug("sourceConstraint").getSource()
+                link = node.getPlug("sourceConstraint").getConnections(input=True)
                 node = link.getNode() if link is not None else node
             if node.getType() != "aimConstraint":
                 raise ValueError("Select the aimConstraint node, not the joint.")

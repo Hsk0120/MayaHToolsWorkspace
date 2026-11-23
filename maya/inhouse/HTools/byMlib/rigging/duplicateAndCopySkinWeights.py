@@ -23,7 +23,7 @@ def _connect_attr(src_attr, dst_attr):
     dst_attr = mlib.getPlug(dst_attr)
     if dst_attr.isLocked():
         raise RuntimeError('Attribute is locked: {}'.format(dst_attr))
-    if src_attr.isConnectedTo(dst_attr, source=False):
+    if src_attr.isConnected(dst_attr, source=False):
         raise RuntimeError('Already connected: {} -> {}'.format(src_attr, dst_attr))
     dst_attr.connect(src_attr, force=True)
 
@@ -287,7 +287,7 @@ def connect_visibility_attr(src_mesh, dup_mesh):
     src_attr = src_node.getPlug('visibility')
     dup_attr = dup_node.getPlug('visibility')
 
-    if dup_attr.getSource() is not None:
+    if dup_attr.getConnections(input=True) is not None:
         try:
             dup_attr.disconnect()
         except Exception:

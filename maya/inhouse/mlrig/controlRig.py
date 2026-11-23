@@ -77,7 +77,7 @@ class ControlRig:
         Returns:
             Node: グループ。
         """
-        return self.root.getPlug(role + 'Group').getSource().getNode()
+        return self.root.getPlug(role + 'Group').getConnections(input=True).getNode()
 
     def register(self, attr, node):
         """マルチアトリビュートの末尾へ参照を保存する。
@@ -105,7 +105,7 @@ class ControlRig:
         Args:
             node (Node): 所有ノード。
         """
-        mlib.Container(self.root.getPlug('graph').getSource().getNode()).addMembers(node)
+        mlib.Container(self.root.getPlug('graph').getConnections(input=True).getNode()).addMembers(node)
 
     def getJoints(self):
         """変形骨とTweak骨を取得する。
@@ -176,7 +176,7 @@ class ControlRig:
                     else source.getPlug("constraintRotate" + axis)
                 )
                 destination = target.getPlug("rotate" + axis)
-                previous = destination.getSource()
+                previous = destination.getConnections(input=True)
                 if active and previous is None:
                     output.connectTo(destination)
                 elif not active and previous is not None:
@@ -225,7 +225,7 @@ class ControlRig:
         if names:
             rig = cls(names[0])
             active = rig.lod() == 1 and rig.layer_enabled(rig.kind())
-            if any((bool(n.getPlug('rotateX').getSource()) != active for n in rig.getMembers('targets'))):
+            if any((bool(n.getPlug('rotateX').getConnections(input=True)) != active for n in rig.getMembers('targets'))):
                 rig.update()
 
     @undoTransaction("mlrig.ControlRig.delete")
@@ -233,5 +233,5 @@ class ControlRig:
         """スキン未使用のモジュールを所有DGとともに削除する。"""
         if any(mlib.Node(j).getConnections(type="skinCluster", skipConversionNodes=True) for j in self.getJoints()):
             raise ValueError("Unbind before deleting")
-        mlib.delete(self.root.getPlug('graph').getSource().getNode())
+        mlib.delete(self.root.getPlug('graph').getConnections(input=True).getNode())
         mlib.delete(self.root)

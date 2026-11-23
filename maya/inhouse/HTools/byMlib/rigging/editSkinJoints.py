@@ -95,14 +95,14 @@ def _transaction(label):
 def _writable(plug):
     """接続・ロックされたアトリビュートへの上書きを防ぐ。"""
     plug = mlib.getPlug(plug)
-    if plug.isLocked() or plug.getSource() is not None or not plug.isSettable():
+    if plug.isLocked() or plug.getConnections(input=True) is not None or not plug.isSettable():
         raise RuntimeError("Attribute is locked, connected, or not writable: " + str(plug))
 
 
 def _signature(skin):
     """インフルエンスの実インデックスと入力接続を記録する。"""
     matrix = mlib.getNode(skin).getPlug("matrix")
-    return [[i, str(matrix[i].getSource() or "")] for i in matrix.getIndices()]
+    return [[i, str(matrix[i].getConnections(input=True) or "")] for i in matrix.getIndices()]
 
 
 def _poseMembers(pose):
@@ -138,7 +138,7 @@ def _expandSharedSkins(skins):
             poses.add(pose)
             for plug in mlib.getNode(pose).getPlug("message").getConnections(
                     source=False, destination=True, type="skinCluster"):
-                if plug.getLongName() != "bindPose":
+                if plug.getAttributeName() != "bindPose":
                     continue
                 shared_skin = plug.getNode().getName()
                 if shared_skin not in skins:

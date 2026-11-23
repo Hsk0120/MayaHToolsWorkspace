@@ -94,7 +94,7 @@ class GearTrain(TwistDistribution):
         channel = "rotate" + axis.upper()
         if connect:
             for gear in gears:
-                if gear.getPlug(channel).getSource(skipConversionNodes=True) is not None:
+                if gear.getPlug(channel).getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The rotation of the gear is already connected: " + gear.getFullName())
 
         graph = cls(mlib.createContainer(name=name))

@@ -69,7 +69,7 @@ class LimbRig:
         Returns:
             str: メンバーの完全名。
         """
-        source = self.root.getPlug(role).getSource() if self.root.hasAttr(role) else None
+        source = self.root.getPlug(role).getConnections(input=True) if self.root.hasAttr(role) else None
         if source is None:
             raise RuntimeError("Missing rig member: " + role)
         return source.getNode().getFullName()
@@ -382,7 +382,7 @@ class LimbRig:
         if old_owner == root:
             raise RuntimeError("Invalid Soft IK ownership: rig root cannot be replaced")
         length = mlib.getPlug(root + ".mlrigLength").get()
-        source = mlib.getPlug(old + '.distance').getSource()
+        source = mlib.getPlug(old + '.distance').getConnections(input=True)
         graph, owner = create_soft_ik(self.getNodeName("soft"), length, backend)
         if owner != graph:
             from mlib.nodes import Node
@@ -434,7 +434,7 @@ class LimbRig:
         for index in range(3):
             source = self._local_matrix(("fk" if mode == "fk" else "ik") + str(index))
             destination = self._member("joint" + str(index)) + ".offsetParentMatrix"
-            mlib.getPlug(destination).disconnectInput()
+            mlib.getPlug(destination).disconnectAll(destination=False)
             mlib.getPlug(source).connectTo(destination)
         self.root.getPlug("mlrigMode").set(mode)
         self._update_evaluation()
@@ -498,24 +498,24 @@ class LimbRig:
         position = self._member("footDecompose") + ".outputTranslate" if foot else position
         matrix = self._member("footMatrix") + ".matrixSum" if foot else self._local_matrix("target")
         for destination in (self._member("distance") + ".point2", scale + ".input1"):
-            mlib.getPlug(destination).disconnectInput()
+            mlib.getPlug(destination).disconnectAll(destination=False)
             mlib.getPlug(position).connectTo(destination)
         rotation_input = self._member("targetRotation") + ".offsetParentMatrix"
-        mlib.getPlug(rotation_input).disconnectInput()
+        mlib.getPlug(rotation_input).disconnectAll(destination=False)
         mlib.getPlug(matrix).connectTo(rotation_input)
         mlib.getPlug(handle + ".nodeState").set(0 if ik else 2)
-        mlib.getPlug(handle + ".translate").disconnectInput()
+        mlib.getPlug(handle + ".translate").disconnectAll(destination=False)
         if ik:
             source = scale + ".output" if soft else position
             mlib.getPlug(source).connectTo(handle + ".translate")
         # Bifrostを非表示にしても評価停止にはならない。接続も外してblockする。
         mlib.getPlug(graph + ".nodeState").set(0 if ik and soft else 2)
         helper = self._member("helper")
-        mlib.getPlug(helper + ".rotate").disconnectInput()
+        mlib.getPlug(helper + ".rotate").disconnectAll(destination=False)
         if detailed and self.layer_enabled("helper"):
             source = self._local_matrix(("ik" if ik else "fk") + "1")
             decompose = self._member("helperDecompose")
-            mlib.getPlug(decompose + ".inputMatrix").disconnectInput()
+            mlib.getPlug(decompose + ".inputMatrix").disconnectAll(destination=False)
             mlib.getPlug(source).connectTo(decompose + ".inputMatrix")
             mlib.getPlug(self._member("helperScale") + ".output").connectTo(helper + ".rotate")
         else:

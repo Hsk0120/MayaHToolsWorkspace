@@ -18,9 +18,9 @@ def _get_input_source(plug, skip_conversion=False):
         mlib.Plug | None: 入力元。入力が無ければ None。
     """
     while plug is not None:
-        if plug.isDestination():
-            return plug.getSource(skipConversionNodes=skip_conversion)
-        plug = plug.getParent() if plug.isChild() else None
+        if plug.isConnected(destination=False):
+            return plug.getConnections(input=True, skipConversionNodes=skip_conversion)
+        plug = plug.getParent() if plug.isCompound(child=True) else None
     return None
 
 
@@ -42,7 +42,7 @@ def _connect_attr(source_plug, target_plug, force=False, target_label=None):
     target_label = target_label or target_plug.getFullName()
     if target_plug.isLocked():
         raise RuntimeError('Attribute is locked: {}'.format(target_label))
-    if target_plug.isConnectedTo(source_plug, destination=False):
+    if target_plug.isConnected(source_plug, destination=False):
         raise RuntimeError(
             'Already connected: {} -> {}'.format(source_plug.getFullName(), target_label)
         )
@@ -97,7 +97,7 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
 
                 target = dst.getPlug(attr)
                 # 既に同接続がある場合は重複接続を避ける。
-                if target.isConnectedTo(input_src, destination=False):
+                if target.isConnected(input_src, destination=False):
                     continue
 
                 _connect_attr(input_src, target, force=force, target_label=dst_plug)

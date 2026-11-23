@@ -114,7 +114,7 @@ class OldhamCoupling(TwistDistribution):
             targets = [outputShaft.getPlug(rotateChannel), disc.getPlug(uChannel), disc.getPlug(vChannel),
                        disc.getPlug(rotateChannel)]
             for target in targets:
-                if target.getSource(skipConversionNodes=True) is not None:
+                if target.getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The target is already connected: " + str(target))
 
         distance = float(offset)

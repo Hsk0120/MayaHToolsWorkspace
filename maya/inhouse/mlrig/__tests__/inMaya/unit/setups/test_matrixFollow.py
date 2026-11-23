@@ -71,7 +71,7 @@ class MatrixFollowTest(unittest.TestCase):
         name = graph.getName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
-        self.assertIsNone(self.target.getPlug('offsetParentMatrix').getSource())
+        self.assertIsNone(self.target.getPlug('offsetParentMatrix').getConnections(input=True))
         cmds.redo()
         self.assertTrue(cmds.objExists(name))
         self.source.setTranslation((2, 1, 3), at=4)

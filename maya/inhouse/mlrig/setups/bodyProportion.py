@@ -145,7 +145,7 @@ class BodyProportion(TwistDistribution):
             for joint in joints:
                 for channel in ("translate", "scale"):
                     plugs = [joint.getPlug(channel)] + [joint.getPlug(channel + axis) for axis in "XYZ"]
-                    if any(plug.getSource(skipConversionNodes=True) is not None for plug in plugs):
+                    if any(plug.getConnections(input=True, skipConversionNodes=True) is not None for plug in plugs):
                         raise ValueError("The {} of the joint is already connected: {}".format(
                             channel, joint.getFullName()))
 
@@ -239,7 +239,7 @@ class BodyProportion(TwistDistribution):
         joints = []
         index = 0
         while self.container.hasAttr("joint" + str(index)):
-            joints.append(self.container.getPlug("joint" + str(index)).getSource(skipConversionNodes=True).getNode())
+            joints.append(self.container.getPlug("joint" + str(index)).getConnections(input=True, skipConversionNodes=True).getNode())
             index += 1
         return joints
 

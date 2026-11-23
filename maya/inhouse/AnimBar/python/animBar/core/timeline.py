@@ -337,16 +337,16 @@ def duplicateCamera(camera=None):
     channels = [copy.getPlug(name) for name in ("tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz")]
     for plug in channels:
         plug.setLocked(False)
-        if plug.getSource() is not None:
+        if plug.getConnections(input=True) is not None:
             plug.disconnect()
     shape, copy_shape = source.getShape(), copy.getShape()
     animated = []
     if shape is not None and copy_shape is not None:
         for plug in shape.getPlugs(keyable=True, scalar=True):
-            if plug.getSource() is not None and copy_shape.hasAttr(plug.getLongName()):
-                target = copy_shape.getPlug(plug.getLongName())
+            if plug.getConnections(input=True) is not None and copy_shape.hasAttr(plug.getAttributeName()):
+                target = copy_shape.getPlug(plug.getAttributeName())
                 target.setLocked(False)
-                if target.getSource() is not None:
+                if target.getConnections(input=True) is not None:
                     target.disconnect()
                 animated.append((plug, target))
     start, end = Time.getPlaybackRange()

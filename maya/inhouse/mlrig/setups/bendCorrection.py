@@ -120,7 +120,7 @@ class BendCorrection:
             rotation.getPlug("outputMatrix").connectTo(result.getPlug("matrixIn")[0])
             translation.getPlug("outputMatrix").connectTo(result.getPlug("matrixIn")[1])
             result.getPlug("matrixSum").connectTo(owner.getPlug("matrix"))
-        if owner.getPlug('matrix').getSource() is None:
+        if owner.getPlug('matrix').getConnections(input=True) is None:
             blend.getPlug("outputMatrix").connectTo(owner.getPlug("matrix"))
         delta = graph._node("multMatrix", "delta")
         relative.getPlug("matrixSum").connectTo(delta.getPlug("matrixIn")[0])

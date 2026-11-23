@@ -20,7 +20,7 @@ def get_guide(is_reference=False):
             continue
         # isGearGuide 属性を持つ transform をガイドとみなす。
         for plug in node.getPlugs():
-            if not "isGearGuide" in plug.getLongName():
+            if not "isGearGuide" in plug.getAttributeName():
                 continue
             guide_list.append(node.getName())
     return guide_list

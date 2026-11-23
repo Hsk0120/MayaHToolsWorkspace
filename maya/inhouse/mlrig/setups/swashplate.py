@@ -131,7 +131,7 @@ class Swashplate(TwistDistribution):
         if connect:
             for blade in blades:
                 target = blade.getPlug(pitchChannel)
-                if target.getSource(skipConversionNodes=True) is not None:
+                if target.getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The target is already connected: " + str(target))
         matrix = plate.getPlug("matrix").get()
         normal = (matrix[4], matrix[5], matrix[6])

@@ -181,10 +181,10 @@ class TwistLayer:
                 destination=False, asNode=True, type="animCurve"
             ):
                 raise ValueError("Animated twist joints cannot be rebuilt")
-        start = group.getPlug('start').getSource().getNode()
-        end = group.getPlug('end').getSource().getNode()
+        start = group.getPlug('start').getConnections(input=True).getNode()
+        end = group.getPlug('end').getConnections(input=True).getNode()
         axis = group.getPlug("twistAxis").get()
-        graph = group.getPlug('graph').getSource().getNode()
+        graph = group.getPlug('graph').getConnections(input=True).getNode()
         # container削除が空になった関連セットまで削除しないよう、先に所属を外す。
         mlib.Node(self.rig._member("twistSet")).removeMembers(
             [group.getFullName(), graph.getFullName()] + list(self.getJoints(segment))
@@ -201,15 +201,15 @@ class TwistLayer:
         """LOD/Enabledに応じて出力を接続し、無効時は基準位置で始点へ追従させる。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("twist")
         for group in self.segments().values():
-            graph = group.getPlug('graph').getSource().getNode()
+            graph = group.getPlug('graph').getConnections(input=True).getNode()
             graph.getPlug("nodeState").set(0 if active else 2)
             group.getPlug("visibility").set(active)
         for name in self.getJoints():
             joint = mlib.Node(name)
             destination = joint.getPlug("offsetParentMatrix")
-            source = destination.getSource()
+            source = destination.getConnections(input=True)
             if active:
-                output = joint.getPlug('twistOutput').getSource().getNode().getPlug('matrixSum')
+                output = joint.getPlug('twistOutput').getConnections(input=True).getNode().getPlug('matrixSum')
                 if source is None:
                     output.connectTo(destination)
             elif source is not None:

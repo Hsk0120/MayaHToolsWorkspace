@@ -194,7 +194,7 @@ class DifferentialGear(TwistDistribution):
             targets = [(spider, spiderChannel) for spider in spiders]
             targets += [(nodes[driven], channel)] if driven in nodes else []
             for target, attribute in targets:
-                if target.getPlug(attribute).getSource(skipConversionNodes=True) is not None:
+                if target.getPlug(attribute).getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The rotation is already connected: " + target.getFullName())
 
         zs, zp = float(sideTeeth), float(spiderTeeth)

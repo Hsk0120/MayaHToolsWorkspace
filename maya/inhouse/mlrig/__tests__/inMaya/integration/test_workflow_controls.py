@@ -46,10 +46,10 @@ class ControlsTest(unittest.TestCase):
             self.assertAlmostEqual(targets[0].getPlug("rz").get(), 40, places=4)
         self.assertEqual(len(cmds.ls()), node_count)
         rig.set_lod(0)
-        self.assertIsNone(targets[0].getPlug('rx').getSource())
+        self.assertIsNone(targets[0].getPlug('rx').getConnections(input=True))
         cmds.undo()
         self.assertEqual(rig.lod(), 1)
-        self.assertIsNotNone(targets[0].getPlug('rx').getSource())
+        self.assertIsNotNone(targets[0].getPlug('rx').getConnections(input=True))
         self.assertIsInstance(ModuleRegistry.get(rig.root), FingerRig)
 
     def test_aim(self):
@@ -80,12 +80,12 @@ class ControlsTest(unittest.TestCase):
             self.assertIn(joint.getFullName(), rig.getJoints())
             self.assertAlmostEqual(joint.getPlug("offsetParentMatrix").get()[13], 2)
             rig.set_lod(0)
-            self.assertIsNone(joint.getPlug('offsetParentMatrix').getSource())
+            self.assertIsNone(joint.getPlug('offsetParentMatrix').getConnections(input=True))
             rig.set_lod(1)
-            self.assertIsNotNone(joint.getPlug('offsetParentMatrix').getSource())
+            self.assertIsNotNone(joint.getPlug('offsetParentMatrix').getConnections(input=True))
             layer.groups()["local1"].getPlug("enabled").set(False)
             layer.update()
-            self.assertIsNone(joint.getPlug('offsetParentMatrix').getSource())
+            self.assertIsNone(joint.getPlug('offsetParentMatrix').getConnections(input=True))
             self.assertAlmostEqual(control.getPlug("ty").get(), 2)
 
     def test_spline_match(self):

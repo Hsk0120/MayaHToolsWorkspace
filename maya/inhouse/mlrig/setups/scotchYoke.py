@@ -105,7 +105,7 @@ class ScotchYoke(TwistDistribution):
         if connect:
             targets = [yoke.getPlug(yokeChannel)] + ([block.getPlug(blockChannel)] if block else [])
             for target in targets:
-                if target.getSource(skipConversionNodes=True) is not None:
+                if target.getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The target is already connected: " + str(target))
 
         radius = float(crankRadius)

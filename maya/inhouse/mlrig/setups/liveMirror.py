@@ -106,7 +106,7 @@ class LiveMirror(TwistDistribution):
             if node == target or target.isAncestorOf(node):
                 raise ValueError("The source and the plane must not be the target or its children")
         opm = target.getPlug("offsetParentMatrix")
-        if opm.getSource() is not None:
+        if opm.getConnections(input=True) is not None:
             raise ValueError("Target offsetParentMatrix is already connected")
         if opm.isLocked():
             raise ValueError("Target offsetParentMatrix must be writable")

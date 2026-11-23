@@ -112,7 +112,7 @@ class EllipticTrammel(TwistDistribution):
             targets = [sliderA.getPlug(aChannel), sliderB.getPlug(bChannel)]
             targets += [rod.getPlug(rotateChannel)] if rod is not None else []
             for target in targets:
-                if target.getSource(skipConversionNodes=True) is not None:
+                if target.getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The target is already connected: " + str(target))
 
         length = float(rodLength)

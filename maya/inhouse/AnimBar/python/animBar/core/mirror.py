@@ -129,7 +129,7 @@ def mirroredValue(plug, time=None):
         return None
     node = plug.getNode()
     other = oppositeNode(node) or node
-    name = plug.getLongName()
+    name = plug.getAttributeName()
     if not other.hasAttr(name):
         return None
     source = other.getPlug(name)
@@ -221,7 +221,7 @@ def mirrorAnimation(nodes=None, mode="mirror", timeRange=None):
     for source, target in _pairs(nodes, mode):
         inverted = invertedAttributes(target)
         for plug in keys.animatedPlugs(source, channelBox=False):
-            name = plug.getLongName()
+            name = plug.getAttributeName()
             if source == target and name not in inverted:
                 continue
             if not target.hasAttr(name):
@@ -267,7 +267,7 @@ def mirrorPose(nodes=None, mode="mirror", key=None):
     writes = []
     for source, target in _pairs(nodes, mode):
         for plug in keys.keyablePlugs(source, channelBox=False):
-            name = plug.getLongName()
+            name = plug.getAttributeName()
             if not target.hasAttr(name):
                 continue
             value = plug.get()

@@ -130,7 +130,7 @@ class FkIkChain(TwistDistribution):
         if role not in ("fk", "ik"):
             raise ValueError("role must be 'fk' or 'ik'")
         plug = self.container.getPlug(role + "Chain")
-        return [plug[index].getSource(skipConversionNodes=True).getNode() for index in plug.getIndices()]
+        return [plug[index].getConnections(input=True, skipConversionNodes=True).getNode() for index in plug.getIndices()]
 
     @undoTransaction("mlrig.FkIkChain.matchFkToIk")
     def matchFkToIk(self):

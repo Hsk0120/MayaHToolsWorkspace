@@ -144,7 +144,7 @@ class PeaucellierLinkage(TwistDistribution):
         if connect:
             targets = [pen.getPlug(penChannel)] + [arm.getPlug(rotateChannel) for _, arm in armPairs]
             for target in targets:
-                if target.getSource(skipConversionNodes=True) is not None:
+                if target.getConnections(input=True, skipConversionNodes=True) is not None:
                     raise ValueError("The target is already connected: " + str(target))
 
         radius, arm, side = float(crankLength), float(armLength), float(sideLength)
