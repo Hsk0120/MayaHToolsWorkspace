@@ -63,7 +63,7 @@ def selectRing(selection=None):
         int: 選んだエッジの数。
     """
     mesh, edges = selectedEdges(selection)
-    return _select_edges(mesh, mesh.getEdges(edges).getRing().indices)
+    return _select_edges(mesh, mesh.getEdges(edges).getLoop(ring=True).indices)
 
 
 def grownVertices(target):

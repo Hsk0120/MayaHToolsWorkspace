@@ -351,8 +351,8 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
   (`joint.getChildren().sortedByDepth()` が使える)。自動で決まった型の集まりは、型の合わない要素を足すとNodesへ戻る
   (`mlib.ls("joint1") + [cube]` が中身によってTypeErrorにならないようにする)。自分で作った `Joints([...])` は今までどおり拒否する。
 - **Plugsも要素へ転送**: `plugs.get()`・`plugs.set(0)` のように、自分に無い公開メソッドの名前を各Plugへ転送する(Nodesと同じ決まり)。
-- **名前の一覧**: Nodes・Plugsとも `getNames()`・`getFullNames()` の両方を持つ。コンポーネントは `getFullNames()`・`getCompactNames()`
-  (単数のComponentに `getName` が無いため、`getNames` は足していない)。
+- **名前の一覧**: Nodes・Plugsとも `getNames()`・`getFullNames()` の両方を持つ。コンポーネントは `getNames(*, full=False, compact=False)` の1つ
+  (2026-11-23 の共通化で `getFullNames()`・`getCompactNames()` をまとめた。末尾の「メソッドの共通化」)。
 
 ### 2026-11-14〜15の速度の見直し(Undoチャンク・接続・Transformation)
 
@@ -434,7 +434,7 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
   - **段階3(実装済み)**: `AnimCurve.setKey`・`removeKey`・`setTangent`・`setInfinity`、`Keyframe.setValue`・`Keyframes.setValue`、
     `DrivenKey.setKey`、`BlendShape.setTargetWeights`・`setTargetDeltas`・`resetTargetVertices`・`reduceTargetDeltas`、
     `DagNode.setOverrideColor`・`setOutlinerColor`・`setDisplayType`・`setShadingOverride`、`GeometryFilter.setDeformerWeights`、
-    ポイントの書き込み(`PointComponent`/`PointComponents` の `setPosition`・`setPositionX/Y/Z`・`setPositions`・`moveBy`・`mirror`、
+    ポイントの書き込み(`PointComponent`/`PointComponents` の `setPosition`(`axis`・`relative`・`each` を含む)・`mirror`、
     `Mesh.setPoints`・`mirror`、`NurbsCurve.setCvPositions`・`mirror`、`NurbsSurface.setCvPositions`、`Shape.scaleGeometry`、
     `Transform.scaleGeometry`・`mirrorGeometry`)、`SkinCluster.setWeights`・`pruneWeights`・`setBlendWeights`。
     どれも fast の中の `require_writable` を `check=True` のときだけ呼ぶ。入力ヒストリの有無・ノードのロック・番号や型の検査は `check` に関係なく行う。
@@ -952,7 +952,7 @@ git の履歴(各版のコミットメッセージ)で追う。
 | 対象 | 公開形式 | 例 |
 | --- | --- | --- |
 | Mayaの現在の状態・名前・アトリビュート情報を問い合わせる | メソッド | `node.getFullName()`、`node.isLocked()`、`plug.getName()` |
-| Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.getPosition()`、`vertex.getPositionX()`、`mesh.getNumVertices()` |
+| Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.getPosition()`、`mesh.getNumVertices()` |
 | Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`transform.setTranslation(value)`、`node.rename(name)` |
 | オブジェクトが保持している参照・番号を返す | プロパティ | `component.shape`、`component.index`、`components.indices` |
 | 数学値(`mlib.maths`)を参照する | プロパティまたはデータフィールド | `vector.x`、`matrix.translate` |
@@ -1078,7 +1078,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 排他的な選択操作は `Selection.select(mode="replace")` のようなモードで指定する。
 - メンバーの操作は `addMembers` / `removeMembers`、個数の照会は `getNumVertices` / `getNumCVs` 等のget付き正式名にする。
 - `Plug.get/set` は対象アトリビュートを扱い、マトリクスアトリビュートから所有ノードのTRS更新へ暗黙に切り替えない。ノード変換は `Transform.getMatrix/setMatrix` を使用する。
-- 単数形と複数形の座標取得はともに `getPosition`。書込みは 12.1.0 で戻した `setPosition` 系(複数形は `setPositions` も)と `mirror` で、`worldSpace=False`・cm・通常は `cmds.xform`/`polyEditUV`、`fast=True` は OpenMaya。
+- 単数形と複数形の座標取得はともに `getPosition`。書込みは 12.1.0 で戻した `setPosition`(1成分は `axis`、移動は `relative=True`、複数形の要素ごとの値は `each=True`)と `mirror` で、`worldSpace=False`・cm・通常は `cmds.xform`/`polyEditUV`、`fast=True` は OpenMaya。
 - 点の位置(XYZ)は、単体なら `mlib.Vector`、複数なら `list[Vector]` で返す(6.0.0。`Vertex`/`CV`・`Vertices`/`CVs` の `getPosition`、`Mesh.getPoints`、`NurbsCurve.getCvPositions`)。om2の `MPointArray`・tupleは返さず、wでは割らない。成分だけの `getPositionX/Y/Z` は float。UVの位置は2成分のため `(U, V)` のtupleのまま。全点の一括書込みは `Mesh.setPoints`・`NurbsCurve.setCvPositions` で、どちらも `get` の結果・tupleの列・MPointArrayを受け、点数の違いはValueError、1回のUndoにまとめる。
 - 戻り値の型・単位・更新対象・破壊性が違う操作は、名前が似ていても安易にフラグ統合しない。
 
@@ -1276,3 +1276,34 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
     `_VersionedItem` へ上げた。Maya のコマンドが違う `isRegistered`・`getPath`・`getVersionText` と、型を比べる `__eq__`・`__hash__`・`__repr__` は各クラスに残した。
   - 対象外: `Component` と `Components` の `shape`・`index`、`isOnBoundary`(Vertex・Edge・Face)は、共通の親が無い
     (親に置くと関係ないクラスにも付く)ので上げていない。
+- 領域1a(コンポーネント): `components/` の公開メソッドを、機能を残して引数でまとめた(公開の名前は44個減)。あわせて決まりを
+  「種類を選ぶ引数で戻り値の型が変わってよい(型スタブはオーバーロード)」「更新する対象が違う操作も、同じ種類の値ならフラグでまとめてよい(壊し方が違うものは別)」に改めた。
+  - 頂点・CV の位置(`PointComponent`・`PointComponents`。−15): `getPositionX/Y/Z` → `getPosition().x`(複数形は `[p.x for p in pts.getPosition()]`)、
+    `setPositionX/Y/Z(v)` → `setPosition(v, axis="x")`、`moveBy(offset)` → `setPosition(offset, relative=True)`、
+    `PointComponents.setPositions(values)` → `setPosition(values, each=True)`。署名は
+    `setPosition(value, worldSpace, *, axis=None, relative=False, [each=False,] fast=False, check=False, ws)`。`axis`・`relative`・`each` はどの組み合わせも意味が通るので全部受ける
+    (`axis`+`relative` はその成分だけ足す、`each`+`relative` は要素ごとの移動量)。複数形の旧 `setPositionX` は数値1つと並びの両方を受けていたが、
+    数値1つは `each=False`、並びは `each=True` と明示する。値の形が `each`・`axis` と合わないときは TypeError(座標の並びを `each=False` で渡しても全点が1か所に集まらない)。
+    Undo チャンク名は `mlibPointComponentSetPosition`・`mlibPointComponentsSetPosition` の1つずつ。fast・check・worldSpace の動きは同じ。
+  - UV(`UV`・`UVs`。−9): `getU()`・`getV()` → `getPosition()[0]`・`[1]`、`setU(v)`・`setV(v)` → `setPosition(v, axis="u")`、
+    `UVs.setPositions(values)` → `setPosition(values, each=True)`。UV に `relative` は足していない(元から移動のメソッドが無い)。
+    fast で入力ヒストリがあるときの文言のメソッド名は `setPosition` になった。
+  - 名前(−4): `Components.getNames()`・`getFullNames()`・`getCompactNames()` → `getNames(*, full=False, compact=False)`。
+    `getFullNames()` は `getNames(full=True)`、`getCompactNames()` は `getNames(full=True, compact=True)`(元から完全パスだった)。
+    `getNames(compact=True)`(最短の名前でまとめる)は新しい組み合わせ。`CVs` の上書き2つは内部の `_full_names` になった。
+    `Nodes`・`Plugs` の `getNames`/`getFullNames` と単数の `getFullName` は、ノード・Plug の領域でそろえる。
+  - フェースの判定(−8): `isPlanar`・`isConvex`・`isStarlike`・`isLamina`・`isHoled`・`hasValidTriangulation`・`isZeroArea`・`isZeroUVArea`・`isUVReversed` →
+    `Face.isKind(kind, *, uvSet=None, tolerance=None)`(`"planar"`・`"convex"`・`"starlike"`・`"lamina"`・`"holed"`・`"validTriangulation"`・`"zeroArea"`・`"zeroUVArea"`・`"uvReversed"`)。
+    名前は、書き込み前の検査の引数 `check=` と重ならず、判定は `is` で始める決まりに合わせた。その種類で使わない `uvSet`・`tolerance` は TypeError。
+    `isOnBoundary` は Vertex・Edge・Face にあるので残した。
+  - 隣(−2): `Face.getConnectedFaces/Edges/Vertices()` → `Face.getConnected(*, type="face")`(`"face"`・`"edge"`・`"vertex"`。戻り値は Faces・Edges・Vertices)。
+    名前をそろえるため `Edge.getConnectedEdges()` → `Edge.getConnected()`、`Vertex.getConnectedVertices()` → `Vertex.getConnected()`(数は変わらない。
+    エッジ・頂点のほかの種類は `getFaces`・`getEdges`・`getVertices` が既にあるので、`type` は付けていない)。
+  - 面積(−1): `Face.getUVArea(uvSet=...)` → `getArea(uv=True, uvSet=...)`。`uv=True` と `worldSpace`、`uv=True` でない `uvSet` は TypeError。
+  - ループとリング(−2): `Edge`・`Edges` の `getRing()` → `getLoop(ring=True)`。
+  - 頂点フェース(−3): `getBinormal()` → `getTangent(binormal=True)`、`setNormalLocked(state)` → `setNormal(locked=state)`
+    (`normal` を渡すと今までどおり設定してロック。`normal` と `locked=False`、どちらも無しは TypeError)、`isNormalLocked()` → `getNormal(locked=True)`
+    (bool を返す get になる。検証では勧めないとしたが、書けるものは全部採る決定に合わせた)。Mesh 側の `getFaceVertexNormalLocks` などは形状の領域で扱う。
+  - まとめなかったもの: `Face.getPointAtUV`/`getUVAtPoint`(向きが逆の変換)、`Edge.getVertices`・`Face.getVertices`・`UV.getPosition` などの種類ごとの変換、
+    `Vertices.grow`/`shrink`、`Face.getShadingEngine`/`getMaterial`。
+  - 内部: 軸の名前と1成分の値の検査は `components/component.py` の `_axis_index`・`_axis_numbers`・`_edited_row`・`_require_single_row` に置いた(頂点・CV と UV で共有)。

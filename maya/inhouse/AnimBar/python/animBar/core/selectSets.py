@@ -206,5 +206,5 @@ def _plain_names(member):
     """
     if isinstance(member, mlib.Node):
         return [member.getNodeName(removeNamespace=True)]
-    names = member.getCompactNames() if hasattr(member, "getCompactNames") else [str(member)]
+    names = member.getNames(full=True, compact=True) if isinstance(member, mlib.Components) else [str(member)]
     return [name.rpartition("|")[2].rpartition(":")[2] for name in names]
