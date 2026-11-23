@@ -1,5 +1,7 @@
 """操作用カーブと高低メッシュを持つ最小リグのデモ。"""
 
+import functools
+
 import mlib
 
 from mlib.decorator import undoTransaction
@@ -49,9 +51,9 @@ def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True)
 
     for role, control in rig.controls().items():
         ControlShape.circle(control, radius=0.45, color=17 if role.startswith("fk") else 6)
-    ui = mlib.common.units.distanceFromUi
-    high = mlib.createPolyCube(width=ui(10), height=ui(1), depth=ui(1), subdivisions=(16, 1, 1), name=high_name).getParent()
-    proxy = mlib.createPolyCube(width=ui(10), height=ui(1), depth=ui(1), subdivisions=(4, 1, 1), name=proxy_name).getParent()
+    ui = functools.partial(mlib.common.units.convertDistance, toUnit="cm")
+    high = mlib.createPoly("cube", width=ui(10), height=ui(1), depth=ui(1), subdivisions=(16, 1, 1), name=high_name).getParent()
+    proxy = mlib.createPoly("cube", width=ui(10), height=ui(1), depth=ui(1), subdivisions=(4, 1, 1), name=proxy_name).getParent()
     for mesh in (high, proxy):
         mesh.getPlug("translateX").set(5)
         mesh.makeIdentity(apply=True, translate=True)

@@ -38,6 +38,6 @@ class Bifrost:
 
         if Environment.getApiVersion() < 20250000:
             raise RuntimeError(__package__.split(".", 1)[0] + " requires Maya 2025 or newer")
-        Plugin("bifrostGraph").ensureLoaded()
+        Plugin("bifrostGraph").load(skipExisting=True)
         if not cls.is_available():
             raise RuntimeError(__package__.split(".", 1)[0] + " requires Bifrost 3.0.0.0 or newer")

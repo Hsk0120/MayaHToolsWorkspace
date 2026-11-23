@@ -1,5 +1,6 @@
 """向きがコーンの中心にどれだけ一致しているかを0〜1で出力する。"""
 
+import functools
 import math
 
 import mlib
@@ -234,7 +235,7 @@ class ConeReader:
     def _curve(parent, name, points, color):
         """一次カーブのシェイプを parent へ追加する。"""
         # 点は現在の距離単位で決めているため、作成関数の内部単位(cm)へ換算して渡す。
-        ui = mlib.common.units.distanceFromUi
+        ui = functools.partial(mlib.common.units.convertDistance, toUnit="cm")
         shape = mlib.createCurve([tuple(ui(v) for v in point) for point in points], degree=1, name=name+"__tmp")
         temporary = shape.getParent()
         shape.setParent(parent)

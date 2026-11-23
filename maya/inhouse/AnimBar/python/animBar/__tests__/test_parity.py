@@ -41,7 +41,7 @@ class _Case(unittest.TestCase):
         cmds.file(new=True, force=True)
         cmds.currentUnit(linear="cm", angle="deg", time="film")
         cmds.undoInfo(state=True, infinity=True)
-        Time.setPlaybackRange(1, 20)
+        Time.setRange(1, 20)
         mirror.resetInvertRules()
 
 

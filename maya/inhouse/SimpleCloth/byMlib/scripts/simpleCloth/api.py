@@ -250,11 +250,11 @@ def addCollider(solverNode, kind="sphere", radius=3.0, height=6.0, attachTo=None
         helpers = []
         # 元の版の polySphere などと同じく、大きさはシーン表示単位の値として作る(下で表示単位の倍率を打ち消す)。
         if kind == "sphere":
-            shape = mlib.createPolySphere(radius=units.distanceFromUi(radius), subdivisions=(20, 12), constructionHistory=True)
+            shape = mlib.createPoly("sphere", radius=units.convertDistance(radius, toUnit="cm"), subdivisions=(20, 12), constructionHistory=True)
             history = shape.getHistory(type="polySphere")[0]
             history.getPlug("radius").connect(guide.getPlug("clothRadius"))
         elif kind == "capsule":
-            shape = mlib.createPolyCylinder(radius=units.distanceFromUi(radius), height=units.distanceFromUi(height + 2 * radius),
+            shape = mlib.createPoly("cylinder", radius=units.convertDistance(radius, toUnit="cm"), height=units.convertDistance(height + 2 * radius, toUnit="cm"),
                                             subdivisions=(20, 1, 6), roundCap=True, constructionHistory=True)
             history = shape.getHistory(type="polyCylinder")[0]
             multiply = mlib.createNode("multDoubleLinear")
@@ -267,7 +267,7 @@ def addCollider(solverNode, kind="sphere", radius=3.0, height=6.0, attachTo=None
             history.getPlug("radius").connect(guide.getPlug("clothRadius"))
             helpers.extend([multiply, add])
         else:
-            shape = mlib.createPolyPlane(width=units.distanceFromUi(20), height=units.distanceFromUi(20), subdivisions=(1, 1),
+            shape = mlib.createPoly("plane", width=units.convertDistance(20, toUnit="cm"), height=units.convertDistance(20, toUnit="cm"), subdivisions=(1, 1),
                                          constructionHistory=True)
             history = shape.getHistory(type="polyPlane")[0]
         mesh = shape.getTransform()
@@ -275,7 +275,7 @@ def addCollider(solverNode, kind="sphere", radius=3.0, height=6.0, attachTo=None
         mlib.select(mesh)
         mesh.setParent(guide, relative=True)
         # ガイドの形状は計算単位cm。シーン表示単位によるpolyプリミティブ倍率を打ち消す。
-        unit_scale = units.distanceToUi(1.0)
+        unit_scale = units.convertDistance(1.0, "cm")
         mesh.getPlug("scale").set((unit_scale, unit_scale, unit_scale))
         guide.setColor((0.2, 0.65, 1.0))
         guide.setShadingOverride(True)

@@ -1422,3 +1422,26 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
     `Camera.getAspectRatio`/`setAspectRatio`・`isVerticalLocked`/`setVerticalLocked`、`Reference.isReferenceLocked`/`setReferenceLocked`・`isUsingNamespaces`・`isDeferred`・`isTopLevel`、`BlendShape.getWeightCount`・`getNormalizationGroups`
     (Maya のコマンドでの照会・設定で、アトリビュート1つの読み書きと同じとは言い切れない)。
   - 内部: 種類の名前の検査は `util._require_choice`、番号1つとコレクションの振り分けは `components/component.py` の `_component_of`、UV セット・カラーセットの名前の検査は `Mesh._require_set`。
+- 領域4(common・cmds・数学型。2026-11-24): `common/`・`cmds/`・`maths/` で、公開の名前を31個減らした(作成関数 −6、そのほか −25)。
+  - 版(−5、+1): `Plugin`・`Module` の `getVersionText()` → `getVersion(text=True)`(Maya の文字列そのまま。数字で始まらない版を読む手段として残す。実装は派生クラスの非公開 `_version_text`)、
+    `isVersionAtLeast(m)` → `v = p.getVersion(); v is not None and v.isAtLeast(m)`(`v >= "1.2"` は str との比較が TypeError のままで、広げるとハッシュと食い違うので使わない)、
+    `PluginPackage.getInstalledVersion()`・`getLoadedVersion()` → `getVersion()`・`getVersion(loaded=True)`、`Plugin.ensureLoaded()` → `load(skipExisting=True)`(ロード済みなら型のキャッシュも消さない)。
+  - マトリクス(−5、+1): `asTranslateMatrix`・`asRotateMatrix`・`asScaleMatrix`・`as3x3` → `Matrix.extract(part)`(`"translate"`・`"rotate"`・`"scale"`・`"3x3"`。位置引数で必須。
+    `asMatrix(part=)` にしなかったのは、`Quaternion.asMatrix`・om2 の `MTransformationMatrix.asMatrix`/`asRotateMatrix` と同じ名前で意味が違うため)。`getAxes()` → `tuple(m.getAxis(i) for i in range(3))`
+    (符号つきの軸の名前を受ける `getAxis` を残した)。
+  - コンストラクターで書ける生成(−6): `Matrix.identity()` → `Matrix()`、`Matrix.fromMMatrix(m)` → `Matrix(m)`、`Matrix.fromTransformation(t)` → `Matrix(t.asMatrix())`、
+    `Vector.fromIterable(v)` → `Vector(v)`(要素2つも受ける om2 の動き)、`EulerRotate.fromIterable(v, o)` → `EulerRotate(v, o)`、`EulerRotate.fromDegrees(x, y, z, o)` → `EulerRotate(x, y, z, o, unit="deg")`。
+    mlib の内部の `fromMMatrix` は非公開の `Matrix._wrap` にした(速さを保つ)。`Matrix.compose` は利用側で多く使われ読みやすいので残した。
+  - そのほかの数学型・環境(−2): `Vector.distanceSqTo(o)` → `distanceTo(o, squared=True)`、`Environment.isInteractive()` → `not Environment.isBatch()`。
+  - 単位(−5): `distanceToUi(cm)` → `convertDistance(cm, "cm")`、`distanceFromUi(v)` → `convertDistance(v, toUnit="cm")`、`angleToUi(v, unit=u)` → `convertAngle(v, u, None)`、
+    `angleFromUi(v, unit=u)` → `convertAngle(v, None, u)`、`secondsPerFrame()` → `convertTime(1.0, toUnit="sec")`(fps は `convertTime(1.0, "sec")`)。`convertAngle` の既定(度→ラジアン)は変えていない。
+  - 時間(−5、+2): `Time.getPlaybackRange`・`getAnimationRange`・`getSelectedRange` → `getRange(*, animation=False, selected=False, timeUnit=)`(両方 True は TypeError。`selected=True` は None になることがある)、
+    `setPlaybackRange`・`setAnimationRange` → `setRange(start, end, *, animation=False, timeUnit=)`。`setRange` と `Time.setCurrent` は、書き換えるメソッドの決まりどおり値を返さなくした(以前は設定後の値)。
+  - コールバック(−1): `Callbacks.addSceneCheckCallback(e, f)` → `addSceneCallback(e, f)`(イベント名が重ならないのでフラグなし。`…Check` のイベントでは偽(None を含む)を返すと操作を止める。以前は ValueError だったので、黙って変わる呼び方は無い)。
+  - 作成関数(−8、+2): `createDagContainer(...)` → `createContainer(..., dag=True)`(既定の名前と Undo チャンク名は今までどおり)、
+    `createPolyCube`・`createPolySphere`・`createPolyCylinder`・`createPolyPlane` → `createPoly(kind, *, ...)`(`kind` 以外はキーワード専用。形ごとに使えない引数は TypeError。既定値・Undo チャンク名は形ごとに今までどおり)、
+    `createCluster`・`createLattice`・`createWire` → `createDeformer(kind, targets, *, curves=, ...)`(`"cluster"`・`"lattice"`・`"wire"`。wire は `curves=` が必須で、省くと TypeError。
+    名前が `cmds.deformer` と重なるが、扱うのは専用コマンドの3種類だけで、ほかの型名は ValueError。`kind` はノードの型名ではなく作るもの(lattice は ffd を返す)なので `type` にしなかった)。
+    `createBlendShape`・`bindSkin` は引数と戻り値が大きく違うので入れていない。型スタブは `kind`・`dag`・`text`・`selected` のオーバーロード(`createPoly` は形ごとに使える引数だけを並べる)。
+  - まとめなかったもの: `EulerRotate` の解の選び直し8つ(om2 の名前の上書き。消すと戻り値が om2 の型になるだけ)、`Quaternion` の `asCanonicalAxisAngle`・`asDecomposedEulerRotate`・`safeLog`・`asUnitMatrix`、
+    `Vector`・`Quaternion` の `unit`(数学型の独自名はまとめないユーザーの決定)、`Version.minor`・`patch`・`build`(別の情報)、`json.file._current_fps`(非公開のまま)。

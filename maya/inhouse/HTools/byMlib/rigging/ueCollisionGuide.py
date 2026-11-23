@@ -87,7 +87,7 @@ def _uiFactor():
     Returns:
         float: 1cm がシーンの単位でいくつか。
     """
-    return units.distanceToUi(1.0)
+    return units.convertDistance(1.0, "cm")
 
 
 def uniqueName(shape, target=None):
@@ -225,8 +225,8 @@ def _buildCapsule(radius, length, axis, segments, capSegments, name):
     """
     # 大きさはシーンの単位の値をcmへ直して渡す。作成ノードの値は下でアトリビュートへつなぐので、
     # 長さ0は作成ノードの最小値(0.01)で作る(cmds.polyCylinder も高さ0をその値にする。mlib の作成関数は正の値だけを受ける)。
-    shape = mlib.createPolyCylinder(radius=units.distanceFromUi(radius),
-                                    height=units.distanceFromUi(length) if length > 0 else 0.01,
+    shape = mlib.createPoly("cylinder", radius=units.convertDistance(radius, toUnit="cm"),
+                                    height=units.convertDistance(length, toUnit="cm") if length > 0 else 0.01,
                                     axis=_AXIS_VECTORS[axis], subdivisions=(segments, 1, capSegments), roundCap=True,
                                     createUVs=0, constructionHistory=True, name=name)
     transform, node = shape.getTransform(), shape.getHistory(type="polyCylinder")[0]
@@ -274,7 +274,7 @@ def _buildSphere(radius, segments, rings, name):
     Returns:
         mlib.Transform: トランスフォーム。
     """
-    shape = mlib.createPolySphere(radius=units.distanceFromUi(radius), subdivisions=(segments, rings), createUVs=0,
+    shape = mlib.createPoly("sphere", radius=units.convertDistance(radius, toUnit="cm"), subdivisions=(segments, rings), createUVs=0,
                                   constructionHistory=True, name=name)
     transform, node = shape.getTransform(), shape.getHistory(type="polySphere")[0]
     # 元の cmds.polySphere と同じく、作った形状を選んだ状態にする。
@@ -319,8 +319,8 @@ def _buildBox(sizeX, sizeY, sizeZ, name):
     Returns:
         mlib.Transform: トランスフォーム。
     """
-    shape = mlib.createPolyCube(width=units.distanceFromUi(sizeX), height=units.distanceFromUi(sizeY),
-                                depth=units.distanceFromUi(sizeZ), createUVs=0, constructionHistory=True, name=name)
+    shape = mlib.createPoly("cube", width=units.convertDistance(sizeX, toUnit="cm"), height=units.convertDistance(sizeY, toUnit="cm"),
+                                depth=units.convertDistance(sizeZ, toUnit="cm"), createUVs=0, constructionHistory=True, name=name)
     transform, node = shape.getTransform(), shape.getHistory(type="polyCube")[0]
     # 元の cmds.polyCube と同じく、作った形状を選んだ状態にする。
     mlib.select(transform)
@@ -540,7 +540,7 @@ def createCapsuleBetween(start, end, radius=3.0, endPadding=0.0, segments=16, ca
         # 結果がずれる(シーンの単位が cm 以外で長さが狂う)。エクスプレッションは長さのアトリビュートを常に
         # シーンの単位で読み書きするので、版にもシーンの単位にも左右されない。
         # 2点の位置は decomposeMatrix(標準の matrixNodes プラグイン)でワールド行列から取り出す。
-        Plugin("matrixNodes").ensureLoaded()
+        Plugin("matrixNodes").load(skipExisting=True)
         positions = []
         for source, label in ((startNode, "start"), (endNode, "end")):
             decompose = mlib.createNode("decomposeMatrix", name="{}_{}Position".format(name, label))

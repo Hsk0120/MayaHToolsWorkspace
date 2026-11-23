@@ -767,7 +767,7 @@ class AnimBar(QtWidgets.QWidget):
                        "Copy the animation of the selected objects (only the range selected in the Time Slider,\n"
                        "if any). Paste it with the button next to it.", animCopy.copyAnimation,
                        menu=lambda menu: _action(menu, "Copy the playback range only",
-                                                 lambda: animCopy.copyAnimation(timeRange=Time.getPlaybackRange()),
+                                                 lambda: animCopy.copyAnimation(timeRange=Time.getRange()),
                                                  tip="Copy only the keys inside the current playback range."))
         section.button("paste", "Paste Animation\n"
                        "Paste the copied animation onto the selected objects in the order they were copied\n"

@@ -125,8 +125,8 @@ class SkirtRig:
             group.getPlug("message").connectTo(root.getPlug(role + "Group"))
             groups[role] = group
         groups["rest"].getPlug("visibility").set(False)
-        radius = mlib.common.units.distanceFromUi(radius)
-        spacing = mlib.common.units.distanceFromUi(length) / (joints_per_chain - 1)
+        radius = mlib.common.units.convertDistance(radius, toUnit="cm")
+        spacing = mlib.common.units.convertDistance(length, toUnit="cm") / (joints_per_chain - 1)
         for role, count, registry in (
             ("driver", driver_count, "drivers"),
             ("follower", chain_count, "followers"),

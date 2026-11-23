@@ -101,7 +101,7 @@ class SplineRig:
                     parent=parent,
                     skipSelect=True,
                 )
-                joint.getPlug("translateX").set(mlib.common.units.distanceFromUi(length / (joint_count - 1)) if i else 0)
+                joint.getPlug("translateX").set(mlib.common.units.convertDistance(length / (joint_count - 1), toUnit="cm") if i else 0)
                 joint.getPlug("jointOrient").set(orient if i == 0 else (0, 0, 0))
                 joint.getPlug("segmentScaleCompensate").set(False)
                 joint.getPlug("radius").set(0.2)
@@ -121,7 +121,7 @@ class SplineRig:
                 skipSelect=True,
             )
             offset.getPlug("translate").set(
-                tuple(mlib.common.units.distanceFromUi(v * length * i / (control_count - 1)) for v in normal)
+                tuple(mlib.common.units.convertDistance(v * length * i / (control_count - 1), toUnit="cm") for v in normal)
             )
             control = mlib.createNode(
                 "transform",
@@ -341,7 +341,7 @@ class SplineRig:
             for target, joint in zip(points, joints):
                 matrix = joint.getMatrix(worldSpace=True)
                 errors.append(math.sqrt(sum((target[i] - matrix[12 + i]) ** 2 for i in range(3))))
-            error = mlib.common.units.distanceToUi(max(errors))
+            error = mlib.common.units.convertDistance(max(errors), "cm")
         finally:
             self.set_mode(mode)
         if tolerance is not None and error > tolerance:

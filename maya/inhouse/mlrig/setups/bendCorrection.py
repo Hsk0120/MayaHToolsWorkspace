@@ -82,7 +82,7 @@ class BendCorrection:
             )
             # addAttrの距離defaultは内部cmなので、初期値をUI距離単位で明示設定する。
             owner.getPlug(attr).set(
-                mlib.common.units.distanceFromUi(value)
+                mlib.common.units.convertDistance(value, toUnit="cm")
                 if attr.endswith(("Rest", "Push")) else value
             )
         owner.addAttr(longName="matrix", dataType="matrix")

@@ -144,8 +144,8 @@ def step(state, previous_poses, poses, parents, settings, colliders, constraints
         root = roots[index]
         old_root = position(previous_poses[root])
         new_root = pose_points[root]
-        old_rotation = Matrix.fromMMatrix(previous_poses[root]).quaternion
-        new_rotation = Matrix.fromMMatrix(poses[root]).quaternion
+        old_rotation = Matrix(previous_poses[root]).quaternion
+        new_rotation = Matrix(poses[root]).quaternion
         rotation = old_rotation.inverse() * new_rotation
         old_point = Vector(points[index])
         # 過去位置から再構成した速度へ減衰を適用。非整数時刻の末尾dtにも正規化する。

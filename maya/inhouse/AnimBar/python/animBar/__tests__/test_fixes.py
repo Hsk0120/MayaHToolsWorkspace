@@ -43,7 +43,7 @@ class _Case(unittest.TestCase):
         cmds.file(new=True, force=True)
         cmds.currentUnit(linear="cm", angle="deg", time="film")
         cmds.undoInfo(state=True, infinity=True)
-        Time.setPlaybackRange(1, 20)
+        Time.setRange(1, 20)
 
 
 class ShareKeysTest(_Case):
@@ -270,7 +270,7 @@ class SpaceRangeTest(_Case):
         master = _keyed("master", {"ry": [(1, 0), (9, 360)]})
         cmds.keyTangent(master + ".ry", edit=True, inTangentType="linear", outTangentType="linear")
         slave = cmds.createNode("transform", name="slave", skipSelect=True)
-        Time.setPlaybackRange(1, 9)
+        Time.setRange(1, 9)
         spaceTools.align([mlib.getNode(slave)], mlib.getNode(master), rangeMode="range")
         values = [value for _, value in _values(slave, "ry")]
         self.assertEqual(len(values), 9)
@@ -286,7 +286,7 @@ class SpaceRangeTest(_Case):
         cmds.keyTangent(master + ".tx", edit=True, inTangentType="linear", outTangentType="linear")
         slave = cmds.createNode("transform", name="slave", skipSelect=True)
         cmds.setAttr(slave + ".tx", 10)
-        Time.setPlaybackRange(1, 9)
+        Time.setRange(1, 9)
         Time.setCurrent(5)
         spaceTools.fakeConstraint([mlib.getNode(slave)], mlib.getNode(master), rangeMode="range")
         # 5フレームでマスターは4、スレーブは10なので、相対は+6。
@@ -324,7 +324,7 @@ class DuplicateCameraTest(_Case):
         cmds.setKeyframe(shape, attribute="focalLength", time=1, value=35)
         cmds.setKeyframe(shape, attribute="focalLength", time=5, value=50)
         cmds.setAttr(camera + ".sx", lock=True)
-        Time.setPlaybackRange(1, 5)
+        Time.setRange(1, 5)
         copy = timeline.duplicateCamera(camera)
         name = copy.getFullName()
         self.assertFalse(cmds.listRelatives(name, type="constraint"))
@@ -386,7 +386,7 @@ class UntestedPathsTest(_Case):
     def test_motion_trails_create_and_clear(self):
         """モーショントレイルを作って目印で全部消す。"""
         node = _keyed("ctrl", {"tx": [(1, 0), (9, 8)]})
-        Time.setPlaybackRange(1, 9)
+        Time.setRange(1, 9)
         trails = viewTools.createMotionTrails([mlib.getNode(node)])
         self.assertEqual(len(trails), 1)
         self.assertGreaterEqual(viewTools.clearMotionTrails(), 1)

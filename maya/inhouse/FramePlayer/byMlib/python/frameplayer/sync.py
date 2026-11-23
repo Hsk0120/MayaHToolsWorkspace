@@ -348,7 +348,7 @@ class FramePlayerSync(object):
 
     def _send_range(self):
         """Mayaの再生範囲を、FramePlayerの番号にして送る(前回と同じなら送らない)。"""
-        minimum, maximum = Time.getPlaybackRange()
+        minimum, maximum = Time.getRange()
         first = self.to_player(minimum)
         last = self.to_player(maximum)
         if (first, last) == self._last_sent_range:
@@ -469,7 +469,7 @@ class FramePlayerSync(object):
             if frame_range is not None and self.sync_range:
                 first = self.to_maya(frame_range[0])
                 last = self.to_maya(frame_range[1])
-                Time.setPlaybackRange(first, last)
+                Time.setRange(first, last)
                 self._last_sent_range = (frame_range[0], frame_range[1])
             if frame is not None:
                 Time.setCurrent(self.to_maya(frame), update=True)

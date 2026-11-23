@@ -15,7 +15,7 @@ def worldPosition(node):
         Vector: 位置(シーンの長さの単位)。
     """
     translate = mlib.Node(node).getTranslation(worldSpace=True, at=4)
-    return Vector(*(mlib.common.units.distanceToUi(value) for value in translate))
+    return Vector(*(mlib.common.units.convertDistance(value, "cm") for value in translate))
 
 
 def worldMatrix(node):
@@ -29,7 +29,7 @@ def worldMatrix(node):
     """
     matrix = Matrix(mlib.Node(node).getMatrix(worldSpace=True))
     for column in range(3):
-        matrix.setElement(3, column, mlib.common.units.distanceToUi(matrix.getElement(3, column)))
+        matrix.setElement(3, column, mlib.common.units.convertDistance(matrix.getElement(3, column), "cm"))
     return matrix
 
 
@@ -140,7 +140,7 @@ def createRotatePlaneHandle(root, end, name, poleDistance=None):
     position = worldPosition(root) + direction * poleDistance
     pole = mlib.createLocator(name=name + "_pole").getParent()
     # locatorはワールド直下なので、translateがそのままワールド位置になる。
-    pole.getPlug("translate").set(tuple(mlib.common.units.distanceFromUi(value) for value in position))
+    pole.getPlug("translate").set(tuple(mlib.common.units.convertDistance(value, toUnit="cm") for value in position))
     handleNode.addConstraint(pole, type="poleVector", name=name + "_poleVectorConstraint")
     return handleNode.getFullName(), effector, pole.getFullName()
 

@@ -93,7 +93,7 @@ def _transform(name, parent=None, translate=None):
         flags["parent"] = parent
     node = mlib.createNode("transform", **flags)
     if translate:
-        node.getPlug("translate").set(tuple(mlib.common.units.distanceFromUi(v) for v in translate))
+        node.getPlug("translate").set(tuple(mlib.common.units.convertDistance(v, toUnit="cm") for v in translate))
     return node
 
 
@@ -320,7 +320,7 @@ def _build(name, count, length, height, stretch):
     # 接線の長さ: 接線のオフセットの位置 = 元の位置 × 倍率。
     for npo, attr, sign in ((tan0Npo, "tangentHips", 1.0), (tan1Npo, "tangentChest", -1.0)):
         _multiply("{}_{}Length".format(name, attr), cog.getPlug(attr),
-                  mlib.common.units.distanceFromUi(sign * length / 3.0)).connectTo(npo.getPlug("translateY"))
+                  mlib.common.units.convertDistance(sign * length / 3.0, toUnit="cm")).connectTo(npo.getPlug("translateY"))
 
     # ---- スプラインIKの骨列(X が上、Z が正面) ----
     ik = []
@@ -329,10 +329,10 @@ def _build(name, count, length, height, stretch):
         joint = mlib.createNode("joint", name="{}_ik{:02d}_jnt".format(name, index + 1), parent=parent,
                                 skipSelect=True)
         if index == 0:
-            joint.getPlug("translate").set((0, mlib.common.units.distanceFromUi(height), 0))
+            joint.getPlug("translate").set((0, mlib.common.units.convertDistance(height, toUnit="cm"), 0))
             joint.getPlug("jointOrient").set((0, 0, 90))
         else:
-            joint.getPlug("translateX").set(mlib.common.units.distanceFromUi(segment))
+            joint.getPlug("translateX").set(mlib.common.units.convertDistance(segment, toUnit="cm"))
         ik.append(joint)
         parent = joint
     graph = SplineIK.create(ik, [hips, tan0, tan1, chest], setupGroup, name=name + "_splineGraph", up_axis="z")
@@ -383,7 +383,7 @@ def _stretch(name, root, shape, cog, ik, length, segment):
     stretch = clamp.getPlug("outputR")
     for index, joint in enumerate(ik[1:], 1):
         _multiply("{}_ik{:02d}_length".format(name, index + 1), stretch,
-                  mlib.common.units.distanceFromUi(segment)).connectTo(joint.getPlug("translateX"))
+                  mlib.common.units.convertDistance(segment, toUnit="cm")).connectTo(joint.getPlug("translateX"))
 
     # ---- 体積: 断面の拡大率 = 1 + volume × 重み × (比^-0.5 - 1)。重みは両端0・中央1 ----
     power = _node("multiplyDivide", name + "_volumePower")

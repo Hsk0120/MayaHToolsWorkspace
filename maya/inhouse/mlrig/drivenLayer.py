@@ -96,9 +96,9 @@ class DrivenLayer:
         relation = DrivenKey(owner.getPlug(component), driven)
         for x, y in pairs:
             if kind == "doubleAngle":
-                y = mlib.common.units.angleFromUi(y)
+                y = mlib.common.units.convertAngle(y, None, "deg")
             elif kind == "doubleLinear":
-                y = mlib.common.units.distanceFromUi(y)
+                y = mlib.common.units.convertDistance(y, toUnit="cm")
             relation.setKey(x, y)
         curve = relation.getCurves()[0]
         output = driven.getConnections(input=True)

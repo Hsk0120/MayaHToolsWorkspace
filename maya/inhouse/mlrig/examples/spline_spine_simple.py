@@ -100,7 +100,7 @@ def _cm(value):
     Returns:
         float: シーンの長さの単位の値。
     """
-    return mlib.common.units.distanceFromUi(value)
+    return mlib.common.units.convertDistance(value, toUnit="cm")
 
 
 def _transform(name, parent=None, translate=None):

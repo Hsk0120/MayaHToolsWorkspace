@@ -47,7 +47,7 @@ class _Case(unittest.TestCase):
         cmds.file(new=True, force=True)
         cmds.currentUnit(linear="cm", angle="deg", time="film")
         cmds.undoInfo(state=True, infinity=True)
-        Time.setPlaybackRange(1, 20)
+        Time.setRange(1, 20)
 
 
 class TweenTest(_Case):
@@ -309,7 +309,7 @@ class CopyTimelineRecoveryTest(_Case):
         cmds.select(source)
         self.assertEqual(timeline.frameSelectedKeys(), (1.0, 5.0))
         timeline.saveRange("shot")
-        Time.setPlaybackRange(1, 100)
+        Time.setRange(1, 100)
         self.assertEqual(timeline.useRange("shot"), (1.0, 5.0))
         timeline.removeRange("shot")
         self.assertNotIn("shot", timeline.savedRanges())

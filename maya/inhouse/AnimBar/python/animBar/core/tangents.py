@@ -116,9 +116,9 @@ def _ui_values(curve):
     """
     kind = curve.getType()
     if kind.endswith("A"):
-        return [units.angleToUi(value, unit="rad") for value in curve.getKeyValues(unit="rad")]
+        return [units.convertAngle(value, "rad", None) for value in curve.getKeyValues(unit="rad")]
     if kind.endswith("L"):
-        return [units.distanceToUi(value) for value in curve.getKeyValues()]
+        return [units.convertDistance(value, "cm") for value in curve.getKeyValues()]
     return curve.getKeyValues()
 
 

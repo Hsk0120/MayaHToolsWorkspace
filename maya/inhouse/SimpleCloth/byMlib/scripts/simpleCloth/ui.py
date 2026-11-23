@@ -126,7 +126,7 @@ class ClothWindow:
         self._section("6  Preset / Bake / Remove", collapsed=True)
         cmds.button(label="プリセット保存 (係数 + Map)", command=lambda *_: self._call(self._preset, True))
         cmds.button(label="プリセット読込 (同一トポロジー)", command=lambda *_: self._call(self._preset, False))
-        start, end = Time.getPlaybackRange()
+        start, end = Time.getRange()
         self.range = cmds.intFieldGrp(label="Bake Range", numberOfFields=2, value1=int(start), value2=int(end))
         cmds.button(label="別メッシュへベイク (Blend Shape)", command=lambda *_: self._call(self._bake))
         cmds.button(label="セットアップを削除 (入力・ベイクは保持)", command=lambda *_: self._call(self._remove))

@@ -36,7 +36,7 @@ def createMotionTrails(nodes=None, increment=1.0):
         list[Node]: 作ったモーショントレイルのノード。
     """
     nodes = keys.selectedNodes() if nodes is None else list(nodes)
-    start, end = Time.getPlaybackRange()
+    start, end = Time.getRange()
     created = []
     for node in nodes:
         trail = mlib.createMotionTrail(node, startTime=start, endTime=end, increment=increment,

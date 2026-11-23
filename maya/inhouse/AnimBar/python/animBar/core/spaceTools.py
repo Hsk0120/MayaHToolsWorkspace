@@ -32,7 +32,7 @@ def _frames(rangeMode, nodes):
     if rangeMode == "keys":
         return keys.keyTimesOf(nodes) or [Time.getCurrent()]
     if rangeMode == "range":
-        start, end = Time.getPlaybackRange()
+        start, end = Time.getRange()
         return [float(frame) for frame in range(int(start), int(end) + 1)]
     raise ValueError("rangeMode must be current, keys or range")
 

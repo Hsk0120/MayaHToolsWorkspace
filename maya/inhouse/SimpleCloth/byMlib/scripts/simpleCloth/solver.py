@@ -47,7 +47,7 @@ def _distance(points, inverse_mass, constraints, compliance, dt, multipliers):
 def project_collider(point, collider, thickness):
     """球・Y軸カプセル・ローカル+Y半空間の外へ点を投影する。"""
     matrix, kind, radius, height = collider
-    matrix = Matrix.fromMMatrix(matrix)
+    matrix = Matrix(matrix)
     scale = matrix.scale[0]
     local = matrix.inverse().transformPoint(point)
     padding = thickness / scale

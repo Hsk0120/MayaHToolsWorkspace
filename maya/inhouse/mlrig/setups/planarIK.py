@@ -83,7 +83,7 @@ class PlanarIK:
         for label, position in zip(("root", "mid", "end"), positions):
             # ワールド直下に作って位置を入れ、ワールドの位置を保って親子付けする(cmds.joint と同じ結果)。
             joint = mlib.createNode("joint", name="{}_{}Driver".format(name, label), skipSelect=True)
-            joint.getPlug("translate").set(tuple(mlib.common.units.distanceFromUi(value) for value in position))
+            joint.getPlug("translate").set(tuple(mlib.common.units.convertDistance(value, toUnit="cm") for value in position))
             target = drivers[-1] if drivers else parent
             if target is not None:
                 joint.setParent(target)

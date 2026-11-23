@@ -153,7 +153,7 @@ class MatrixFollow:
                     / version
                     / "mlrigNodes.mll"
                 )
-                mlib.Plugin(str(plugin)).ensureLoaded()
+                mlib.Plugin(str(plugin)).load(skipExisting=True)
                 graph = mlib.createNode("mlrigMatrixFollow", name=name, skipSelect=True)
             else:
                 from .bifrostMatrixFollow import BifrostMatrixFollow

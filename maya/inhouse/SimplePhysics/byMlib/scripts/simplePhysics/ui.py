@@ -148,7 +148,7 @@ class PhysicsWindow:
         cmds.button(label="Save Preset", command=lambda *_: self._run(lambda: self._preset(False)))
         cmds.button(label="Load Preset", command=lambda *_: self._run(lambda: self._preset(True)))
         cmds.setParent("..")
-        start, end = Time.getPlaybackRange()
+        start, end = Time.getRange()
         self.range = cmds.intFieldGrp(label="Bake Start / End", numberOfFields=2, value1=int(start), value2=int(end))
         cmds.button(label="Bake to New Joints", height=32, command=lambda *_: self._run(self._bake))
         cmds.button(label="このセットアップを削除（元の骨・ベイク結果は保持）", command=lambda *_: self._run(self._remove))

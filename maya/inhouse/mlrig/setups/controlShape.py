@@ -1,5 +1,6 @@
 """既存transformへ非破壊で操作用シェイプを追加する。"""
 
+import functools
 import math
 import mlib
 from mlib.decorator import undoTransaction
@@ -40,7 +41,7 @@ class ControlShape:
         ):
             raise ValueError("Expected nonzero finite normal")
         # 半径は現在の距離単位なので、作成関数の内部単位(cm)へ換算して渡す。
-        shape = mlib.createCircle(radius=mlib.common.units.distanceFromUi(radius), normal=normal)
+        shape = mlib.createCircle(radius=mlib.common.units.convertDistance(radius, toUnit="cm"), normal=normal)
         temporary = shape.getParent()
         shapes = []
         try:
@@ -70,7 +71,7 @@ class ControlShape:
         """
         target = mlib.Transform(target)
         old_shapes = [shape for shape in target.getShape(intermediates=True, all=True) if shape.getType() == "nurbsCurve"]
-        ui = mlib.common.units.distanceFromUi
+        ui = functools.partial(mlib.common.units.convertDistance, toUnit="cm")
         shape = mlib.createCurve([tuple(ui(v) for v in point) for point in points], degree=degree, knots=knots,
                                  name=name + "__tmp")
         temporary = shape.getParent()

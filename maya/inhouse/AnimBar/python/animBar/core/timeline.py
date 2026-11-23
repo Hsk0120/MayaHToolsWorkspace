@@ -56,7 +56,7 @@ def saveRange(name=None):
     Returns:
         str: 保存した名前。
     """
-    start, end = Time.getPlaybackRange()
+    start, end = Time.getRange()
     name = name or "{:g}-{:g}".format(start, end)
     ranges = savedRanges()
     ranges[name] = (start, end)
@@ -90,7 +90,8 @@ def useRange(name):
         KeyError: その名前の範囲が無い場合。
     """
     start, end = savedRanges()[name]
-    return Time.setPlaybackRange(start, end)
+    Time.setRange(start, end)
+    return Time.getRange()
 
 
 def frameSelectedKeys(nodes=None):
@@ -107,7 +108,8 @@ def frameSelectedKeys(nodes=None):
     if not times:
         return None
     end = times[-1] if times[-1] > times[0] else times[0] + 1
-    return Time.setPlaybackRange(times[0], end)
+    Time.setRange(times[0], end)
+    return Time.getRange()
 
 
 def jumpToKey(direction=0):
@@ -128,7 +130,8 @@ def jumpToKey(direction=0):
                   for time in curve.getKeyframes(indices).getValues(time=True)]
         if chosen:
             # 複数のカーブで選んだキーの真ん中あたりを見られるよう、平均の時刻へ移る(aTools と同じ)。
-            return Time.setCurrent(sum(chosen) / len(chosen))
+            Time.setCurrent(sum(chosen) / len(chosen))
+            return Time.getCurrent()
     times = keys.keyTimesOf(keys.selectedNodes())
     if not times:
         return None
@@ -140,7 +143,8 @@ def jumpToKey(direction=0):
         time = candidates[0] if candidates else times[0]
     else:
         time = times[0]
-    return Time.setCurrent(time)
+    Time.setCurrent(time)
+    return Time.getCurrent()
 
 
 #: 選んだキーへ自動で移る scriptJob。
@@ -264,7 +268,7 @@ def playblast(camera=None, play=True, folder=None):
             overscan = (shape.getPlug("overscan"), shape.getPlug("overscan").get())
             overscan[0].set(float(settings["overscan"]))
     try:
-        start, end = Time.getPlaybackRange()
+        start, end = Time.getRange()
         span = keys.timelineRange() if settings["useRange"] else None
         if span is not None:
             start, end = span
@@ -349,7 +353,7 @@ def duplicateCamera(camera=None):
                 if target.getConnections(input=True) is not None:
                     target.disconnect()
                 animated.append((plug, target))
-    start, end = Time.getPlaybackRange()
+    start, end = Time.getRange()
     with Time.preserved():
         for frame in range(int(start), int(end) + 1):
             Time.setCurrent(frame)

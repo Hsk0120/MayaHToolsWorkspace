@@ -250,7 +250,7 @@ def main(output_dir=None, finished=None):
             playblast_folder = str(Path(output) / "playblast")
             os.makedirs(playblast_folder, exist_ok=True)
             from mlib.common import Time
-            Time.setPlaybackRange(1, 3)
+            Time.setRange(1, 3)
             movie = timeline.playblast(play=False, folder=playblast_folder)
             checks["playblast_file"] = bool(movie) and any(Path(playblast_folder).iterdir())
             checks["jump_follow"] = timeline.setJumpToSelectedKey(True) and not timeline.setJumpToSelectedKey(False)

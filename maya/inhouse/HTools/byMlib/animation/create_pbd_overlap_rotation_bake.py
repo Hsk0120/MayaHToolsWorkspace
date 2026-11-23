@@ -71,7 +71,7 @@ def _set_world_rotation_with_delta(node, base_world_rotate, delta_world_euler):
 def _scene_fps():
 	"""Maya の time unit から現在シーンの FPS を返す。"""
 	# 1フレームの秒数から求める(film・ntsc・23.976fps 等のどの time unit でも同じ式で求まる)。
-	seconds = units.secondsPerFrame()
+	seconds = units.convertTime(1.0, toUnit="sec")
 	return 1.0 / seconds if seconds > 0.0 else 24.0
 
 
@@ -312,7 +312,7 @@ def create_pbd_overlap_rotation_bake(
 		cmds.warning("Select two or more transforms/joints in order from root to tip.")
 		return {"processed_roots": 0, "baked_nodes": 0}
 
-	playback_start, playback_end = Time.getPlaybackRange()
+	playback_start, playback_end = Time.getRange()
 	if start_frame is None:
 		start_frame = int(playback_start)
 	if end_frame is None:

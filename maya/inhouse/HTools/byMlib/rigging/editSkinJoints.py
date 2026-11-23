@@ -479,7 +479,7 @@ class _WindowOwner:
         """UI削除と保存/シーン切替/終了に対する後始末を登録する。"""
         ScriptJob(uiDeleted=_WINDOW, callback=self.close, runOnce=True)
         # suspend が False を返したら保存を止める。
-        self.callbacks.addSceneCheckCallback("beforeSaveCheck", self.suspend)
+        self.callbacks.addSceneCallback("beforeSaveCheck", self.suspend)
         for event in ("beforeNew", "beforeOpen", "afterOpen"):
             self.callbacks.addSceneCallback(event, self.suspend)
         self.callbacks.addSceneCallback("mayaExiting", self.close)

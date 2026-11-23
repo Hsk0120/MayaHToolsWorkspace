@@ -164,7 +164,7 @@ def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhy
         for attribute in ("sourceBones", "outputBones", "colliderObjects", "ownedObjects"):
             _message_array(node, attribute)
         mlib.getPlug("time1.outTime").connectTo(node.getPlug("time"))
-        node.getPlug("startFrame").set(Time.getPlaybackRange()[0])
+        node.getPlug("startFrame").set(Time.getRange()[0])
         for attribute in PARAMETERS:
             for index, coordinate in enumerate((0.0, 1.0)):
                 base = f"{attribute}Curve[{index}].{attribute}Curve_"
@@ -225,11 +225,11 @@ def addCollider(node, kind="sphere", attachTo=None, radius=5.0, height=10.0):
         shape_plug.setLocked(True)
         # 元の版の polySphere などと同じく、大きさはシーン表示単位の値として作る。
         if kind == "sphere":
-            shape = mlib.createPolySphere(radius=units.distanceFromUi(radius), subdivisions=(16, 8), constructionHistory=True)
+            shape = mlib.createPoly("sphere", radius=units.convertDistance(radius, toUnit="cm"), subdivisions=(16, 8), constructionHistory=True)
             history = shape.getHistory(type="polySphere")[0]
             history.getPlug("radius").connect(collider.getPlug("physicsRadius"))
         elif kind == "capsule":
-            shape = mlib.createPolyCylinder(radius=units.distanceFromUi(radius), height=units.distanceFromUi(height + 2 * radius),
+            shape = mlib.createPoly("cylinder", radius=units.convertDistance(radius, toUnit="cm"), height=units.convertDistance(height + 2 * radius, toUnit="cm"),
                                             subdivisions=(16, 1, 4), roundCap=True, constructionHistory=True)
             history = shape.getHistory(type="polyCylinder")[0]
             history.getPlug("radius").connect(collider.getPlug("physicsRadius"))
@@ -244,7 +244,7 @@ def addCollider(node, kind="sphere", attachTo=None, radius=5.0, height=10.0):
             for utility in (multiply, add):
                 owned.connect(utility.getPlug("message"), nextAvailable=True)
         else:
-            shape = mlib.createPolyPlane(width=units.distanceFromUi(20), height=units.distanceFromUi(20), subdivisions=(1, 1),
+            shape = mlib.createPoly("plane", width=units.convertDistance(20, toUnit="cm"), height=units.convertDistance(20, toUnit="cm"), subdivisions=(1, 1),
                                          constructionHistory=True)
             history = shape.getHistory(type="polyPlane")[0]
         mesh = shape.getTransform()

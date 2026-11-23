@@ -135,9 +135,9 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
     for shape in shapes:
         positions = []
         for pos in shape.getPoints():
-            pos = [units.distanceToUi(value) for value in pos]
+            pos = [units.convertDistance(value, "cm") for value in pos]
             new_pos = _transform_point(pos, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
-            positions.append([units.distanceFromUi(value) for value in new_pos])
+            positions.append([units.convertDistance(value, toUnit="cm") for value in new_pos])
         shape.setPoints(positions)
 
 
@@ -220,7 +220,7 @@ def _curve(
 
     # 点はシーンの長さの単位、mlib の作成関数は cm で受け取る。
     created = mlib.createCurve(
-        [[units.distanceFromUi(value) for value in point] for point in points], degree=degree, knots=knots, name=name
+        [[units.convertDistance(value, toUnit="cm") for value in point] for point in points], degree=degree, knots=knots, name=name
     ).getTransform()
     # curve コマンドと同じく、作ったカーブを選択する。
     mlib.select(created, replace=True)
@@ -649,7 +649,7 @@ class Planar(Shape):
         """
         # 法線を +Y にして XZ 平面に置く。次数・分割数などは circle コマンドの既定値を使う。
         # 半径はシーンの長さの単位、mlib の作成関数は cm で受け取る。
-        curve = mlib.createCircle(normal=(0, 1, 0), radius=units.distanceFromUi(diameter * 0.5), name=name).getTransform()
+        curve = mlib.createCircle(normal=(0, 1, 0), radius=units.convertDistance(diameter * 0.5, toUnit="cm"), name=name).getTransform()
         # circle コマンドと同じく、作ったカーブを選択し、transform 名を先頭に含むリストで返す。
         mlib.select(curve, replace=True)
         created = [curve.getName()]

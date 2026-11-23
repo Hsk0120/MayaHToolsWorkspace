@@ -7,6 +7,7 @@ Aポーズを基準(回転0)にする。各関節は子の方向をローカル 
 関節の子にするので一緒に動く。リファレンス表示(ビューポートで選択できない)にして関節を選びやすくする。
 """
 
+import functools
 import math
 
 import mlib
@@ -138,21 +139,21 @@ def _addProxy(joint, name, child, material_group):
     mesh_name = joint.split("|")[-1]+"_proxy"
     offset = length/2.0
     # 大きさは現在の距離単位で決めているため、作成関数の内部単位(cm)へ換算して渡す。
-    ui = mlib.common.units.distanceFromUi
+    ui = functools.partial(mlib.common.units.convertDistance, toUnit="cm")
     if shape == "cylinder" and child:
-        mesh = mlib.createPolyCylinder(radius=ui(size), height=ui(abs(length)), subdivisions=(12, 1, 1),
+        mesh = mlib.createPoly("cylinder", radius=ui(size), height=ui(abs(length)), subdivisions=(12, 1, 1),
                                        axis=(1, 0, 0), name=mesh_name).getParent()
     elif shape == "foot" and child:
-        mesh = mlib.createPolyCube(width=ui(abs(length)), height=ui(size[1]), depth=ui(size[0]), name=mesh_name).getParent()
+        mesh = mlib.createPoly("cube", width=ui(abs(length)), height=ui(size[1]), depth=ui(size[0]), name=mesh_name).getParent()
     elif shape == "pelvis":
-        mesh = mlib.createPolyCube(width=ui(size[0]), height=ui(size[1]), depth=ui(size[2]), name=mesh_name).getParent()
+        mesh = mlib.createPoly("cube", width=ui(size[0]), height=ui(size[1]), depth=ui(size[2]), name=mesh_name).getParent()
         offset = 0.0
     elif shape == "sphere":
-        mesh = mlib.createPolySphere(radius=ui(size), subdivisions=(16, 12), name=mesh_name).getParent()
+        mesh = mlib.createPoly("sphere", radius=ui(size), subdivisions=(16, 12), name=mesh_name).getParent()
         offset = size*0.75
     elif shape == "box":
         width, height, depth = size
-        mesh = mlib.createPolyCube(width=ui(width), height=ui(height), depth=ui(depth), name=mesh_name).getParent()
+        mesh = mlib.createPoly("cube", width=ui(width), height=ui(height), depth=ui(depth), name=mesh_name).getParent()
         offset = length/2.0 if child else width/2.0
     else:
         return None

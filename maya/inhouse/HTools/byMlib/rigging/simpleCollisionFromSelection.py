@@ -532,7 +532,7 @@ def _create_obb_collision(name, use_hull_points, hull_direction_count, return_ob
 
 	# mlib の作成関数は寸法を内部単位(cm)で受け取るので、1cm の立方体を作り、
 	# 後段の行列(内部単位のサイズ)で正しい寸法になるようにする。
-	cube_shape = mlib.createPolyCube(width=1.0, height=1.0, depth=1.0, name=name)
+	cube_shape = mlib.createPoly("cube", width=1.0, height=1.0, depth=1.0, name=name)
 	cube = cube_shape.getTransform()
 	cube_transform = cube.getName()
 	if not cube_transform:
@@ -547,7 +547,7 @@ def _create_obb_collision(name, use_hull_points, hull_direction_count, return_ob
 	cube.setMatrix(matrix, fast=True)
 
 	# 表示用に内部単位から UI 単位へ変換する。
-	size_ui = [units.distanceToUi(value) for value in (size_x, size_y, size_z)]
+	size_ui = [units.convertDistance(value, "cm") for value in (size_x, size_y, size_z)]
 
 	# Keep transform orientation from OBB so pivot orientation follows the collision box.
 	# Explicitly place rotate/scale pivots at the OBB center in world space.

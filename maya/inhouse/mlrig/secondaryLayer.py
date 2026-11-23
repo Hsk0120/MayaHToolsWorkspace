@@ -182,7 +182,7 @@ class SecondaryLayer:
             元のアニメーションは変更しない。設定・入力を変えたら再ベイクする。
             ローカルEuler各成分の小振幅ばね。親移動による慣性と衝突は未対応。
         """
-        playback = Time.getPlaybackRange()
+        playback = Time.getRange()
         start = playback[0] if start is None else start
         end = playback[1] if end is None else end
         if (
@@ -199,7 +199,7 @@ class SecondaryLayer:
             for frame in frames:
                 Time.setCurrent(frame)
                 row = [
-                    mlib.common.units.angleFromUi(v)
+                    mlib.common.units.convertAngle(v, None, "deg")
                     for source in sources
                     for v in mlib.getPlug(source.getPlug('rotate')).get(uiUnits=True)
                 ]
@@ -211,7 +211,7 @@ class SecondaryLayer:
             settings = {
                 name: group.getPlug(name).get() for name in ("frequency", "damping", "angleLimit")
             }
-            interval = mlib.common.units.secondsPerFrame()
+            interval = mlib.common.units.convertTime(1.0, toUnit="sec")
             solved = DampedSpring.solve(
                 rows, interval, settings["frequency"], settings["damping"], settings["angleLimit"]
             )

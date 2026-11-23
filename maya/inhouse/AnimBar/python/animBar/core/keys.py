@@ -93,7 +93,7 @@ def timelineRange():
         tuple[float, float] | None: (開始, 終了)のフレーム(終了は範囲の最後のフレーム)。選んでいない・
         GUIが無ければNone。
     """
-    return Time.getSelectedRange()
+    return Time.getRange(selected=True)
 
 
 def animatedPlugs(node, channelBox=True):
