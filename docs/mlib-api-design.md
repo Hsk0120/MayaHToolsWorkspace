@@ -1238,3 +1238,13 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
   演算の種類は `node.getPlug("operation").set("Divide")`(Maya のフィールド名。番号でもよい)と `getEnumName()`、
   マルチアトリビュートの入力は `MultiPlug.getNextAvailable()`・`removeElement()`・`getIndices()`、ランプは `RampPlug.getEntries()`・`setEntries()`。
   専用メソッドが受けていた小文字の演算名(`"divide"`)は無くなり、Maya の表記(`"Divide"`)になる。利用側での使用は無かった。
+- 段2(使われていない専用の get/set・照会): アトリビュート1つを読み書きするだけ、または om2 の値を1つ返すだけの公開メソッドのうち、
+  利用側で使われていない63個を削った。主なもの: `Plug` の `isDynamic`・`isReadable`・`isWritable`・`isStorable`・`isConnectable`・`isCaching`・`isNetworked`・`getAffected`・`getAffecting` など14個、
+  `Node` の `getTypeId`・`getPluginName`・`isDefaultNode`・`isRoot`・`isShared`・`getNumAttrs`・`getAbsoluteName` など10個、
+  `NurbsSurface` の `getDegree`・`getNumSpans`・`getNumPatches`・`isTrimmed` など8個、`NurbsCurve` の `getDegree`・`getNumSpans`・`getForm`・`isPlanar`、
+  `DagNode` の `isDrawOverrideEnabled`・`getOutlinerVisibility`/`setOutlinerVisibility` など7個、`File` の `get/setFilePath`・`get/setColorSpace`、
+  `Camera` の `getFocalLength` など4個、`AimConstraint` の `get/setOffset`・`getOutputRotate`、`BlendShape` の `getWeightPlug`・`getHistoryLocation`・`duplicateTarget`。
+  代わりは `node.getPlug("x").get()`/`set()` と `node.mfn().<名前>`・`plug.mplug().<名前>`。
+  残したもの: mlib の内部が使うもの(`Plug.getShortName`・`isChannelBox`・`isProxy`、`AnimCurve.isWeighted`、`IkHandle.getSolver` など16個)、
+  対になる設定側が残るもの(`Camera.getAspectRatio`・`Plug.getAlias`・`Edge.isSmooth` など6個)、
+  コンポーネントのクラスが名前の文字列(`count_attribute`)で呼ぶ要素数の取得(`Mesh.getNumPolygons`・`getNumEdges`・`getNumUVs`、`NurbsCurve`・`NurbsSurface` の `getNumCVs`)。

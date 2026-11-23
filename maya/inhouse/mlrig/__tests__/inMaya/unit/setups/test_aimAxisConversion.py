@@ -44,7 +44,7 @@ class AimAxisConversionSettingsTest(unittest.TestCase):
         for unit in ("deg", "rad"):
             cmds.currentUnit(angle=unit)
             self.aim.setRestRotate(values, unit="rad")
-            self.aim.setOffset(values, unit="rad")
+            self.aim.getPlug("offset").set(values, unit="rad")
             settings = AimAxisConversion._captureSettings(self.aim)
             self.assertEqual(list(settings), attrs + self.aim.getWeightAliases())
             self.assertNotIn("worldUpMatrix", settings)
