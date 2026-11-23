@@ -14,7 +14,6 @@ from HTools import toolHelp
 
 
 _WINDOW = "HToolsInspectCycles"
-_SEPARATOR = "__HTOOLS_CYCLE_SEPARATOR__"
 _LIMITATION = (
     "The detection order includes dependencies inside nodes, not only real connections, and may be a partial path.\n"
     "Direct connections are only hints for where to cut. They do not identify the cause or a safe place to cut.\n"
@@ -100,20 +99,7 @@ def _findCycles(names, include_dag, seconds, first_only):
         list[list[mlib.Plug]]: 検出順のプラグの経路。
             完全な循環とは限らず部分経路も含む。
     """
-    options = dict(list=True, dag=include_dag, secondary=True,
-                   timeLimit="{}sec".format(seconds), listSeparator=_SEPARATOR,
-                   firstCycleOnly=first_only)
-    if names is None:
-        options["all"] = True
-    paths, current = [], []
-    # byMlib-gap: htoolsRigB-02 シーン全体・複数の対象から循環の候補を探す(cycleCheck の all・dag・timeLimit・firstCycleOnly)
-    for name in (cmds.cycleCheck(*(names or []), **options) or []) + [_SEPARATOR]:
-        if name != _SEPARATOR:
-            current.append(name)
-        elif current:
-            paths.append(current)
-            current = []
-    return [[_findPlug(name) for name in path] for path in paths]
+    return [list(path) for path in mlib.findCycles(names, dag=include_dag, timeLimit=seconds, firstOnly=first_only)]
 
 
 def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False):

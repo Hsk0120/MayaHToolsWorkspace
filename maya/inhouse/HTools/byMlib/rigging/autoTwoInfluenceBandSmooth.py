@@ -785,30 +785,16 @@ def set_two_influence_weights(skin_cluster, vertices, bottom_influence, top_infl
 
     skin = mlib.getNode(skin_cluster)
     components = mlib.ls(vertices)
-    geometry = skin.getGeometry()
-    if geometry and geometry[0].sameNode(components.shape):
-        # 全頂点へ同じ2つの値を書く(指定しなかった influence は normalize で 0 になる)。
-        skin.setWeights(
-            [bottom_influence, top_influence],
-            [float(bottom_weight), float(top_weight)],
-            vertices=components,
-            normalize=normalize,
-            broadcast=True,
-        )
-        return
-
-    # setWeights は先頭の形状だけを扱うため、2つ目以降の形状は1頂点ずつ設定する。
-    for vtx in vertices:
-        # byMlib-gap: htoolsRigA-46 SkinCluster.setWeights で先頭以外の形状を指定する
-        cmds.skinPercent(
-            skin_cluster,
-            vtx,
-            transformValue=[
-                (bottom_influence, float(bottom_weight)),
-                (top_influence, float(top_weight)),
-            ],
-            normalize=normalize
-        )
+    # 全頂点へ同じ2つの値を書く(指定しなかった influence は normalize で 0 になる)。
+    # skinCluster が複数の形状を変形するときは、頂点の形状の番号を渡す。
+    skin.setWeights(
+        [bottom_influence, top_influence],
+        [float(bottom_weight), float(top_weight)],
+        vertices=components,
+        normalize=normalize,
+        broadcast=True,
+        geometryIndex=skin.getGeometryIndex(components.shape),
+    )
 
 
 def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=5,
@@ -833,24 +819,16 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
     try:
         # 選択中の頂点だけを平滑化する(何も選んでいなければメッシュ全体)。
         selected = mlib.ls(selection=True, type='vertex')
-        geometry = skin.getGeometry()
-        if len(selected) and not (isinstance(selected, mlib.Vertices) and geometry and selected.shape.sameNode(geometry[0])):
-            # SkinCluster.smoothWeights は先頭の形状の頂点だけを受けるため、それ以外の選択は cmds で平滑化する。
-            # byMlib-gap: htoolsRigA-46 SkinCluster のウェイトの操作で先頭以外の形状を指定する
-            cmds.skinCluster(
-                skin_cluster,
-                edit=True,
-                sw=float(smooth_weights),
-                swi=int(max_iterations),
-                omi=int(obey_max_influences),
-            )
-        else:
-            skin.smoothWeights(
-                tolerance=float(smooth_weights),
-                iterations=int(max_iterations),
-                vertices=selected if len(selected) else None,
-                obeyMaxInfluences=bool(obey_max_influences),
-            )
+        # skinCluster が複数の形状を変形するときは、選んだ頂点の形状の番号を渡す
+        # (複数の形状の頂点を選ぶと、元の cmds.skinCluster と同じく失敗する)。
+        index = skin.getGeometryIndex(selected.shape) if isinstance(selected, mlib.Vertices) else None
+        skin.smoothWeights(
+            tolerance=float(smooth_weights),
+            iterations=int(max_iterations),
+            vertices=selected if len(selected) else None,
+            obeyMaxInfluences=bool(obey_max_influences),
+            geometryIndex=index,
+        )
         if normalize_after_change:
             skin.forceNormalizeWeights()
     finally:

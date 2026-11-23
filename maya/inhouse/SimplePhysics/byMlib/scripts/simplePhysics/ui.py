@@ -79,8 +79,7 @@ class PhysicsWindow:
 
     def _refresh(self):
         """存在するSolverを再列挙し、選択対象があれば優先して表示する。"""
-        # byMlib-gap: smallTools-20 Mayaが知っているノード型か(allNodeTypes)を調べる関数が無い
-        nodes = mlib.ls(type="simplePhysicsSolver").getNames() if "simplePhysicsSolver" in cmds.allNodeTypes() else []
+        nodes = mlib.ls(type="simplePhysicsSolver").getNames() if mlib.isNodeType("simplePhysicsSolver") else []
         selected = [item.getName() for item in mlib.ls(selection=True) if isinstance(item, mlib.Node) and item.getName() in nodes]
         self.node = selected[0] if selected else self.node if self.node in nodes else nodes[0] if nodes else None
         items = cmds.optionMenuGrp(self.selector, query=True, itemListLong=True) or []

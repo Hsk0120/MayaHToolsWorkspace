@@ -1,7 +1,5 @@
 """選択2ノード間で入力接続を複製するユーティリティ。"""
 
-import maya.cmds as cmds
-
 import mlib
 from mlib.decorator import undoChunk
 
@@ -75,9 +73,8 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
     errors = []
 
     # 複数の接続をまとめて1回の Undo で戻せるようにする。
-    # すべてのアトリビュートを取得
-    # byMlib-gap: htoolsRigA-05 getPlugs は番号の決まらないマルチアトリビュートの子を省くため、listAttr と同じ名前の一覧は cmds で取る
-    attrs = cmds.listAttr(src_node) or []
+    # すべてのアトリビュートを取得(getPlugs と違い、番号の決まらないマルチアトリビュートの子も listAttr と同じく含める)
+    attrs = src.getAttrNames()
 
     with undoChunk('copyIncomingConnections'):
         for attr in attrs:

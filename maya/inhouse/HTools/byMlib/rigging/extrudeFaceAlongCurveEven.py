@@ -32,14 +32,7 @@ def extrude_face_along_curve_even(face, curve, divisions=3, curve_spans=12):
     mlib.select(clear=True)
 
     # 押し出し
-    # byMlib-gap: htoolsRigA-04 フェースをカーブに沿って押し出す API が無い
-    return cmds.polyExtrudeFacet(
-        face,
-        inputCurve=curve,
-        divisions=divisions,
-        keepFacesTogether=True,
-        ch=True
-    )[0]
+    return mlib.ls(face).extrude(curve=curve_node, divisions=divisions, keepFacesTogether=True).getName()
 
 
 def _get_selected_face_and_curve():

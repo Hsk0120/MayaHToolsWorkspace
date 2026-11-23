@@ -1196,9 +1196,14 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 作成関数を足した: `createShadingEngine`・`createMotionTrail`・`createExpression`。`createPoly*`は`constructionHistory`/`ch`・`createUVs`/`cuv`(Cylinderは`roundCap`/`rcp`も)、`createBlendShape`は`origin`/`o`を受ける。
 - `indirect`は「setKeyframeが打つ先のカーブ(アニメーションレイヤー・pairBlendの先)」を意味する名前で、`Plug.getAnimCurve`と`Transform.eulerFilter`で同じ意味に使う。
 - `ScriptJob.stop`は常にforceで消す。`ScriptJob`は`uiDeleted`・`parent`・`allChildren`・`runOnce`・`protected`を受ける。
-- `SkinCluster.smoothWeights(vertices=None)`は対象の頂点を実行中だけ選び、作業中の選択に左右されない(省くとメッシュ全体)。2つ目以降の形状のウェイトは、読み書きが先頭の形状を前提にしているため未対応(メソッドの共通化のときに検討する)。
+- `SkinCluster.smoothWeights(vertices=None)`は対象の頂点を実行中だけ選び、作業中の選択に左右されない(省くとメッシュ全体)。2つ目以降の形状は、後述の`geometryIndex`で指定する。
 - `AnimCurve.replaceKeys`は同じ型のAnimCurveも受け、接線・ウェイト・ロック・ブレイクダウンまで写す(キーのクリップボードは使わない。前後のinfinityは写さない)。
 - `Components.getNames()`は`cmds.ls(flatten=True)`と同じ1要素ずつの名前を返す。
 - `Matrix.asRotateMatrix()`は回転だけ(正規直交)を返す。`om2.MTransformationMatrix(m).asRotateMatrix()`はスケール・シアーを含む3x3を返すので、元の計算に合わせるときはそちらを使う。
-- 足さなかったもの: `polyExtrudeFacet`・`cycleCheck`(その他のMayaコマンドは利用側で直接使う)、`listAttr`の名前の一覧(Plugにできない名前を返すため)、Mayaが知っているノード型かの判定(`ls`が空を返すため)。
+- 最初は足さなかったが、同日のユーザー指定で足したもの(byMlibの残り7件):
+  - `SkinCluster.getWeights`・`setWeights`・`getVertexWeights`・`setVertexWeights`・`smoothWeights`にキーワード専用の`geometryIndex=None`(`input`・`outputGeometry`の論理番号。`getGeometryIndex`で求める。Noneは先頭の形状)を足した。内部は`mesh_path`だけを差し替えた写し(`_geometry_view`)で処理する。Mayaのskinクラスタは変形するすべての形状で`weightList`を共有するため(同じ番号の頂点は形状が違っても同じウェイト。Maya 2027で確認)、差し替えるのは頂点の数・番号の確かめとOpenMayaへ渡す形状だけでよい。既定をGeometryFilterの`geometryIndex=0`と違うNoneにしたのは、先頭の形状の論理番号が0でない場合に今の動きを変えないため。ほかのウェイトのメソッド(`limitInfluences`等)は先頭の形状のまま。
+  - `Node.getAttrNames(**listAttrFlags)`は`cmds.listAttr`と同じ名前・順の`list[str]`を返す(`getPlugs`はPlugにできない、番号を決めていないマルチアトリビュートの子を省く)。名前を返すので「mlibのオブジェクトを返す」の例外(名前)に入る。
+  - `Faces.extrude(*, curve=None, divisions=1, keepFacesTogether=True)`は`cmds.polyExtrudeFacet`を1回実行し、作ったpolyExtrudeFaceを返す(作成履歴を残す。Mayaのコマンドと同じく押し出したフェースが選ばれる)。モデリングのコマンドはこれが最初。
+  - `mlib.findCycles(nodes=None, *, dag=False, timeLimit=None, firstOnly=False)`(`cmds/`)は`cycleCheck(list=True, secondary=True)`の経路ごとに`Plugs`を返す(Noneはシーン全体)。`Node.findCycles()`は1つのノードを通る単純な循環を接続からたどって並べるもので、DAGの依存・部分経路を返す`cycleCheck`の指定とは意味が合わないため、引数は足していない。
+  - `mlib.isNodeType(name)`(`cmds/`)は`cmds.allNodeTypes(includeAbstract=True)`にある型名か(抽象型も含む)を返す。
 - SkinWeightKitの見直し(同日のユーザー回答): `SkinCluster.limitInfluences(count, *, vertices, fast, check)`・`roundWeights(decimals=3, *, vertices, fast, check)`を足し、`transferWeights`に`vertices`・`add`を足した(ロックしたインフルエンスは値を保ち、残りの比率で合計1にする規則。`vertices`か`add`を指定したときは行を読んで変わった値だけを書き、移す元・先がロックされていればRuntimeError)。ロックの照会・変更は`getLockedInfluences`・`setInfluencesLocked`がジョイント以外も扱えるので変えていない。

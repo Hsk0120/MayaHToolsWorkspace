@@ -121,9 +121,11 @@ def _list_geo_vertices(geo):
     """ポリゴン頂点コンポーネント一覧を返します。
 
     Args:
-        geo: 処理対象のメッシュ。
+        geo: 処理対象のメッシュまたはそのTransform。
     """
     geometry = mlib.getNode(geo)
+    if isinstance(geometry, mlib.Transform):
+        geometry = geometry.getShape()
     if not isinstance(geometry, mlib.Mesh):
         return []
     return geometry.getVertices()
@@ -161,28 +163,11 @@ def _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=1e-8):
         return
 
     skin = mlib.getNode(sc)
-    geometries = skin.getGeometry()
-    if not geometries[0].sameNode(geo):
-        # SkinCluster のウェイトの読み書きは先頭の形状だけが対象のため、2つ目以降の形状は1頂点ずつ cmds で移す。
-        for comp in affected:
-            try:
-                # byMlib-gap: htoolsRigA-46 SkinCluster.getWeights/setWeights で先頭以外の形状を指定する
-                c_w = cmds.skinPercent(str(skin), str(comp), q=True, t=str(child)) or 0.0
-            except RuntimeError:
-                continue
-            if c_w <= eps:
-                continue
-            try:
-                p_w = cmds.skinPercent(str(skin), str(comp), q=True, t=str(parent)) or 0.0
-            except RuntimeError:
-                p_w = 0.0
-            new_p = p_w + c_w
-            cmds.skinPercent(str(skin), str(comp), tv=[(str(parent), new_p)], normalize=True)
-            cmds.skinPercent(str(skin), str(comp), tv=[(str(child), 0.0)], normalize=True)
-        return
+    # skinCluster が複数の形状を変形するときは、この形状の番号で読み書きする。
+    index = skin.getGeometryIndex(geo)
 
     # child と parent のウェイトを全頂点まとめて読む(頂点ごとに [child, parent])。
-    rows = skin.getWeights([child, parent], rows=True)
+    rows = skin.getWeights([child, parent], rows=True, geometryIndex=index)
 
     # ウェイト転送
     # child のウェイトを parent へ加算してから child を 0 にする。
@@ -195,8 +180,8 @@ def _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=1e-8):
         # まず parent を増やす → その後 child を 0 に
         # normalize=True で都度正規化される。厳密な “加算” を維持したい場合は
         # normalize=False にして最後に一括正規化も可だが、影響数が多いと破綻しやすい。
-        skin.setVertexWeights(comp, {parent: new_p}, normalize=True)
-        skin.setVertexWeights(comp, {child: 0.0}, normalize=True)
+        skin.setVertexWeights(comp, {parent: new_p}, normalize=True, geometryIndex=index)
+        skin.setVertexWeights(comp, {child: 0.0}, normalize=True, geometryIndex=index)
 
 def _remove_influence_safe(sc, inf):
     """influence を安全に削除します。
