@@ -1379,3 +1379,46 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
     `isLocked`・`setLocked`・`isFromReferencedFile` を `Object` へ上げる案(実装が別)。
   - 「名前を残す」とした照会・get/set(`Joint.getRadius`・`setRadius`・`getSegmentScaleCompensate`・`getJointOrient`・`getInverseScale`、`Transform.getRotateOrder`、`IkHandle.getEffector`、
     `Node.isFromReferencedFile`・`hasUniqueName`、`DagNode.isInstanced`・`isIntermediateObject` など)は、利用側の本体で使われているか、対になる片方が使われているので残した。
+- 領域3(形状・デフォーマー・カメラなど。2026-11-24): `nodes/` の mesh・nurbsCurve・nurbsSurface・blendShape・camera・reference・animCurve・locator と `common/keyframe.py` で、公開メソッドをまとめた(公開の名前は63個減)。
+  - 点を持つシェイプの共通の親(−5): `Mesh`・`NurbsCurve`・`NurbsSurface` の間に非公開の基底 `_ControlPointShape`(`nodes/controlPointShape.py`。Maya の `controlPoint` 型に当たる)を置き、
+    `getPoints`・`setPoints`・`mirror` を1つずつにした。`NurbsCurve`・`NurbsSurface` の `getCvPositions()`・`setCvPositions(p)` → `getPoints()`・`setPoints(p)`(Mesh と同じ名前)。
+    種類ごとの違い(読む関数・書き込みの手順・周期カーブの重なった CV・コレクションの型)は `_raw_points`・`_set_points`・`_point_components`、Undo チャンク名は今までの名前のまま
+    (`mlibMeshSetPoints`・`mlibNurbsCurveSetCvPositions`・`mlibNurbsSurfaceSetCvPositions`・`mlibMeshMirror`・`mlibNurbsCurveMirror`)。親が持つので `NurbsSurface.mirror` が新しく使える
+    (`surface.getCVs(indices).mirror(...)` と同じ。`mlibNurbsSurfaceMirror`)。`Transform.mirrorGeometry` は今までどおり mesh と nurbsCurve だけ。型の登録(`_WRAPPER_CLASSES`)と動的クラスの基底は変わらない(基底は登録しない)。
+    proposal12 の S1(NURBS だけの親 `NurbsShape`)は置いていない: `getArea`・`getClosestPoint`・`getParamRange`・`setKnots`・`removeKnot`・`getAtParam` はカーブとサーフェスで引数・戻り値・本体が違い、親に置けるのは名前だけになる。
+    同じ理由で `getClosestPoint`(Mesh・カーブ・サーフェス)と `getUVData`・`setUVData`(Mesh・サーフェス)も上げていない。
+  - 単数と複数のコンポーネントの取得(−7): `mesh.getVertex(i)`・`getEdge(i)`・`getFace(i)`・`getUV(i)`、`curve.getCV(i)`、`animCurve.getKeyframe(i)` → 複数形に番号1つを渡す(`mesh.getVertices(i)` は Vertex。
+    `MultiPlug.getElement` と同じ「番号を渡すと1つ、並び・省略はコレクション」)。`surface.getCV(u, v)` → `surface.getCVs([(u, v)])[0]`(`getCVs(n)` は通し番号の SurfaceCV。`getCVs((u, v))` は今までどおり通し番号2つ)。
+    以前は複数形に番号1つを渡すと TypeError だったので、黙って結果が変わる呼び方は無い。型スタブは番号1つと並びのオーバーロード。
+  - Mesh の頂点ごと・面頂点ごと(−6): `getFaceVertexNormals(...)` → `getVertexNormals(perFace=True, ...)`、`getFaceVertexNormalLocks(...)` → `getVertexNormals(perFace=True, locked=True, ...)`、
+    `setFaceVertexNormalsLocked(state, ...)` → `setFaceVertexNormals(locked=state, ...)`(`normals` を渡すと今までどおり設定してロック。`VertexFace.getNormal`・`setNormal` と同じ形)、
+    `getFaceVertexColors(...)` → `getVertexColors(perFace=True, ...)`、`setFaceVertexColors(c, ...)` → `setVertexColors(c, perFace=True, ...)`、`getFaceShadingEngines()` → `getShadingEngines(perFace=True)`。
+    `vertices` は頂点ごと、`faceVertices` は面頂点ごとだけ(逆は TypeError)。`removeFaceVertexColors` は壊し方が違うので残した。set の `setNormals`(共有法線の一覧。fast 専用)と `setFaceVertexNormals` は書く対象が違うのでまとめていない。
+  - Mesh のそのほか(−6): `getFaceVertexBinormals(...)` → `getFaceVertexTangents(binormal=True, ...)`、`getUVShells(uvSet=)` → `getShells(uv=True, uvSet=)`(UV 側は番号の list のまま)、
+    `getBorderEdges()`・`getBorderVertices()` → `getBorder(type="edge"|"vertex")`、`getClosestNormal(p)`・`getUVAtPoint(p, uvSet=)` → `getClosestPoint(p, what="normal"|"uv")`(既定の `"point"` は今までどおり (点, フェース番号))、
+    `getClosestVertex(p)` → `mesh.getVertices(mesh.getClosestVertices([p])[0])`、`getPointAtUV(u, v)` → `(mesh.getPointsAtUV(u, v) or [(None, None)])[0][1]`。
+    `getClosestVertices` は番号の list のまま(別の点が同じ頂点に当たることがあり、重なりを除く Vertices では点ごとの対応が崩れる)。
+  - UV セットとカラーセット(−7): `getUVSetNames`・`getCurrentUVSet`・`setCurrentUVSet`・`createUVSet`・`copyUVSet`・`renameUVSet`・`deleteUVSet` と `…ColorSet` の7つ →
+    `getSetNames`・`getCurrentSet`・`setCurrentSet`・`createSet`・`copySet`・`renameSet`・`deleteSet` の `color=`(既定は UV セット。`copySet(color=True, replace=True)` は TypeError)。Undo チャンク名12個と例外の文言は今までどおり。
+  - NurbsCurve(−5): `getLengthAtParam(p)` → `getLength(p)`(`tolerance` は全長だけ)、`getParamAtPoint(pt)`・`getParamAtLength(l)` → `getParam(point=pt)`・`getParam(length=l)`(全部キーワード専用。`worldSpace` もキーワードで渡す)、
+    `getPointAtParam`・`getTangentAtParam`・`getNormalAtParam`・`getDerivativesAtParam` → `getAtParam(param, what="point"|"tangent"|"normal"|"derivatives")`。`removeKnot` と `reduceKnotMultiplicity` はまとめない。
+  - NurbsSurface(−4): `getPointAtParam`・`getNormalAtParam`・`getTangentsAtParam`・`getMatrixAtParam`・`getDerivativesAtParam` → `getAtParam(u, v, what="point"|"normal"|"tangents"|"matrix"|"derivatives")`。
+  - BlendShape(−6): `flipTarget(t, ...)` → `mirrorTarget(t, flip=True, ...)`、`addInBetween(t, geometry, w)` → `addTarget(geometry, inBetween=t, fullWeight=w)`(戻り値がウェイトの Plug になった)、
+    `removeInBetween(t, w)` → `removeTarget(t, inBetween=w)`、`getBaseWeights(base)` → `getTargetWeights(base=base)`、`setBaseWeights(w, base)` → `setTargetWeights(None, w, base)`、
+    `reduceTargetDeltas(t, tolerance=x)` → `resetTargetVertices(t, tolerance=x)`(`vertices` か `tolerance` のどちらか1つ)。
+  - Camera(−6、+1): `getRenderingFrustum(a)`・`getViewingFrustum(a, ...)` → `getFrustum(a, kind="rendering"|"viewing")`(`getFilmFrustum` は入れない)、`setNearFocusDistance(d)`・`setFarFocusDistance(d)` → `setFocusDistance(near=d)`・`setFocusDistance(far=d)`
+    (片方を書くと反対側も変わるので、同時には指定できない)、`getPostProjectionMatrix()` → `getProjectionMatrix(post=True)`、`getPortFieldOfView(w, h)` → `getFieldOfView(port=(w, h))`、
+    `getEyePoint()`・`getCenterOfInterestPoint()` → `getPoint(kind="eye"|"centerOfInterest")`、`getViewDirection()`・`getUpDirection()` → `getDirection(kind="view"|"up")`。
+    対の set も同じ形にした: `setCenterOfInterestPoint(p, fast=True)` → `setPoint(p, kind="centerOfInterest", fast=True)`、`setUpDirection(d)` → `setDirection(d, kind="up")`。
+    `setPoint` の既定の `kind="eye"` は新しい機能(`MFnCamera.setEyePoint`。注視点を保って視点を動かすので、カメラの向きは変わる。fast 専用)。視線だけを変える操作は無いので `setDirection` の `kind` は省けず、`"view"` は NotImplementedError。
+  - Reference(−4): `getEditStrings`・`getEditNodeNames`・`getEditAttrNames` → `getEdits(kind="string"|"node"|"attr")`、`load()`・`unload()` → `setLoaded(state=True)`(`isLoaded` と対)、`getRoot()` → `getParentReference(root=True)`
+    (`root=True` はトップレベルで自身を返し、None にならない)。`getCopyNumber` と `getCopyNumbers` は別の情報なので両方残した。
+  - AnimCurve・Keyframe(−5): `AnimCurve.mirror(input, value, ...)` → `scaleKey(-1 if input else 1, -1 if value else 1, ...)`、`insertKey(input)` → `setKey(input)`(`value` を省くと形を変えない挿入)、
+    `Keyframe.getTime()` → `getValue(time=True)`、`Keyframes.getTimes()` → `getValues(time=True)`(入力の単位は `timeUnit`。`unit` と同時は TypeError)。`addKeys` と `replaceKeys` はまとめない。
+    `AnimCurve` の番号を渡す形と `Keyframe`・`Keyframes` の同じ操作は両方残した。
+  - 「名前を残す」とした照会・get/set の数え直し(−2): `Locator.getPosition`・`setPosition`(localPosition の1アトリビュート)は利用側・内部のどちらからも使われていなかったので削った(`getPlug("localPosition")`)。
+    残したもの: `Mesh.getNumVertices`・`AnimCurve.getKeyCount`・`isTimeInput`・`getDrivenPlugs`・`getInfinity`・`Camera.isOrtho`・`Reference.getFilename`(利用側で使われている)、`Reference.isLoaded`(`setLoaded` と対で、内部でも使う)、
+    `Mesh.getNumPolygons`・`getNumEdges`・`getNumUVs`・`getNumCVs`(コンポーネントが名前で呼ぶ)、`NurbsSurface.getForm`・`AnimCurve.isWeighted`・`Cluster.getWeightedNode`(内部・文書の例で使う)、
+    `Camera.getAspectRatio`/`setAspectRatio`・`isVerticalLocked`/`setVerticalLocked`、`Reference.isReferenceLocked`/`setReferenceLocked`・`isUsingNamespaces`・`isDeferred`・`isTopLevel`、`BlendShape.getWeightCount`・`getNormalizationGroups`
+    (Maya のコマンドでの照会・設定で、アトリビュート1つの読み書きと同じとは言い切れない)。
+  - 内部: 種類の名前の検査は `util._require_choice`、番号1つとコレクションの振り分けは `components/component.py` の `_component_of`、UV セット・カラーセットの名前の検査は `Mesh._require_set`。

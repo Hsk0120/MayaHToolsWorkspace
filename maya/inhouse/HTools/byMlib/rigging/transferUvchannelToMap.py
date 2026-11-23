@@ -30,7 +30,7 @@ def transfer_uvchannel_to_map():
         return
 
     for mesh in mesh_shapes:
-        uv_sets = mesh.getUVSetNames()
+        uv_sets = mesh.getSetNames()
 
         if 'UVChannel_1' not in uv_sets:
             cmds.warning(u'{}: skipped because UVChannel_1 does not exist.'.format(mesh.getFullName()))
@@ -38,21 +38,21 @@ def transfer_uvchannel_to_map():
 
         # map1 が存在しない場合は作成
         if 'map1' not in uv_sets:
-            mesh.createUVSet('map1')
+            mesh.createSet('map1')
 
         try:
             # UVChannel_1 を current にして map1 へコピー
-            mesh.setCurrentUVSet('UVChannel_1')
+            mesh.setCurrentSet('UVChannel_1')
             # 元の polyCopyUV と同じく、コピー先の UVMap が無ければ失敗にする(UVMap は作らない)。
-            if 'UVMap' not in mesh.getUVSetNames():
+            if 'UVMap' not in mesh.getSetNames():
                 raise RuntimeError('UV set "UVMap" does not exist.\nCommand polyCopyUV failed. Open Script Editor for details.\n')
-            mesh.copyUVSet('UVChannel_1', 'UVMap', replace=True)
+            mesh.copySet('UVChannel_1', 'UVMap', replace=True)
 
             # current が削除対象だと失敗しやすいので map1 を current に変更
-            mesh.setCurrentUVSet('map1')
+            mesh.setCurrentSet('map1')
 
             # UVChannel_1 を削除
-            mesh.deleteUVSet('UVChannel_1')
+            mesh.deleteSet('UVChannel_1')
 
             print(u'Done: {} | UVChannel_1 -> map1 transferred, then deleted'.format(mesh.getFullName()))
 

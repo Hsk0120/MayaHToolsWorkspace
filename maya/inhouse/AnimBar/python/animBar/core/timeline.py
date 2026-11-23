@@ -125,7 +125,7 @@ def jumpToKey(direction=0):
     if direction == 0:
         selected = keys.graphEditorKeys()
         chosen = [time for curve, indices in selected.items()
-                  for time in curve.getKeyframes(indices).getTimes()]
+                  for time in curve.getKeyframes(indices).getValues(time=True)]
         if chosen:
             # 複数のカーブで選んだキーの真ん中あたりを見られるよう、平均の時刻へ移る(aTools と同じ)。
             return Time.setCurrent(sum(chosen) / len(chosen))

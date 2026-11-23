@@ -134,11 +134,11 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
     shapes = mlib.getNode(curve_transform).getChildren(shapes=True, intermediates=True, type="nurbsCurve")
     for shape in shapes:
         positions = []
-        for pos in shape.getCvPositions():
+        for pos in shape.getPoints():
             pos = [units.distanceToUi(value) for value in pos]
             new_pos = _transform_point(pos, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
             positions.append([units.distanceFromUi(value) for value in new_pos])
-        shape.setCvPositions(positions)
+        shape.setPoints(positions)
 
 
 # ---------------------------------------------------------------------------

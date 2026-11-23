@@ -269,7 +269,7 @@ def setKeyValue(curve, index, value):
     """
     if not math.isfinite(value):
         raise ValueError("Key value must be finite")
-    curve.getKeyframe(index).setValue(value)
+    curve.getKeyframes(index).setValue(value)
 
 
 def curveSnapshot(curve, timeRange=None):

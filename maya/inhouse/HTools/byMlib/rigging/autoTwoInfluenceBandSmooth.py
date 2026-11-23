@@ -411,7 +411,7 @@ def _get_strict_border_edges(mesh):
     Returns:
         Edges: 接している面が1つだけのエッジ。
     """
-    return _get_mesh(mesh).getBorderEdges()
+    return _get_mesh(mesh).getBorder()
 
 
 def _vertex_groups_from_edges(vertex_names, edges):
