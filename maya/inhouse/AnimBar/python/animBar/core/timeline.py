@@ -328,7 +328,7 @@ def duplicateCamera(camera=None):
         Node: 複製したカメラのTransform。
     """
     source = mlib.Node(camera) if camera is not None else keys.selectedNodes()[0]
-    copy = mlib.duplicate(source, name=source.getNodeName(removeNamespace=True) + "_copy")
+    copy = mlib.duplicate(source, name=source.getName(node=True, removeNamespace=True) + "_copy")
     extras = [child for child in copy.getChildren()]
     if extras:
         mlib.delete(extras)

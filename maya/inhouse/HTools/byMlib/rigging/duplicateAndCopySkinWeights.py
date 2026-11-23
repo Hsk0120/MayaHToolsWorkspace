@@ -96,7 +96,7 @@ def get_or_create_shading_engine(material):
     if target_sgs:
         return target_sgs[0]
 
-    mat_short = mat_node.getNodeName()
+    mat_short = mat_node.getName(node=True)
     sg_name = mat_short + 'SG'
     try:
         sg = mlib.createShadingEngine(name=sg_name)
@@ -127,7 +127,7 @@ def get_mesh_shapes(mesh_transform):
     Returns:
         mlib.Nodes: 中間オブジェクトでない Shape。
     """
-    return mlib.getNode(mesh_transform).getShapes()
+    return mlib.getNode(mesh_transform).getShape(all=True)
 
 
 def build_shape_mapping(src_mesh, dup_mesh):
@@ -140,8 +140,8 @@ def build_shape_mapping(src_mesh, dup_mesh):
     Returns:
         dict[str, str]: 複製元 shape の長い名前から複製先 shape の長い名前への対応。
     """
-    src_shapes = get_mesh_shapes(src_mesh).getFullNames()
-    dup_shapes = get_mesh_shapes(dup_mesh).getFullNames()
+    src_shapes = get_mesh_shapes(src_mesh).getNames(full=True)
+    dup_shapes = get_mesh_shapes(dup_mesh).getNames(full=True)
 
     if not src_shapes or not dup_shapes:
         return {}
@@ -316,7 +316,7 @@ def get_selected_mesh_transforms():
         else:
             mesh = sel
 
-        shapes = mesh.getShapes() if isinstance(mesh, mlib.Transform) else []
+        shapes = mesh.getShape(all=True) if isinstance(mesh, mlib.Transform) else []
         if not shapes or shapes[0].getType() != 'mesh':
             cmds.warning(u'Skip: {} is not a mesh.'.format(mesh.getFullName()))
             continue
@@ -369,12 +369,12 @@ def _duplicate_and_copy_skin_weights(meshes, prefix):
 
         # 複製名は接頭辞付きで生成する。
         # 既存命名規則に合わせるため短名ベースで組み立てる。
-        short_name = mesh.getNodeName()
+        short_name = mesh.getName(node=True)
         dup_name = prefix + short_name
         dup = mlib.duplicate(mesh, rr=True, name=dup_name)
 
         # Maya の自動リネームで末尾に 1 が付いたら可能な限り除去
-        dup_short_name = dup.getNodeName()
+        dup_short_name = dup.getName(node=True)
         if dup_short_name.endswith('1') and len(dup_short_name) > 1:
             target_name = dup_short_name[:-1]
             try:
@@ -398,7 +398,7 @@ def _duplicate_and_copy_skin_weights(meshes, prefix):
 
         # 元 skinCluster の主要パラメータを複製側にも反映する。
         max_influences = src_skin.getMaxInfluences()
-        maintain_max_influences = src_skin.isMaintainingMaxInfluences()
+        maintain_max_influences = src_skin.getMaxInfluences(maintain=True)
         normalize_weights = src_skin.getPlug('normalizeWeights').get()
 
         # 複製メッシュを同じ joint で bind

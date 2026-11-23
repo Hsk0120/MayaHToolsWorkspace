@@ -50,8 +50,8 @@ def exportWeights(target, path):
     data = {
         "format": FORMAT,
         "version": VERSION,
-        "mesh": target.mesh.getNodeName(),
-        "influences": [node.getNodeName() for node in influences],
+        "mesh": target.mesh.getName(node=True),
+        "influences": [node.getName(node=True) for node in influences],
         "positions": [[round(point.x, 6), round(point.y, 6), round(point.z, 6)] for point in target.mesh.getPoints()],
         "weights": [[[column, round(value, 8)] for column, value in enumerate(row) if value > 0.0] for row in rows],
     }
@@ -152,11 +152,11 @@ def copyFromMesh(source, target):
         raise ValueError("Pick a different mesh as the source")
     source_influences = source_skin.getInfluences()
     influences = skin.getInfluences()
-    column_of = {_short(node.getNodeName()): index for index, node in enumerate(influences)}
-    missing = [node.getNodeName() for node in source_influences if _short(node.getNodeName()) not in column_of]
+    column_of = {_short(node.getName(node=True)): index for index, node in enumerate(influences)}
+    missing = [node.getName(node=True) for node in source_influences if _short(node.getName(node=True)) not in column_of]
     if missing:
-        raise ValueError("Influences not in {}: {}".format(skin.getNodeName(), ", ".join(missing)))
-    mapping = [column_of[_short(node.getNodeName())] for node in source_influences]
+        raise ValueError("Influences not in {}: {}".format(skin.getName(node=True), ", ".join(missing)))
+    mapping = [column_of[_short(node.getName(node=True))] for node in source_influences]
     source_rows = weights_module.readRows(source_skin, source_influences, list(range(source.mesh.getNumVertices())))
     vertices = target.editVertices()
     points = target.mesh.getPoints(worldSpace=True)
@@ -194,17 +194,17 @@ def importWeights(target, path, method="index", addMissing=False):
         raise ValueError("method must be one of " + ", ".join(METHODS))
     skin = target.requireSkin()
     data = readFile(path)
-    names = {_short(node.getNodeName()): node for node in skin.getInfluences()}
+    names = {_short(node.getName(node=True)): node for node in skin.getInfluences()}
     missing = [name for name in data["influences"] if _short(name) not in names]
     if missing and addMissing:
         found = [mlib.getNode(name) for name in missing if mlib.objExists(name)]
         influences_module.addInfluences(target, found)
-        names = {_short(node.getNodeName()): node for node in skin.getInfluences()}
+        names = {_short(node.getName(node=True)): node for node in skin.getInfluences()}
         missing = [name for name in data["influences"] if _short(name) not in names]
     if missing:
-        raise ValueError("Influences not in {}: {}".format(skin.getNodeName(), ", ".join(missing)))
+        raise ValueError("Influences not in {}: {}".format(skin.getName(node=True), ", ".join(missing)))
     influences = skin.getInfluences()
-    column_of = {_short(node.getNodeName()): index for index, node in enumerate(influences)}
+    column_of = {_short(node.getName(node=True)): index for index, node in enumerate(influences)}
     mapping = [column_of[_short(name)] for name in data["influences"]]
     vertices = target.editVertices()
     if method == "index":

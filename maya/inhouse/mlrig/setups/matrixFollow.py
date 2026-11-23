@@ -27,7 +27,7 @@ class MatrixFollow:
         """
         pending, visited = [source, target.getParent()], set()
         # target自体のインスタンスも確認する。親のインスタンスは探索で検出する。
-        if len(target.getParents()) > 1:
+        if len(target.getParent(instances=True)) > 1:
             raise ValueError("Instanced targets are not supported")
         while pending:
             item = pending.pop()
@@ -37,7 +37,7 @@ class MatrixFollow:
             if item == target:
                 raise ValueError("Source or parent depends on target")
             if isinstance(item, (mlib.Transform, mlib.Shape)):
-                parents = item.getParents()
+                parents = item.getParent(instances=True)
                 if len(parents) > 1:
                     raise ValueError("Instanced hierarchy is not supported")
                 pending.extend(parents)

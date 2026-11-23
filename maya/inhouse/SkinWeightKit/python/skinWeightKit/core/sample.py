@@ -26,7 +26,7 @@ def sampleVertices(target):
     skin = target.requireSkin()
     vertices = target.requireVertices()
     influences = skin.getInfluences()
-    names = [node.getNodeName() for node in influences]
+    names = [node.getName(node=True) for node in influences]
     rows = weights_module.readRows(skin, influences, vertices)
     _sample["rows"] = [{name: value for name, value in zip(names, row) if value > 0.0} for row in rows]
     _sample["positions"] = [(point.x, point.y, point.z)
@@ -54,13 +54,13 @@ def sampleCount():
 
 def _columns(skin, influences):
     """見本のインフルエンスの名前から、skinCluster の列への対応を返す。"""
-    names = [node.getNodeName() for node in influences]
+    names = [node.getName(node=True) for node in influences]
     wanted = set()
     for row in _sample["rows"]:
         wanted.update(row)
     missing = sorted(wanted - set(names))
     if missing:
-        raise ValueError("Not influences of {}: {}".format(skin.getNodeName(), ", ".join(missing)))
+        raise ValueError("Not influences of {}: {}".format(skin.getName(node=True), ", ".join(missing)))
     return {name: names.index(name) for name in wanted}
 
 

@@ -898,12 +898,12 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
             joints = skin.selectedJoints()
             if not joints or not self.target.mesh.isValid():
                 return resolved
-            names = [node.getNodeName() for node in self.target.skin.getInfluences()]
+            names = [node.getName(node=True) for node in self.target.skin.getInfluences()]
         except (ValueError, RuntimeError):
             return resolved
         for joint in joints:
-            if joint.getNodeName() in names:
-                self.active = joint.getNodeName()
+            if joint.getName(node=True) in names:
+                self.active = joint.getName(node=True)
                 break
         return self.target
 
@@ -951,7 +951,7 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
         self.deformer_list.clear()
         if self.target is not None:
             found = run(deformers.listDeformers, self.target.mesh) or []
-            self.deformer_list.addItems([node.getNodeName() for node in found])
+            self.deformer_list.addItems([node.getName(node=True) for node in found])
         self._refresh_table()
         self._refresh_settings()
 
@@ -1134,7 +1134,7 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
             current = self._require_target()
             current.requireSkin()
             self.copy_source = current.mesh
-            return current.mesh.getNodeName()
+            return current.mesh.getName(node=True)
         name = run(call)
         if name is not None:
             _message("Source: {}".format(name))
@@ -1390,7 +1390,7 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
             """対象ごとに診断し、文にする。"""
             threshold, limit, steps = self._game_settings()
             return "\n\n".join(reduction.formatReport(reduction.analyze(current, threshold, limit, steps),
-                                                      current.mesh.getNodeName())
+                                                      current.mesh.getName(node=True))
                                for current in self._game_targets())
         text = run(call)
         if text is not None:

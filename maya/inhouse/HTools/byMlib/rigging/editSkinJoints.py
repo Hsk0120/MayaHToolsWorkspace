@@ -107,7 +107,7 @@ def _signature(skin):
 
 def _poseMembers(pose):
     """共有姿勢の構成と階層を検証するため長名で取得する。"""
-    return sorted(mlib.getNode(pose).getMembers().getFullNames())
+    return sorted(mlib.getNode(pose).getMembers().getNames(full=True))
 
 
 def _readSession():

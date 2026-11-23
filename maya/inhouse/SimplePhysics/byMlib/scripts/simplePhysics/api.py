@@ -185,7 +185,7 @@ def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhy
             joint = mlib.createNode("joint", name=leaf + "_SP", parent=parent)
             joint.getPlug("segmentScaleCompensate").set(False)
             joint.getPlug("radius").set(0.5)
-            joint.setOverrideColor(14)
+            joint.setColor(14)
             joint.getPlug("offsetParentMatrix").connect(node.getPlug(f"outputMatrix[{index}]"))
             joint.setAttrFlags(["translate", "rotate", "scale", "shear", "jointOrient", "rotateAxis"], locked=True)
             node.getPlug(f"outputBones[{index}]").connect(joint.getPlug("message"))
@@ -251,7 +251,7 @@ def addCollider(node, kind="sphere", attachTo=None, radius=5.0, height=10.0):
         # 元の版の polySphere などと同じく、作った形状を選んだ状態にする。
         mlib.select(mesh)
         mesh.setParent(collider, relative=True)
-        mesh.setOverrideColor(18)
+        mesh.setColor(18)
         mesh.setShadingOverride(True)
         mesh.setAttrFlags(["translate", "rotate", "scale"], locked=True)
         index = len(types)

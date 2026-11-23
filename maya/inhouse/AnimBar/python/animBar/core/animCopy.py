@@ -33,7 +33,7 @@ def copyAnimation(nodes=None, timeRange=None):
         timeRange = keys.timelineRange()
     order, data, count, times = [], {}, 0, []
     for node in nodes:
-        name = node.getNodeName(removeNamespace=True)
+        name = node.getName(node=True, removeNamespace=True)
         curves = {}
         for plug in keys.animatedPlugs(node, channelBox=False):
             snapshot = keys.curveSnapshot(keys.animCurveOf(plug), timeRange)

@@ -65,7 +65,7 @@ class TwistDistribution:
         owner.addAttr(longName="twistMatrix", dataType="matrix")
         owner.addAttr(longName="relativeDecompose", attributeType="message")
         relative = graph._node("multMatrix", "relative")
-        parents = end.getParents()
+        parents = end.getParent(instances=True)
         if [node.getUuid() for node in parents] == [start.getUuid()]:
             # 隣接骨ならワールド行列を介さず、OPMを含む実ローカル行列を使う。
             end.getPlug("matrix").connectTo(relative.getPlug("matrixIn")[0])

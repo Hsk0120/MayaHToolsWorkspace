@@ -46,7 +46,7 @@ class AimAxisConversionSettingsTest(unittest.TestCase):
             self.aim.setRestRotate(values, unit="rad")
             self.aim.getPlug("offset").set(values, unit="rad")
             settings = AimAxisConversion._captureSettings(self.aim)
-            self.assertEqual(list(settings), attrs + self.aim.getWeightAliases())
+            self.assertEqual(list(settings), attrs + self.aim.getWeightPlugs(aliases=True))
             self.assertNotIn("worldUpMatrix", settings)
             for prefix in ("restRotate", "offset"):
                 for axis, expected in zip("XYZ", values):
@@ -69,7 +69,7 @@ class AimAxisConversionSettingsTest(unittest.TestCase):
         weight = self.aim.getWeightPlugs()[0]
         self.driver.getPlug("scaleX").connectTo(weight)
         settings = AimAxisConversion._captureSettings(self.aim)
-        self.assertNotIn(self.aim.getWeightAliases()[0], settings)
+        self.assertNotIn(self.aim.getWeightPlugs(aliases=True)[0], settings)
         self.assertEqual(len(settings), 18)
 
 

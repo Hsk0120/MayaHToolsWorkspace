@@ -69,7 +69,7 @@ class ControlShape:
             Transform: 形状を差し替えた既存transform。他種のシェイプは保持する。
         """
         target = mlib.Transform(target)
-        old_shapes = [shape for shape in target.getShapes(intermediates=True) if shape.getType() == "nurbsCurve"]
+        old_shapes = [shape for shape in target.getShape(intermediates=True, all=True) if shape.getType() == "nurbsCurve"]
         ui = mlib.common.units.distanceFromUi
         shape = mlib.createCurve([tuple(ui(v) for v in point) for point in points], degree=degree, knots=knots,
                                  name=name + "__tmp")

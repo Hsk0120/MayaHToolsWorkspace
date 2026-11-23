@@ -108,7 +108,7 @@ def mirrorVertices(target, axis="x", tolerance=0.01):
     skin = target.requireSkin()
     vertices = target.requireVertices()
     influences = skin.getInfluences()
-    names = [node.getNodeName() for node in influences]
+    names = [node.getName(node=True) for node in influences]
     opposite = []
     missing = []
     for name in names:
@@ -117,7 +117,7 @@ def mirrorVertices(target, axis="x", tolerance=0.01):
             missing.append(other)
         opposite.append(names.index(other) if other in names else None)
     if missing:
-        raise ValueError("Opposite influences are not in {}: {}".format(skin.getNodeName(), ", ".join(missing)))
+        raise ValueError("Opposite influences are not in {}: {}".format(skin.getName(node=True), ", ".join(missing)))
     pairs = mirrorMap(target.mesh, vertices, axis, tolerance)
     sources = [vertex for vertex in vertices if vertex in pairs]
     destinations = [pairs[vertex] for vertex in sources]

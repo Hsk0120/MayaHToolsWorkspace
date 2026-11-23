@@ -67,7 +67,7 @@ class SplineIK:
         for i, joint in enumerate(joints):
             if joint.getType() != "joint":
                 raise ValueError("Expected joints")
-            if i and [node.getUuid() for node in joint.getParents()] != [joints[i - 1].getUuid()]:
+            if i and [node.getUuid() for node in joint.getParent(instances=True)] != [joints[i - 1].getUuid()]:
                 raise ValueError("Expected a continuous joint chain")
             if any((joint.getPlug('rotate' + a).getConnections(input=True) is not None for a in 'XYZ')):
                 raise ValueError("Joint rotation already has an input")
@@ -123,7 +123,7 @@ class SplineIK:
         target = handle.getPlug("inCurve")
         if enabled:
             if target.getConnections(input=True) is None:
-                shape = self.member("curve").getShapes()[0]
+                shape = self.member("curve").getShape(all=True)[0]
                 shape.getPlug("worldSpace")[0].connectTo(target)
             handle.getPlug("nodeState").set(0)
             handle.getPlug("ikBlend").set(1)

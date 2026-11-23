@@ -337,7 +337,7 @@ def _build(name, count, length, height, stretch):
         parent = joint
     graph = SplineIK.create(ik, [hips, tan0, tan1, chest], setupGroup, name=name + "_splineGraph", up_axis="z")
     curve = graph.member("curve")
-    shape = curve.getShapes(intermediates=True)[0]
+    shape = curve.getShape(intermediates=True, all=True)[0]
 
     amount = _stretch(name, root, shape, cog, ik, length, segment) if stretch else None
 

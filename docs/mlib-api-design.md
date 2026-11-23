@@ -1335,3 +1335,47 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
     `getFullName` → `getName(full=True)` と `Plugs.getNames`/`getFullNames` は、Node と合わせて後の段で行う。
   - まとめなかったもの: `isLocked`/`setLocked`(広く使われている)、Node と共通の基底へ上げる案(実装が別で、基底に置けるのは名前だけ)、`RampPlug`(似た名前の対が無い)、
     `set`/`setIfChanged`・`connect`/`connectTo`・`getDefault`/`isDefaultValue`・`setKey`/`setKeyTangent`。
+- 領域2(基本のノード。2026-11-24): `nodes/` の node・dagNode・transform・joint・skinCluster・geometryFilter・コンストレイント・ikHandle・objectSet・dagPose・shadingEngine と `Plugs` で、公開メソッドをまとめた。
+  - Transform の相対の変更(−4): `translateBy(v)`・`rotateBy(v)`・`scaleBy(v)`・`shearBy(v)` → `setTranslation`・`setRotate`・`setScale`・`setShear` の `relative=True`。
+    translate・rotate は足す・回す、scale・shear は掛ける。相対でも `fast`・`safe`・`get`・`check` が使える。Maya のコマンドは1回なので Undo チャンクは開かない
+    (`mlibTransformTranslateBy` などのチャンク名は無くなった)。`setTranslation(relative=True)` は `at` と、`setScale`・`setShear` の `relative=True` は `worldSpace=True` と同時に指定できない(TypeError)。
+    相対の値の型・数・有限かの確認(TypeError・ValueError)は、今までどおり check に関係なく行う。
+  - 描画の色(−3): `getActiveColor`・`getDormantColor`・`getHiliteColor`・`getDrawOverrideColor` → `getDrawColor(mode="dormant"|"active"|"hilite"|"override")`。
+  - 表示色(DagNode −2、Nodes −3): `getOverrideColor`・`getOutlinerColor` → `getColor(outliner=)`、`setOverrideColor`・`setOutlinerColor` → `setColor(color, outliner=)`。
+    `Nodes` は明示メソッドの `getColor`・`setColor`・`setColors(colors, outliner=)` の3つ(要素が無ければ何もしない・書く前に全要素を確かめる・Undo 1回は今までどおり。
+    Undo チャンク名は `mlibNodesSetColor`・`mlibNodesSetColors`)。単数の Undo チャンク名(`mlibDagNodeSetOverrideColor`・`…SetOutlinerColor`)は変えていない。
+  - バウンディングボックスと並び順(−2): `getBoundingBoxCorners()` → `getBoundingBox(corners=True)`(`includeInvisible` も使えるようになった)、`setOutlinerOrder(i)` → `reorder(index=i)`
+    (`index` は端を越えない。範囲外は IndexError)。
+  - ピボット(−3): `centerPivotsOnComponents(c)` → `centerPivot(c)`(`fast`・`check` も使える)、`getPivotTranslation`・`setPivotTranslation` → `getPivot(translation=True)`・`setPivot(v, translation=True)`
+    (`translation=True` は `preserve`・`fast` と同時に指定できない。`getPivot(translation=True)` は Vector)。
+  - 表示と非表示(DagNode −2、Nodes −2): `show()`・`hide()` → `setVisibility(True)`・`setVisibility(False)`。2026-10-26 の「両方残す」を改めた。
+  - 親とシェイプ(−2): `getParents(indirect)` → `getParent(instances=True, indirect=)`(Plug の `getParent(all=True)` は祖先、こちらはインスタンスの親なので、引数名を分けた)、
+    `Transform.getShapes(intermediates)` → `getShape(intermediates=, all=True)`(`DagNode.getShape(all=True)` は、Shape なら自身1つ、ほかは空の集まり)。
+  - 名前(Node −1、Nodes −1、Plugs −1): `getNodeName(removeNamespace)` → `getName(node=True, removeNamespace=)`、`Nodes`・`Plugs` の `getFullNames()` → `getNames(full=True)`。
+    単数の `getFullName` → `getName(full=True)` は、最後の段で一括して行う。
+  - 判定とアトリビュートの一覧(−2): `isParentOf(o)` → `isAncestorOf(o, direct=True)`(自身が無効なときは、`direct=True` でも RuntimeError になる)、`getAnimatablePlugs()` → `getPlugs(animatable=True)`。
+  - DG の計測(−3): `setDgTimerEnabled(s)`・`resetDgTimer()` → `setDgTimer(state=None, *, reset=False)`、`getDgCallbacks()`・`getDgTimerState()` → `getDgTimer(callbacks=True)`・`getDgTimer(state=True)`。
+    Maya 全体の設定の `setDgTimingEnabled`(staticmethod)は、ノードが要らない操作なので残した。
+  - Joint(−2): `jointOrientToRotate()` → `freezeRotate(toRotate=True)`、`getIkHandles()` → `getConnections(type="ikHandle", asNode=True)`。
+  - スキン(−11): `forceNormalizeWeights()` → `normalizeWeights(force=True)`、`getLockedInfluences()`・`getUnusedInfluences()` → `getInfluences(locked=True)`・`getInfluences(unused=True)`、
+    `removeInfluence(j)`・`removeUnusedInfluences()` → `removeInfluences(joints=None, *, unused=False, transferToParent=True, requireAncestor=True, force=False)`(外したノードの Nodes を返す)、
+    `isMaintainingMaxInfluences()` → `getMaxInfluences(maintain=True)`、`getSkinningMethod`・`setSkinningMethod`・`getNormalizeMode`・`setNormalizeMode` → `getMode(kind)`・`setMode(value, kind)`(`"skinning"`・`"normalize"`)、
+    `getVertexWeights(v)`・`setVertexWeights(v, w)` → `getWeights(vertex=v)`・`setWeights(w, vertex=v, normalize=...)`。
+    - 単数の `removeInfluence` は、ウェイトを受け取る祖先のインフルエンスが無いとき Maya 標準の配り直しに任せ、複数の `removeInfluences` は ValueError にしていた。
+      まとめた後の既定(`requireAncestor=True`)は複数の動き(ValueError)で、単数の動きは `requireAncestor=False`。以前の `removeInfluence(j)` は `removeInfluences(j, requireAncestor=False)` と書く。
+    - `setVertexWeights` は `normalize` の既定が True で `setWeights`(False)と逆だったので、`vertex=` の形では `normalize` を省けない(TypeError)。
+  - デフォーマーの形状(−3): `getInputGeometry()` → `getGeometry(input=True)`、`getGeometryAtIndex(geometryIndex=i)`・`getInputGeometryAtIndex(geometryIndex=i)` → `getGeometry(geometryIndex=i)`・`getGeometry(input=True, geometryIndex=i)`、
+    `getGeometryIndex(g)` → `getGeometryIndices(g)`(引数なしは全部の list)。
+  - セット(−5、+1): `addExclusiveMembers(*m)` → `addMembers(*m, exclusive=True)`、`removeAllMembers()` → `removeMembers(all=True)`、`getMemberDagNodes(shadingOnly=)` → `getMembers(dagOnly=True, shadingOnly=)`、
+    `getUnion`・`getIntersection`・`getDifference` → 新しい `combine(other, mode="union"|"intersection"|"difference")`。`ShadingEngine.getMembers` も `dagOnly`・`shadingOnly` を受ける。
+  - コンストレイント(−4): `getWeight(t)` → `getWeights(t)[0]`(`getWeights(*targets)` は渡した順の list)、`getWeightAliases()` → `getWeightPlugs(aliases=True)`、
+    `OrientConstraint`・`ParentConstraint` の `createCache`・`deleteCache` は、間に置いた非公開の基底 `_InterpCacheConstraint`(`nodes/interpCacheConstraint.py`)の1つの定義にした(使い方は同じ。ほかのコンストレイントには付かない)。
+  - 名前が似ているもの(−4): `DagPose.getMemberIndex(m)` → `getMemberIndices(m)`、`DagPose.isAtPose()` → `not pose.getNotAtPose()`、`IkHandle.getEndJoint()` → `getJoints(end=True)`、`ShadingEngine.getShaderPlug(kind)` → `getShader(kind, plug=True)`。
+  - まとめなかったもの: `getQuaternion`・`setQuaternion`(既定で返す回転も書き込む先も `getRotate`・`setRotate` と違う)、`getBlendWeights`・`setBlendWeights`(別の種類の値)、
+    `SkinCluster.hasInfluence`(`getInfluenceIndex(...) is not None` は長く、番号 0 の取り違えも起きやすい)、`Joint.getSkinClusters`・`Joints.getSkinClusters`
+    (`DagNode.getSkinClusters` を別の意味で上書きしているので、消すと「このジョイントの下の形状を変形しているスキン」が黙って返る)、`Node.getConnections` の `input=`・`outputs=`
+    (Plug では「この Plug 自身の入力元1つ」だが、ノードには入力が多数あり同じ意味にならない)、`setDgTimingEnabled`(Maya 全体の設定)、
+    メンバーを持つノードの共通の基底(`DagPose`・`DisplayLayer`・`ObjectSet` の `addMembers`・`removeMembers`・`getMembers` は、コマンドも入力の確認も戻り値の型も引数も違い、基底に置けるのは名前だけ)、
+    `isLocked`・`setLocked`・`isFromReferencedFile` を `Object` へ上げる案(実装が別)。
+  - 「名前を残す」とした照会・get/set(`Joint.getRadius`・`setRadius`・`getSegmentScaleCompensate`・`getJointOrient`・`getInverseScale`、`Transform.getRotateOrder`、`IkHandle.getEffector`、
+    `Node.isFromReferencedFile`・`hasUniqueName`、`DagNode.isInstanced`・`isIntermediateObject` など)は、利用側の本体で使われているか、対になる片方が使われているので残した。

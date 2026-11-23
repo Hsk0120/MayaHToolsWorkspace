@@ -164,7 +164,7 @@ def _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=1e-8):
 
     skin = mlib.getNode(sc)
     # skinCluster が複数の形状を変形するときは、この形状の番号で読み書きする。
-    index = skin.getGeometryIndex(geo)
+    index = skin.getGeometryIndices(geo)
 
     # child と parent のウェイトを全頂点まとめて読む(頂点ごとに [child, parent])。
     rows = skin.getWeights([child, parent], rows=True, geometryIndex=index)
@@ -180,8 +180,8 @@ def _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=1e-8):
         # まず parent を増やす → その後 child を 0 に
         # normalize=True で都度正規化される。厳密な “加算” を維持したい場合は
         # normalize=False にして最後に一括正規化も可だが、影響数が多いと破綻しやすい。
-        skin.setVertexWeights(comp, {parent: new_p}, normalize=True, geometryIndex=index)
-        skin.setVertexWeights(comp, {child: 0.0}, normalize=True, geometryIndex=index)
+        skin.setWeights({parent: new_p}, vertex=comp, normalize=True, geometryIndex=index)
+        skin.setWeights({child: 0.0}, vertex=comp, normalize=True, geometryIndex=index)
 
 def _remove_influence_safe(sc, inf):
     """influence を安全に削除します。
@@ -196,7 +196,7 @@ def _remove_influence_safe(sc, inf):
     try:
         # removeInfluence は “ウェイトが残っている” と失敗することがあるので
         # 本スクリプトでは事前に 0 化している前提(残りの配り直しは Maya 標準に任せる)
-        mlib.getNode(sc).removeInfluence(inf, transferToParent=False)
+        mlib.getNode(sc).removeInfluences(inf, transferToParent=False)
     finally:
         _restore_joint_liw(inf, prev_liw)
 

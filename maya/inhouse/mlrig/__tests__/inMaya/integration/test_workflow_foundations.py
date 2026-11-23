@@ -72,15 +72,15 @@ class RigFoundationsTest(unittest.TestCase):
         before = list(target.getMatrix())
         first = ControlShape.circle(target, radius=0.02)
         second = ControlShape.circle(target, radius=0.03, normal=(0, 1, 0))
-        self.assertEqual(len(target.getShapes()), 2)
+        self.assertEqual(len(target.getShape(all=True)), 2)
         self.assertEqual(list(target.getMatrix()), before)
         cmds.undo()
-        self.assertEqual(len(target.getShapes()), 1)
+        self.assertEqual(len(target.getShape(all=True)), 1)
         self.assertTrue(first[0].isValid())
         self.assertFalse(second[0].isValid())
         with self.assertRaises(ValueError):
             ControlShape.circle(target, normal=(0, 0, 0))
-        self.assertEqual(len(target.getShapes()), 1)
+        self.assertEqual(len(target.getShape(all=True)), 1)
 
     def test_soft_distance(self):
         """標準DGの評価を数学的参照値と比較する。"""

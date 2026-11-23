@@ -180,7 +180,7 @@ def _compute_target_joints(joints, include_children):
         for j in joints:
             nodes.extend(mlib.getNode(j).getChildren(allDescendents=True, type="joint"))
 
-    long_names = nodes.getFullNames()
+    long_names = nodes.getNames(full=True)
     unique = []
     seen = set()
     for name in long_names:
@@ -223,7 +223,7 @@ def _compute_child_joints(joint_name):
     Returns:
         list[str]: 子ジョイントのロングネーム。
     """
-    return _compute_node(joint_name).getChildren(type="joint").getFullNames()
+    return _compute_node(joint_name).getChildren(type="joint").getNames(full=True)
 
 
 def _compute_parent_joint(joint_name):
@@ -1265,7 +1265,7 @@ def _compute_descendant_world_matrices(joint_name):
     Returns:
         dict[str, list[float]]: ``node -> 4x4 matrix(flat)`` の辞書。
     """
-    descendants = _compute_node(joint_name).getChildren(allDescendents=True, type="joint").getFullNames()
+    descendants = _compute_node(joint_name).getChildren(allDescendents=True, type="joint").getNames(full=True)
     descendants = sorted(set(descendants), key=lambda n: n.count("|"))
     return {
         node: list(_compute_world_matrix(node).values)
@@ -1360,7 +1360,7 @@ def _apply_orient_from_ui(*_):
         _compute_primary_space_mode(third_settings["space"]) if third_settings else None,
     )
 
-    joints = mlib.ls(selection=True, type="joint").getFullNames()
+    joints = mlib.ls(selection=True, type="joint").getNames(full=True)
     if not joints:
         cmds.warning("Select joint(s) first.")
         return

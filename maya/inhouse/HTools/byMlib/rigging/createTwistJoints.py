@@ -127,7 +127,7 @@ def createTwistJoints(root, end, count=3, name=DEFAULT_NAME, radius=None):
     if start.distanceTo(finish) < 1.0e-6:
         raise ValueError("Root and End are at the same position.")
     # 名前空間とDAGのパスを除いた短い名前。
-    baseName = rootNode.getNodeName(removeNamespace=True)
+    baseName = rootNode.getName(node=True, removeNamespace=True)
     try:
         names = [name.format(root=baseName, index=index) for index in range(1, count + 1)]
     except (KeyError, IndexError, ValueError) as error:

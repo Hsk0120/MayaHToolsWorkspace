@@ -99,7 +99,7 @@ class SplineStretchLayer:
             )
             group.getPlug(attr).connectTo(owner.getPlug(attr))
         curve = rig.graph().member("curve")
-        shape = curve.getShapes()[0]
+        shape = curve.getShape(all=True)[0]
         measure = self._node(owner, "curveInfo", "localLength")
         # localカーブならモジュールの正の均等scaleは長さ比へ混入しない。
         shape.getPlug("local").connectTo(measure.getPlug("inputCurve"))
@@ -152,7 +152,7 @@ class SplineStretchLayer:
         curve = self.rig.graph().member("curve")
         target = measure.getPlug("inputCurve")
         if active and target.getConnections(input=True) is None:
-            shape = curve.getShapes()[0]
+            shape = curve.getShape(all=True)[0]
             shape.getPlug("local").connectTo(target)
         elif not active and target.getConnections(input=True) is not None:
             target.disconnect(target.getConnections(input=True))

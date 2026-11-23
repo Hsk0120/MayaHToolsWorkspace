@@ -147,7 +147,7 @@ def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False
                 connections.update((a.getFullName(), b.getFullName()) for a, b in edges)
                 if isinstance(node, mlib.DagNode):
                     child = node.getName()
-                    parents.update((parent.getFullName(), child) for parent in node.getParents())
+                    parents.update((parent.getFullName(), child) for parent in node.getParent(instances=True))
             except (RuntimeError, ValueError, TypeError) as error:
                 errors.append(str(error))
         groups.append(dict(plugs=plugs, nodes=nodes, connections=sorted(connections),

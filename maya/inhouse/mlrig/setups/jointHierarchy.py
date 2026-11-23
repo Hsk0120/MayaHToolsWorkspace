@@ -55,7 +55,7 @@ class JointHierarchy:
                         skin.transferWeights([(joint, target)], fast=fast)
                         stage = "remove influence"
                         if not fast:
-                            skin.removeInfluence(joint, transferToParent=False)
+                            skin.removeInfluences(joint, transferToParent=False)
                         # fast削除はMaya標準の削除通知でinfluence構造も解除する。
                         stage = "transfer weights"
                     stage = "reparent children"

@@ -76,7 +76,7 @@ class TreadBelt(TwistDistribution):
             raise ValueError("TreadBelt container already exists: " + name)
         shape = mlib.Node(curve)
         if shape.getType() != "nurbsCurve":
-            shapes = [s for s in (shape.getShapes() if isinstance(shape, mlib.Transform) else [])
+            shapes = [s for s in (shape.getShape(all=True) if isinstance(shape, mlib.Transform) else [])
                       if s.getType() == "nurbsCurve"]
             if not shapes:
                 raise ValueError("Expected a NURBS curve transform or shape")

@@ -134,7 +134,7 @@ def reduce(targets, threshold=0.0, maxInfluences=None, steps=None, removeUnused=
         if setSkinLimit and maxInfluences is not None:
             skin.setMaxInfluences(maxInfluences, maintain=True, prune=False)
         if removeUnused:
-            summary["removedInfluences"] += len(skin.removeUnusedInfluences())
+            summary["removedInfluences"] += len(skin.removeInfluences(unused=True))
         summary["meshes"] += 1
         summary["vertices"] += len(vertices)
     return summary
@@ -175,11 +175,11 @@ def limitBones(current, maxBones):
                 candidates.append((totals[column], column, parent.getName()))
         if not candidates:
             raise ValueError("Cannot reduce {} below {} influences (no unlocked joint has a parent influence)"
-                             .format(skin.getNodeName(), len(influences)))
+                             .format(skin.getName(node=True), len(influences)))
         _total, column, parent = min(candidates)
         node = influences[column]
-        skin.removeInfluence(node, transferToParent=True)
-        removed.append((node.getNodeName(), parent))
+        skin.removeInfluences(node, requireAncestor=False)
+        removed.append((node.getName(node=True), parent))
     return removed
 
 
@@ -231,13 +231,13 @@ def analyze(current, threshold=0.0, maxInfluences=None, steps=None, tolerance=1e
             report["tiny"].append(vertex)
         if steps and any(abs(value * steps - round(value * steps)) > tolerance * steps for value in row):
             report["offGrid"].append(vertex)
-    report["missingOpposites"] = symmetry.missingOpposites(node.getNodeName() for node in influences)
+    report["missingOpposites"] = symmetry.missingOpposites(node.getName(node=True) for node in influences)
     report["leastUsed"] = []
     if not current.hasComponents():
-        report["unused"] = [node.getNodeName() for index, node in enumerate(influences) if index not in used_columns]
+        report["unused"] = [node.getName(node=True) for index, node in enumerate(influences) if index not in used_columns]
         totals = [sum(row[column] for row in rows) for column in range(len(influences))]
         order = sorted((column for column in used_columns), key=lambda column: totals[column])
-        report["leastUsed"] = [(influences[column].getNodeName(), totals[column]) for column in order[:5]]
+        report["leastUsed"] = [(influences[column].getName(node=True), totals[column]) for column in order[:5]]
     return report
 
 

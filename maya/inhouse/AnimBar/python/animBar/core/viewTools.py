@@ -40,7 +40,7 @@ def createMotionTrails(nodes=None, increment=1.0):
     created = []
     for node in nodes:
         trail = mlib.createMotionTrail(node, startTime=start, endTime=end, increment=increment,
-                                       name=node.getNodeName(removeNamespace=True) + "_animBarTrail")
+                                       name=node.getName(node=True, removeNamespace=True) + "_animBarTrail")
         trail.addAttr(longName=TRAIL_ATTRIBUTE, attributeType="bool", defaultValue=True)
         created.append(trail)
     return created

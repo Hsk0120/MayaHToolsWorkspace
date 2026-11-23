@@ -58,7 +58,7 @@ class BendCorrection:
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
         parent, joint = mlib.Node(parent), mlib.Node(joint)
-        if [node.getUuid() for node in joint.getParents()] != [parent.getUuid()]:
+        if [node.getUuid() for node in joint.getParent(instances=True)] != [parent.getUuid()]:
             raise ValueError("Expected a direct parent-child pair")
         if mlib.objExists(name):
             raise ValueError("Bend container already exists: " + name)

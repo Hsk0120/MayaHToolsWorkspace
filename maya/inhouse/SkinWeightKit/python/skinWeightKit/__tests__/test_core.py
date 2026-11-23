@@ -290,7 +290,7 @@ class SkinTest(_Case):
     def test_bind_skips_skinned_meshes(self):
         other = cmds.polyCube(name="swkCube")[0]
         joints = [mlib.getNode(name) for name in self.joints]
-        meshes = [mlib.getNode(other).getShapes()[0], mlib.getNode(self.shape)]
+        meshes = [mlib.getNode(other).getShape(all=True)[0], mlib.getNode(self.shape)]
         created = skin.bind(joints, meshes, maxInfluences=2)
         self.assertEqual(len(created), 1)
         with self.assertRaises(ValueError):
@@ -299,11 +299,11 @@ class SkinTest(_Case):
     def test_skinned_meshes_in_scene(self):
         cmds.polyCube(name="swkLooseCube")
         meshes = skin.skinnedMeshes()
-        self.assertEqual([mesh.getNodeName() for mesh in meshes], [self.shape.split("|")[-1]])
+        self.assertEqual([mesh.getName(node=True) for mesh in meshes], [self.shape.split("|")[-1]])
 
     def test_selected_joints_and_meshes(self):
         cmds.select(self.joints[0], self.geo)
-        self.assertEqual([node.getNodeName() for node in skin.selectedJoints()], [self.joints[0]])
+        self.assertEqual([node.getName(node=True) for node in skin.selectedJoints()], [self.joints[0]])
         self.assertEqual(len(skin.selectedMeshes()), 1)
 
     def test_mirror_runs(self):
@@ -317,8 +317,8 @@ class SkinTest(_Case):
         cmds.move(0, 4, 0, other)
         cmds.select(self.geo)
         source = target.require()
-        self.assertEqual(skin.copySkin(source, [mlib.getNode(other).getShapes()[0]]), 1)
-        self.assertTrue(mlib.getNode(other).getShapes()[0].getSkinClusters())
+        self.assertEqual(skin.copySkin(source, [mlib.getNode(other).getShape(all=True)[0]]), 1)
+        self.assertTrue(mlib.getNode(other).getShape(all=True)[0].getSkinClusters())
         with self.assertRaises(ValueError):
             skin.copySkin(source, [source.mesh])
 
@@ -785,7 +785,7 @@ class SmoothingMethodTest(_Case):
         second = cmds.polyCube(name="swkGapB")[0]
         cmds.move(1.1, 0, 0, second)
         united = cmds.polyUnite(first, second, name="swkGap", constructionHistory=False)[0]
-        mesh = mlib.getNode(united).getShapes()[0]
+        mesh = mlib.getNode(united).getShape(all=True)[0]
         plain = smoothing.neighborWeights(mesh, "uniform")
         linked = smoothing.neighborWeights(mesh, "uniform", radius=0.5)
         self.assertGreater(sum(len(item) for item in linked), sum(len(item) for item in plain))
@@ -910,7 +910,7 @@ class MoreToolsTest(_Case):
         cmds.percent(cluster, "{}.vtx[0:30]".format(self.geo), value=0.25)
         cmds.select(self.geo)
         found = target.require()
-        self.assertIn(cluster, [node.getNodeName() for node in deformers.listDeformers(found.mesh)])
+        self.assertIn(cluster, [node.getName(node=True) for node in deformers.listDeformers(found.mesh)])
         deformers.toInfluence(found, cluster, self.joints[2])
         self.assertAlmostEqual(_weights(self.skin, 10)[self.joints[2]], 0.25, places=4)
         self.assert_normalized(10)
@@ -938,7 +938,7 @@ class MoreToolsTest(_Case):
         weights.setValue(self.select_vertices(60), end, 0.5)
         cmds.select(self.geo)
         found = target.require()
-        self.assertEqual([node.getNodeName() for node in influences.matchingInfluences(found, "*_end")], [end])
+        self.assertEqual([node.getName(node=True) for node in influences.matchingInfluences(found, "*_end")], [end])
         before = _weights(self.skin, 60)
         removed = influences.removeMatching(found, "*_end, *_helper")
         self.assertEqual(removed[0][0], end)

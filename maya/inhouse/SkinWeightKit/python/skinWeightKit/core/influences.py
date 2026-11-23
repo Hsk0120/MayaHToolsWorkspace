@@ -22,7 +22,7 @@ class InfluenceInfo(object):
 
     def __init__(self, node, locked, value):
         self.node = node
-        self.name = node.getNodeName()
+        self.name = node.getName(node=True)
         self.locked = locked
         self.value = value
 
@@ -41,9 +41,9 @@ def find(skin, influence):
         ValueError: skinCluster のインフルエンスでない場合。
     """
     for node in skin.getInfluences():
-        if node == influence or node.getNodeName() == str(influence) or str(node) == str(influence):
+        if node == influence or node.getName(node=True) == str(influence) or str(node) == str(influence):
             return node
-    raise ValueError("{} is not an influence of {}".format(influence, skin.getNodeName()))
+    raise ValueError("{} is not an influence of {}".format(influence, skin.getName(node=True)))
 
 
 def lockedFlags(skin, influences):
@@ -56,7 +56,7 @@ def lockedFlags(skin, influences):
     Returns:
         list[bool]: influences の順に、ロックされていればTrue。
     """
-    locked = {node.getFullName() for node in skin.getLockedInfluences()}
+    locked = {node.getFullName() for node in skin.getInfluences(locked=True)}
     return [node.getFullName() in locked for node in influences]
 
 
@@ -271,7 +271,7 @@ def matchingInfluences(target, patterns):
         patterns = [part for part in patterns.replace(",", " ").split() if part]
     skin = target.requireSkin()
     return [node for node in skin.getInfluences()
-            if any(fnmatch.fnmatchcase(node.getNodeName().split(":")[-1], pattern) for pattern in patterns)]
+            if any(fnmatch.fnmatchcase(node.getName(node=True).split(":")[-1], pattern) for pattern in patterns)]
 
 
 @undoChunk("skinWeightKitRemoveMatching")
@@ -307,7 +307,7 @@ def _remove_from(skin, joints):
     joints = [joint for joint in joints if skin.hasInfluence(joint.getFullName())]
     ordered = sorted(joints, key=_depth, reverse=True)
     targets = [joint.getTransferTarget(skin) for joint in ordered]
-    removed = [(joint.getNodeName(), skin.getNodeName(), target.getName() if target is not None else None)
+    removed = [(joint.getName(node=True), skin.getName(node=True), target.getName() if target is not None else None)
                for joint, target in zip(ordered, targets)]
     if not joints:
         return removed
@@ -316,7 +316,7 @@ def _remove_from(skin, joints):
     except ValueError:
         # 残る祖先の無いジョイントは一括解除で受け付けないため、1本ずつ外して Maya の標準の再配分に任せる。
         for joint in ordered:
-            skin.removeInfluence(joint, transferToParent=True)
+            skin.removeInfluences(joint, requireAncestor=False)
     return removed
 
 
@@ -333,4 +333,4 @@ def removeInfluence(target, influence):
         None: 値を返さない。
     """
     skin = target.requireSkin()
-    skin.removeInfluence(find(skin, influence), transferToParent=True)
+    skin.removeInfluences(find(skin, influence), requireAncestor=False)

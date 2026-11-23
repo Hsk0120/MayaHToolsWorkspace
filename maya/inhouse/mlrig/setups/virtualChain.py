@@ -50,7 +50,7 @@ class VirtualChain(TwistDistribution):
         if len(set(paths)) != len(paths):
             raise ValueError("controls must be unique")
         for node, path in zip(nodes, paths):
-            if len(node.getParents()) > 1:
+            if len(node.getParent(instances=True)) > 1:
                 raise ValueError("instanced controls are not supported: " + path)
             for other in paths:
                 if other != path and other.startswith(path + "|"):

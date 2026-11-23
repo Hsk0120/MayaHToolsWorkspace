@@ -70,7 +70,7 @@ def _mesh_node(value):
     elif not isinstance(shape, mlib.Node):
         shape = shape.getNode()
     if shape.getType() == "transform":
-        shapes = [item for item in shape.getShapes() if item.getType() == "mesh"]
+        shapes = [item for item in shape.getShape(all=True) if item.getType() == "mesh"]
         if len(shapes) != 1:
             raise ValueError("1個のメッシュシェイプを持つオブジェクトを指定してください")
         shape = shapes[0]
@@ -277,7 +277,7 @@ def addCollider(solverNode, kind="sphere", radius=3.0, height=6.0, attachTo=None
         # ガイドの形状は計算単位cm。シーン表示単位によるpolyプリミティブ倍率を打ち消す。
         unit_scale = units.distanceToUi(1.0)
         mesh.getPlug("scale").set((unit_scale, unit_scale, unit_scale))
-        guide.setOverrideColor((0.2, 0.65, 1.0))
+        guide.setColor((0.2, 0.65, 1.0))
         guide.setShadingOverride(True)
         _own(guide, [*helpers, history])
         _own(solver_node, [guide, *helpers, history])

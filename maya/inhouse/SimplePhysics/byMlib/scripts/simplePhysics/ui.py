@@ -67,7 +67,7 @@ class PhysicsWindow:
 
     def _selection_to(self, field):
         """選択ジョイントをセミコロン区切りで入力欄へ反映する。"""
-        selected = mlib.ls(selection=True, long=True, type="joint").getFullNames()
+        selected = mlib.ls(selection=True, long=True, type="joint").getNames(full=True)
         cmds.textFieldButtonGrp(field, edit=True, text="; ".join(selected))
 
     def _create(self):
@@ -159,7 +159,7 @@ class PhysicsWindow:
 
     def _collider(self, kind):
         """指定形状のガイドを作り、画面を再表示する。"""
-        selected = mlib.ls(selection=True, long=True, type="joint").getFullNames()
+        selected = mlib.ls(selection=True, long=True, type="joint").getNames(full=True)
         target = selected[0] if selected and cmds.checkBox(self.attach, query=True, value=True) else None
         api.addCollider(self.node, kind, target)
         self._edit(self.node)
@@ -179,7 +179,7 @@ class PhysicsWindow:
 
     def _constraint(self):
         """出力ジョイント2本から距離拘束を作る。"""
-        selected = mlib.ls(selection=True, long=True, type="joint").getFullNames()
+        selected = mlib.ls(selection=True, long=True, type="joint").getNames(full=True)
         if len(selected) != 2:
             raise ValueError("出力ジョイントを2本選択してください")
         api.addConstraint(self.node, *selected, compliance=cmds.floatFieldGrp(self.compliance, query=True, value1=True))

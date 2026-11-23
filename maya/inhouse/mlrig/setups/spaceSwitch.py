@@ -108,7 +108,7 @@ class SpaceSwitch:
                 raise ValueError("Space target depends on the driven buffer")
             # DAG親子とDG入力の両方を辿る。所有参照のmessage接続は計算依存ではない。
             if isinstance(item, (mlib.Transform, mlib.Shape)):
-                pending.extend(item.getParents())
+                pending.extend(item.getParent(instances=True))
             for destination, source in item.getConnections(
                 destination=False, asPair=True
             ):

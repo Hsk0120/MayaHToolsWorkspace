@@ -31,7 +31,7 @@ def _to_shape(mesh):
         return mesh
 
     if isinstance(node, mlib.Transform):
-        for s in node.getShapes():
+        for s in node.getShape(all=True):
             if s.getType() == 'mesh':
                 return s.getFullName()
 
@@ -793,7 +793,7 @@ def set_two_influence_weights(skin_cluster, vertices, bottom_influence, top_infl
         vertices=components,
         normalize=normalize,
         broadcast=True,
-        geometryIndex=skin.getGeometryIndex(components.shape),
+        geometryIndex=skin.getGeometryIndices(components.shape),
     )
 
 
@@ -821,7 +821,7 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
         selected = mlib.ls(selection=True, type='vertex')
         # skinCluster が複数の形状を変形するときは、選んだ頂点の形状の番号を渡す
         # (複数の形状の頂点を選ぶと、元の cmds.skinCluster と同じく失敗する)。
-        index = skin.getGeometryIndex(selected.shape) if isinstance(selected, mlib.Vertices) else None
+        index = skin.getGeometryIndices(selected.shape) if isinstance(selected, mlib.Vertices) else None
         skin.smoothWeights(
             tolerance=float(smooth_weights),
             iterations=int(max_iterations),
@@ -830,7 +830,7 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
             geometryIndex=index,
         )
         if normalize_after_change:
-            skin.forceNormalizeWeights()
+            skin.normalizeWeights(force=True)
     finally:
         if preserve_maintain_max_influences and has_mmi and mmi is not None:
             skin.getPlug('maintainMaxInfluences').set(mmi)

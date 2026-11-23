@@ -33,7 +33,7 @@ class SwingTwist(TwistDistribution):
             最短回転を扱い、180度境界・多回転は連続ではない。
         """
         joint = mlib.Node(joint)
-        parents = joint.getParents()
+        parents = joint.getParent(instances=True)
         if joint.getType() != "joint" or not parents:
             raise ValueError("Expected a joint with a parent transform")
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}

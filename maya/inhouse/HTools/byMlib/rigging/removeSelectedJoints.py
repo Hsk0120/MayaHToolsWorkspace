@@ -172,7 +172,7 @@ def _remove_influence(skin, joint):
     if len(skin.getInfluences()) <= 1:
         raise ValueError("Cannot remove the last influence")
     # ウェイトは移送済み(source は 0)なので、祖先へは移さずに登録だけを外す。
-    skin.removeInfluence(joint, transferToParent=False)
+    skin.removeInfluences(joint, transferToParent=False)
 
 
 def _delete_joints(joints):

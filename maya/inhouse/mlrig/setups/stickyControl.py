@@ -59,7 +59,7 @@ class StickyControl(TwistDistribution):
             raise ValueError("Expected a transform for the control: " + str(control))
         if mesh == control:
             raise ValueError("The mesh and the control must be different nodes")
-        shapes = [shape for shape in mesh.getShapes(intermediates=True) if shape.getType() == "mesh"]
+        shapes = [shape for shape in mesh.getShape(intermediates=True, all=True) if shape.getType() == "mesh"]
         deformed = [shape for shape in shapes if not shape.getPlug("intermediateObject").get()]
         if geometry is None:
             if not deformed:
@@ -78,7 +78,7 @@ class StickyControl(TwistDistribution):
         else:
             original = mlib.Node(original)
             if isinstance(original, mlib.Transform):
-                found = [shape for shape in original.getShapes(intermediates=True) if shape.getType() == "mesh"]
+                found = [shape for shape in original.getShape(intermediates=True, all=True) if shape.getType() == "mesh"]
                 if not found:
                     raise ValueError("No mesh shape under the original: " + str(original))
                 original = found[0]

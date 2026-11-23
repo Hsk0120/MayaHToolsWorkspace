@@ -113,7 +113,7 @@ class Ribbon(TwistDistribution):
             curve_name = "{}_section{}".format(name, index)
             curve = mlib.createNode("transform", name=curve_name, parent=group, skipSelect=True)
             ControlShape.replaceCurves(curve, points, [0.0, 1.0], degree=1, name=curve_name)
-            shape = curve.getShapes()[0]
+            shape = curve.getShape(all=True)[0]
             curve.getPlug("visibility").set(False)
             owner.addMembers(curve, shape)
             for cv, (role, _, offset) in enumerate(offsets):

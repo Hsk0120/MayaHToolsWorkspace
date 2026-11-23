@@ -182,7 +182,7 @@ class OverShoulderCamera(TwistDistribution):
         if node.getType() == "camera":
             return node.getParent(), node
         if isinstance(node, mlib.Transform):
-            shapes = [child for child in node.getShapes() if child.getType() == "camera"]
+            shapes = [child for child in node.getShape(all=True) if child.getType() == "camera"]
             if len(shapes) == 1:
                 return node, shapes[0]
         raise ValueError("Expected a camera transform or camera shape: " + str(item))

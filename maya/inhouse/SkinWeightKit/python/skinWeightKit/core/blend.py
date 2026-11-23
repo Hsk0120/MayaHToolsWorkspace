@@ -56,7 +56,7 @@ class SlideSession(object):
         self.influences = self.skin.getInfluences()
         node = influences_module.find(self.skin, influence)
         if influences_module.isLocked(self.skin, node):
-            raise ValueError("{} is locked".format(node.getNodeName()))
+            raise ValueError("{} is locked".format(node.getName(node=True)))
         if falloff is None:
             falloff = {index: 1.0 for index in target.requireVertices()}
         self.vertices = sorted(falloff)
@@ -153,7 +153,7 @@ def fromSoftSelection(influence, current=None, falloff=None):
     influences = skin.getInfluences()
     node = influences_module.find(skin, influence)
     if influences_module.isLocked(skin, node):
-        raise ValueError("{} is locked".format(node.getNodeName()))
+        raise ValueError("{} is locked".format(node.getName(node=True)))
     locked = influences_module.lockedFlags(skin, influences)
     column = influences.index(node)
     vertices = sorted(falloff)
@@ -200,7 +200,7 @@ def ramp(target, start, end, easing="linear"):
         raise ValueError("Choose two different influences")
     for node in nodes:
         if influences_module.isLocked(skin, node):
-            raise ValueError("{} is locked".format(node.getNodeName()))
+            raise ValueError("{} is locked".format(node.getName(node=True)))
     origin = nodes[0].getTranslation(worldSpace=True)
     axis = nodes[1].getTranslation(worldSpace=True) - origin
     length_squared = axis * axis

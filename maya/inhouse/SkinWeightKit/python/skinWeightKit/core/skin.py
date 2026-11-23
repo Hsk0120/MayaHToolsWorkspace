@@ -175,7 +175,7 @@ def removeUnusedInfluences(target):
     Returns:
         int: 外した数。
     """
-    return len(target.requireSkin().removeUnusedInfluences())
+    return len(target.requireSkin().removeInfluences(unused=True))
 
 
 #: スキニング方法の名前(skinningMethod の値の順)。
@@ -197,10 +197,10 @@ def getSettings(target):
     """
     skin = target.requireSkin()
     return {
-        "skinningMethod": skin.getSkinningMethod(),
-        "normalizeWeights": skin.getNormalizeMode(),
+        "skinningMethod": skin.getMode("skinning"),
+        "normalizeWeights": skin.getMode("normalize"),
         "maxInfluences": int(skin.getMaxInfluences()),
-        "maintainMaxInfluences": skin.isMaintainingMaxInfluences(),
+        "maintainMaxInfluences": skin.getMaxInfluences(maintain=True),
     }
 
 
@@ -225,15 +225,15 @@ def setSettings(target, skinningMethod=None, normalizeWeights=None, maxInfluence
     if skinningMethod is not None:
         if skinningMethod not in SKINNING_METHODS:
             raise ValueError("skinningMethod must be one of " + ", ".join(SKINNING_METHODS))
-        skin.setSkinningMethod(skinningMethod)
+        skin.setMode(skinningMethod, "skinning")
     if normalizeWeights is not None:
         if normalizeWeights not in NORMALIZE_MODES:
             raise ValueError("normalizeWeights must be one of " + ", ".join(NORMALIZE_MODES))
-        skin.setNormalizeMode(normalizeWeights)
+        skin.setMode(normalizeWeights, "normalize")
     if maxInfluences is not None:
         if maxInfluences < 1:
             raise ValueError("maxInfluences must be 1 or more")
-        skin.setMaxInfluences(int(maxInfluences), maintain=skin.isMaintainingMaxInfluences())
+        skin.setMaxInfluences(int(maxInfluences), maintain=skin.getMaxInfluences(maintain=True))
     if maintainMaxInfluences is not None:
         skin.setMaxInfluences(int(skin.getMaxInfluences()), maintain=bool(maintainMaxInfluences))
 

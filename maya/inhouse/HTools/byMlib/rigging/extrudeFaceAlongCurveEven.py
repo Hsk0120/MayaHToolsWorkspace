@@ -63,7 +63,7 @@ def _get_selected_face_and_curve():
             break
 
         if node_type == "transform":
-            if any(shape.getType() == "nurbsCurve" for shape in node.getShapes()):
+            if any(shape.getType() == "nurbsCurve" for shape in node.getShape(all=True)):
                 curve_transform = node
                 break
 

@@ -98,7 +98,7 @@ class OutlineBank(TwistDistribution):
             raise ValueError("Expected a transform (not a joint) for the control")
         shape = mlib.Node(outline)
         if isinstance(shape, mlib.Transform):
-            shapes = [child for child in shape.getShapes() if child.getType() == "nurbsCurve"]
+            shapes = [child for child in shape.getShape(all=True) if child.getType() == "nurbsCurve"]
             shape = shapes[0] if shapes else shape
         if shape.getType() != "nurbsCurve":
             raise ValueError("Expected a nurbsCurve for the outline")

@@ -146,7 +146,7 @@ def _styleGuide(transform, shape, wireframe=True):
         wireframe (bool): True ならシェーディングせずワイヤーフレームだけで描く(中のメッシュが見える)。
     """
     meshShape = transform.getShape(intermediates=True)
-    meshShape.setOverrideColor(COLORS[shape])
+    meshShape.setColor(COLORS[shape])
     meshShape.setShadingOverride(wireframe)
     for attribute in ("castsShadows", "receiveShadows", "primaryVisibility", "visibleInReflections",
                       "visibleInRefractions"):

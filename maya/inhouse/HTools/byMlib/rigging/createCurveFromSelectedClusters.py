@@ -27,7 +27,7 @@ def _resolve_cluster_handle_transform(node):
         return handle.getParent()
 
     if node_type == "transform":
-        for shape in node.getShapes():
+        for shape in node.getShape(all=True):
             if shape.getType() == "clusterHandle":
                 return node
 

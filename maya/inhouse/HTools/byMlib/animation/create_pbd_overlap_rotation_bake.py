@@ -65,7 +65,7 @@ def _set_world_rotation_with_delta(node, base_world_rotate, delta_world_euler):
 	    delta_world_euler: 追加する回転差。度の3成分で、ノードの回転順序の順に読む。
 	"""
 	node.setRotate(base_world_rotate, ws=True)
-	node.rotateBy(delta_world_euler, ws=True)
+	node.setRotate(delta_world_euler, ws=True, relative=True)
 
 
 def _scene_fps():
