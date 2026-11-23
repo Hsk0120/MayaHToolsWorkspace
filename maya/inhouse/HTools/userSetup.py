@@ -193,44 +193,54 @@ def _inhouse_add_htools_menu_items(main_menu):
     current_file = Path(inspect.getfile(inspect.currentframe()))
     HTools_dir = current_file.parent
 
-    # HTools 配下のディレクトリをカテゴリとしてメニュー化する。
-    # "_" で始まるもの(__pycache__・説明ページの _docs)はカテゴリにしない。
-    folders = [
-        d.name
-        for d in HTools_dir.iterdir()
-        if d.is_dir() and not d.name.startswith("_")
-    ]
-    
-    # Sort folders alphabetically
-    folders.sort()
-
     tool_menu_class = importlib.import_module("HTools.searchable_menu").ToolMenu
+    _inhouse_add_category_menus(main_menu, HTools_dir, "HTools", tool_menu_class)
+
+    # byMlib/<カテゴリ>/<ツール>.py は、元のツールを mlib で書いた版(元のファイルとは別に置く)。
+    # メニューの「byMlib」の下にカテゴリ別に出し、説明ページは元のツールのものを開く。
+    by_mlib_dir = HTools_dir / "byMlib"
+    if by_mlib_dir.is_dir():
+        by_mlib_menu = tool_menu_class("byMlib", main_menu)
+        main_menu.addMenu(by_mlib_menu)
+        by_mlib_menu.setTearOffEnabled(True)
+        _inhouse_add_category_menus(by_mlib_menu, by_mlib_dir, "HTools.byMlib", tool_menu_class)
+
+    _inhouse_add_htools_help_menu(main_menu)
+
+
+def _inhouse_add_category_menus(parent_menu, base_dir, module_prefix, tool_menu_class):
+    """base_dir の下のフォルダーをカテゴリとし、その中の .py をツール項目として parent_menu へ足す。
+
+    Args:
+        parent_menu: カテゴリのサブメニューを足す Qt のメニュー。
+        base_dir (Path): カテゴリのフォルダーを持つフォルダー。
+        module_prefix (str): ツールのモジュール名の前に付ける名前(例: "HTools")。
+        tool_menu_class (type): 説明ページの「?」を持つサブメニューのクラス。
+    """
+    # "_" で始まるもの(__pycache__・説明ページの _docs)と、mlib 版を置く byMlib はカテゴリにしない。
+    folders = sorted(
+        d.name
+        for d in base_dir.iterdir()
+        if d.is_dir() and not d.name.startswith("_") and d.name != "byMlib"
+    )
     for folder in folders:
         # ツール名の右端の「?」から説明ページを開けるサブメニュー。親を指定して作り、
         # 所有をQt側に持たせる(addMenu(str) の戻り値だけを持つと、Python側の後片付けで消えることがある)。
-        submenu = tool_menu_class(folder, main_menu)
-        main_menu.addMenu(submenu)
+        submenu = tool_menu_class(folder, parent_menu)
+        parent_menu.addMenu(submenu)
         submenu.setTearOffEnabled(True)
-        
+
         # 各カテゴリ配下の Python ファイルをツール項目として追加する。
-        py_files = []
-        for file in Path(HTools_dir / folder).iterdir():
-            if "__init__.py" in file.name:
-                continue
-            if ".py" in file.name:
-                py_files.append(file.stem)
-        
-        # Sort files alphabetically
-        py_files.sort()
-        
-        # Add menu items
+        py_files = sorted(
+            file.stem
+            for file in Path(base_dir / folder).iterdir()
+            if ".py" in file.name and "__init__.py" not in file.name
+        )
         for tool in py_files:
-            module_name = f"HTools.{folder}.{tool}"
+            module_name = f"{module_prefix}.{folder}.{tool}"
             action = submenu.addAction(tool)
             action.triggered.connect(_inhouse_execute_module(module_name))
             submenu.setActionHelp(action, _inhouse_open_help(folder, tool))
-
-    _inhouse_add_htools_help_menu(main_menu)
 
 
 def _inhouse_open_help(category=None, tool=None):

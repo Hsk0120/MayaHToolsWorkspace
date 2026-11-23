@@ -9,7 +9,6 @@ Aポーズを基準(回転0)にする。各関節は子の方向をローカル 
 
 import math
 
-import maya.cmds as cmds
 import mlib
 from mlib.decorator import undoTransaction
 from mlib.maths import Matrix, Vector
@@ -295,13 +294,10 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
 
     meshes, proxy_set = [], None
     if proxy:
-        material = mlib.Node(cmds.shadingNode("lambert", asShader=True, name=prefix+"humanProxy_mat"))
+        material = mlib.createNode("lambert", name=prefix+"humanProxy_mat", asShader=True)
         material.getPlug("color").set((0.55, 0.6, 0.68))
         material.getPlug("transparency").set((0.45, 0.45, 0.45))
-        material_group = mlib.Node(cmds.sets(
-            renderable=True, noSurfaceShader=True, empty=True, name=prefix+"humanProxy_SG"
-        ))
-        material_group.setShader(material)
+        material_group = mlib.createShadingEngine(material, name=prefix+"humanProxy_SG")
         for name in names:
             children = [child for child in names if parent_of.get(child) == name]
             # 骨の長さは子が1つのときだけ子までとする(骨盤・手は子が複数なので箱を置く)。

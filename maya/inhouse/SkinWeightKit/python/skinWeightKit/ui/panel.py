@@ -1075,7 +1075,7 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
             if mode in ("remove", "add", "transfer"):
                 self._require_active()
             if not current.hasComponents():
-                cmds.select(str(current.mesh.getTransform() or current.mesh))
+                (current.mesh.getTransform() or current.mesh).select()
             self.brush_mode = mode
             paint_ui.start(self._paint_settings)
             _message("{} brush: paint on the mesh (Q to leave)".format(mode.capitalize()))
@@ -1228,7 +1228,7 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
         """インフルエンス自体を選ぶ。"""
         def call():
             """skinCluster のインフルエンスを探して選ぶ。"""
-            cmds.select(str(influences.find(self._require_target().requireSkin(), name)))
+            influences.find(self._require_target().requireSkin(), name).select()
         run(call)
 
     def _lock_others(self, name):
@@ -1426,7 +1426,7 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
             current = self._require_target()
             current.requireSkin()
             if not current.hasComponents():
-                cmds.select(str(current.mesh))
+                current.mesh.select()
             cmds.ArtPaintSkinWeightsTool()
             self._sync_paint()
         run(call)

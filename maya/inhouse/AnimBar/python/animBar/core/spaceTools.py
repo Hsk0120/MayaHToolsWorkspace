@@ -4,8 +4,6 @@
 範囲を指定した操作は、範囲の各フレーム(または対象のキーのある時刻)でキーを打つ。
 """
 
-import maya.cmds as cmds
-
 import mlib
 from mlib.common import Time
 from mlib.decorator import undoChunk
@@ -68,15 +66,9 @@ def _filter_rotation(nodes):
     Returns:
         None: 値を返さない。
     """
-    curves = []
     for node in nodes:
-        for name in ("rx", "ry", "rz"):
-            curve = keys.animCurveOf(node.getPlug(name))
-            if curve is not None and curve.getKeyCount() > 1:
-                curves.append(curve.getFullName())
-    if curves:
-        # mlib にはオイラーフィルタの入口が無いため、Mayaのコマンドを使う(Undoに記録される)。
-        cmds.filterCurve(curves, filter="euler")
+        # レイヤー・pairBlend の先の、キーを打つ先のカーブ(keys.animCurveOf と同じもの)も対象にする。
+        node.eulerFilter(indirect=True)
 
 
 @undoChunk("animBarAlign")

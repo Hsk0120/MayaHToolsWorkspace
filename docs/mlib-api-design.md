@@ -1124,7 +1124,8 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 ## 利用側が担当する操作
 
 - 標準UIの作成・参照・エディター起動は利用側のcmds/mel、Qt変換は利用側のUIパッケージへ置く。
-- シーン/プロジェクト/FBX操作とユーザー設定は利用側でMaya標準APIを明示使用する。
+- ユーザー設定は利用側でMaya標準APIを明示使用する。
+- 2026-11-23のユーザー指定により、シーン/プロジェクト/FBX操作をmlibに入れない決まりを無くした。シーンのファイルは`mlib.common.Scene`(`pathlib.Path`の派生。Maya 2022のPython 3.7では`Path`を直接継承できないため`type(Path())`を継承する)で扱う。`Scene(path)`は値を持つだけでシーンを変えず、今のシーンは`Scene.getCurrent()`(名前の無いシーンはNone)。Pathの`open()`を上書きしないため、開くのは`openFile`。保存・書き出しの形式は拡張子(.ma/.mb)で決め、別のファイルの上書きと保存していない変更の破棄は`force=True`のときだけ行う。`export(nodes=None)`は全体と選択の書き出しを1つにまとめた。`reference`は既存の`references.createReference`を呼ぶ(両方残す)。プロジェクト・FBXは必要になったら足す。
 - 通常JSON文字列は標準jsonで扱う。型codec・汎用Snapshot・参照保存の本体機能は持たない。
 - 2026-11-10のユーザー指定により、表示色は何の色かが名前で分かる`getOverrideColor`/`setOverrideColor`と`getOutlinerColor`/`setOutlinerColor`を`DagNode`・`Nodes`に置き、`Nodes`には一色ずつの`setOverrideColors`/`setOutlinerColors`も置く。色は番号・(r, g, b)・無効のNoneで指定し、色値型は追加しない。どちらも既定はTransform・Jointでも呼び出したノード自身へ設定し、`shape=True`で直下の中間でないShape全てへ設定する(Shapeが無ければ自身)。
 - ConstraintはTransform派生。Nodesは全DGノード共通の参照・アトリビュート・接続処理を扱う。
@@ -1186,3 +1187,17 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 ユーザーの明示指定により、`Plug.setDefault(value, *, fast=False, unit=None, uiUnits=False)`は通常経路も提供する。通常の`cmds.addAttr`には、Undoで変更前の既定値でなく0へ戻る制限がある(Maya 2022〜2027)。Redoは指定値へ戻る。一般のsetterのUndo保証の例外とし、補償用のプラグイン・再作成・コールバックは追加しない。fastはOpenMayaの定義更新でUndo設定を変えない。
 
 対象は非参照ノードの単一の追加数値・bool・enum・角度・距離。時間型・マルチアトリビュート・コンパウンドと子・プロキシ・組込み定義は拒否する。現在値と接続を保持するため、更新前にget()で現在値を評価する。角度は度(明示rad可)、距離はcm、uiUnitsはUI単位を使う。戻り値はNone。
+
+## mlibの使用事例を増やすための追加(2026-11-23)
+
+ユーザー指定により、inhouseのツールをmlibで書いた版(mlrig・AnimBar・SkinWeightKitは書き換え、ほかは各ツールの`byMlib/`)で足りなかった機能を足した(不足の一覧はローカルの`docs/research/byMlib/gaps-*.md`)。メソッドを増やしすぎないよう、既存のメソッドへの引数を優先した。
+
+- シェーディングの分類(`asShader`・`asTexture`・`asUtility`・`asLight`・`asPostProcess`・`asRendering`)は新しい関数でなく`createNode`の引数にする(`cmds.shadingNode`で作る。2つ以上はTypeError、fastとの併用はNotImplementedError。短縮名`s`はsharedと重なるので持たない)。
+- 作成関数を足した: `createShadingEngine`・`createMotionTrail`・`createExpression`。`createPoly*`は`constructionHistory`/`ch`・`createUVs`/`cuv`(Cylinderは`roundCap`/`rcp`も)、`createBlendShape`は`origin`/`o`を受ける。
+- `indirect`は「setKeyframeが打つ先のカーブ(アニメーションレイヤー・pairBlendの先)」を意味する名前で、`Plug.getAnimCurve`と`Transform.eulerFilter`で同じ意味に使う。
+- `ScriptJob.stop`は常にforceで消す。`ScriptJob`は`uiDeleted`・`parent`・`allChildren`・`runOnce`・`protected`を受ける。
+- `SkinCluster.smoothWeights(vertices=None)`は対象の頂点を実行中だけ選び、作業中の選択に左右されない(省くとメッシュ全体)。2つ目以降の形状のウェイトは、読み書きが先頭の形状を前提にしているため未対応(メソッドの共通化のときに検討する)。
+- `AnimCurve.replaceKeys`は同じ型のAnimCurveも受け、接線・ウェイト・ロック・ブレイクダウンまで写す(キーのクリップボードは使わない。前後のinfinityは写さない)。
+- `Components.getNames()`は`cmds.ls(flatten=True)`と同じ1要素ずつの名前を返す。
+- `Matrix.asRotateMatrix()`は回転だけ(正規直交)を返す。`om2.MTransformationMatrix(m).asRotateMatrix()`はスケール・シアーを含む3x3を返すので、元の計算に合わせるときはそちらを使う。
+- 足さなかったもの: `polyExtrudeFacet`・`cycleCheck`(その他のMayaコマンドは利用側で直接使う)、`listAttr`の名前の一覧(Plugにできない名前を返すため)、Mayaが知っているノード型かの判定(`ls`が空を返すため)。

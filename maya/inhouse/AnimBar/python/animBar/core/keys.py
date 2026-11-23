@@ -17,7 +17,6 @@ from collections import namedtuple
 
 import maya.cmds as cmds
 
-import mlib
 from mlib.common import Environment, Selection, Time
 
 #: キーの比較で同じ時刻とみなす差(フレーム)。
@@ -72,13 +71,7 @@ def animCurveOf(plug):
     Returns:
         AnimCurve | None: カーブ。アニメーションが無ければNone。
     """
-    curve = plug.getAnimCurve()
-    if curve is not None or plug.getSource() is None:
-        return curve
-    # Plug.getAnimCurve(layer=...) はレイヤーを指定する必要があり、pairBlend の先のカーブも返さないため、
-    # 選んだ・優先するレイヤー(pairBlend の先を含む)のカーブを返す cmds.keyframe を使う。
-    names = cmds.keyframe(str(plug), query=True, name=True) or []
-    return mlib.getNode(names[0]) if names else None
+    return plug.getAnimCurve(indirect=True)
 
 
 def isEditable(plug):

@@ -11,8 +11,7 @@
 
 import math
 
-import maya.cmds as cmds
-
+from mlib.common import units
 from mlib.decorator import undoChunk
 
 from . import keys
@@ -95,15 +94,32 @@ def flowAngle(curve, index):
         float: 接線の角度(度)。Mayaの接線の角度と同じく、Graph Editor の目盛り(横軸は現在のUI時間単位のフレーム、
         縦軸はUI単位の値)で測る。
     """
-    # 接線の角度は Graph Editor の目盛りで決まるため、UI単位の値を cmds.keyframe で読む(mlib の値は度・cm)。
+    # 接線の角度は Graph Editor の目盛りで決まるため、キーの値を UI 単位へ直して使う(mlib の値は rad・cm)。
     inputs = curve.getKeyInputs()
-    values = cmds.keyframe(curve.getFullName(), query=True, valueChange=True) or []
+    values = _ui_values(curve)
     if index <= 0 or index >= len(inputs) - 1:
         return 0.0
     dt = inputs[index + 1] - inputs[index - 1]
     if dt <= 0:
         return 0.0
     return math.degrees(math.atan((values[index + 1] - values[index - 1]) / dt))
+
+
+def _ui_values(curve):
+    """キーの値を、Graph Editor の縦軸と同じ UI 単位で返す。
+
+    Args:
+        curve (AnimCurve): カーブ。
+
+    Returns:
+        list[float]: キーの番号順の値。角度は UI の角度単位、距離は UI の距離単位、そのほかはそのまま。
+    """
+    kind = curve.getType()
+    if kind.endswith("A"):
+        return [units.angleToUi(value, unit="rad") for value in curve.getKeyValues(unit="rad")]
+    if kind.endswith("L"):
+        return [units.distanceToUi(value) for value in curve.getKeyValues()]
+    return curve.getKeyValues()
 
 
 def isExtreme(curve, index):

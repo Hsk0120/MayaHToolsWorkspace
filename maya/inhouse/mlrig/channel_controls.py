@@ -4,8 +4,6 @@ GUIのscriptJobを使用し、操作と接続変更を同じUndoへまとめる�
 設定はアニメーション用ではない。バッチではLimbRigのメソッドを使用する。
 """
 
-from maya import cmds
-
 from functools import partial
 import mlib
 
@@ -185,8 +183,9 @@ def attach(rig):
     if any(mlib.objExists(name) for name in names):
         raise ValueError("Module display names already exist")
     nodes = []
-    group = mlib.createNode("transform", name=group_name, parent=root, skipSelect=True).getFullName()
-    cmds.reorder(group, front=True)
+    group_node = mlib.createNode("transform", name=group_name, parent=root, skipSelect=True)
+    group_node.reorder(front=True)
+    group = group_node.getFullName()
     module = mlib.createNode("transform", name=stem, parent=group, skipSelect=True).getFullName()
     nodes.extend((group, module))
     rig._bind("channelModule", module)

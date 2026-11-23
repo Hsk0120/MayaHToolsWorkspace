@@ -1,0 +1,366 @@
+"""選択ノードのみで回転オーバーラップを KawaiiPhysics 風にベイクするツール。"""
+
+import math
+
+import maya.cmds as cmds
+
+import mlib
+from mlib.common import Time, units
+from mlib.maths import Vector
+
+
+def _selected_chain_nodes():
+	"""選択順を保った transform/joint 一覧を返す。"""
+	selection = mlib.ls(orderedSelection=True, l=True)
+	if not selection:
+		selection = mlib.ls(sl=True, l=True)
+	chain = []
+	for node in selection:
+		# コンポーネント・アトリビュートの選択は対象にしない。
+		if not isinstance(node, mlib.Node) or node.getType() not in ("transform", "joint"):
+			continue
+		if node in chain:
+			continue
+		chain.append(node)
+	return chain
+
+
+def _as_world_translate_vector(node):
+	"""ノードの world translate を [x, y, z] で返す。
+
+	Args:
+	    node: 処理対象のノード参照。
+	"""
+	return list(node.getTranslation(ws=True, at=1))
+
+
+def _as_world_rotate_vector(node):
+	"""ノードの world rotate を返す。
+
+	Args:
+	    node: 処理対象のノード参照。
+
+	Returns:
+	    EulerRotate: ノードの回転順序で表したワールドの回転(rad)。
+	"""
+	return node.getRotate(ws=True)
+
+
+def _as_local_rotate_vector(node):
+	"""ノードの local rotate を [x, y, z] で返す。
+
+	Args:
+	    node: 処理対象のノード参照。
+	"""
+	# Plug.get は角度を度で返し、Plug.set も度で受け取るため、そのまま書き戻せる。
+	return [node.getPlug(name).get() for name in ("rotateX", "rotateY", "rotateZ")]
+
+
+def _set_world_rotation_with_delta(node, base_world_rotate, delta_world_euler):
+	"""base の world 回転へ world 相対の回転差を合成して適用する。
+
+	Args:
+	    node: 処理対象のノード参照。
+	    base_world_rotate: 基準のワールドEuler回転(EulerRotate)。
+	    delta_world_euler: 追加する回転差。度の3成分で、ノードの回転順序の順に読む。
+	"""
+	node.setRotate(base_world_rotate, ws=True)
+	node.rotateBy(delta_world_euler, ws=True)
+
+
+def _scene_fps():
+	"""Maya の time unit から現在シーンの FPS を返す。"""
+	# 1フレームの秒数から求める(film・ntsc・23.976fps 等のどの time unit でも同じ式で求まる)。
+	seconds = units.secondsPerFrame()
+	return 1.0 / seconds if seconds > 0.0 else 24.0
+
+
+def _v_add(a, b):
+	"""XYZベクトルを成分ごとに加算する。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+	    b: 計算する左辺または右辺の値。
+
+	Returns:
+	    list[float]: 加算後のXYZ。
+	"""
+	return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+
+
+def _v_sub(a, b):
+	"""XYZベクトルを成分ごとに減算する。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+	    b: 計算する左辺または右辺の値。
+
+	Returns:
+	    list[float]: 減算後のXYZ。
+	"""
+	return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+
+
+def _v_mul(a, s):
+	"""XYZベクトルを係数倍する。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+	    s: ベクトルに乗算する係数。
+
+	Returns:
+	    list[float]: 係数倍したXYZ。
+	"""
+	return [a[0] * s, a[1] * s, a[2] * s]
+
+
+def _v_len(a):
+	"""XYZベクトルの長さを求める。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+
+	Returns:
+	    float: ベクトルの長さ。
+	"""
+	return (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) ** 0.5
+
+
+def _v_safe_normalize(a):
+	"""XYZベクトルを正規化する。長さが1e-8以下ならゼロベクトルを返す。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+
+	Returns:
+	    list[float]: 単位ベクトルまたはゼロベクトル。
+	"""
+	length = _v_len(a)
+	if length <= 1e-8:
+		return [0.0, 0.0, 0.0]
+	return [a[0] / length, a[1] / length, a[2] / length]
+
+
+def _bake_pbd_overlap_for_chain(
+	chain,
+	start_frame,
+	end_frame,
+	stiffness,
+	damping,
+	follow,
+	substeps,
+):
+	"""単一チェーンへ KawaiiPhysics コア相当の回転オーバーラップをベイクする。
+
+	Args:
+	    chain: 根元から先端へ並べたジョイント列。
+	    start_frame: ベイク範囲の開始または終了フレーム。
+	    end_frame: ベイク範囲の開始または終了フレーム。
+	    stiffness: シミュレーションの復元剛性。
+	    damping: シミュレーションの減衰係数。
+	    follow: 元のアニメーションに追従する割合。
+	    substeps: 1フレームを分割する計算回数。
+	"""
+	if len(chain) < 2:
+		cmds.warning("{0}: skipped because it has no children.".format(chain[0].getFullName()))
+		return 0
+
+	# root は入力アニメを維持し、子のみオーバーラップを焼き込む。
+	children = chain[1:]
+	frame_list = list(range(int(start_frame), int(end_frame) + 1))
+
+	# 先に元アニメの pose 情報を全フレーム分キャッシュする。
+	base_world_pos = {}
+	base_world_rot = {}
+	base_local_rot = {}
+	for frame in frame_list:
+		Time.setCurrent(frame)
+		base_world_pos[frame] = {}
+		base_world_rot[frame] = {}
+		base_local_rot[frame] = {}
+		for node in chain:
+			base_world_pos[frame][node] = _as_world_translate_vector(node)
+			base_world_rot[frame][node] = _as_world_rotate_vector(node)
+			base_local_rot[frame][node] = _as_local_rotate_vector(node)
+
+	# 子ノードの既存回転キーはベイク前に削除して置換する。
+	try:
+		for node in children:
+			node.removeKey(["rotateX", "rotateY", "rotateZ"], time=(start_frame, end_frame))
+	except Exception:
+		pass
+
+	state = {}
+	for node in children:
+		state[node] = {
+			"location": list(base_world_pos[frame_list[0]][node]),
+			"prev_location": list(base_world_pos[frame_list[0]][node]),
+		}
+
+	fps = _scene_fps()
+	delta_time = 1.0 / max(fps, 1e-8)
+	delta_time_old = delta_time
+	exponent = 1.0
+	dt = delta_time / float(max(1, int(substeps)))
+
+	for frame_index, frame in enumerate(frame_list):
+		Time.setCurrent(frame)
+		sim_pos = {}
+		sim_pos[chain[0]] = list(base_world_pos[frame][chain[0]])
+		prev_frame = frame_list[frame_index - 1] if frame_index > 0 else frame
+
+		for i, node in enumerate(children, 1):
+			parent = chain[i - 1]
+			parent_sim = sim_pos[parent]
+			parent_pose = base_world_pos[frame][parent]
+			pose = base_world_pos[frame][node]
+
+			loc = state[node]["location"]
+			prev_loc = state[node]["prev_location"]
+
+			vel = _v_mul(_v_sub(loc, prev_loc), 1.0 / max(delta_time_old, 1e-8))
+			state[node]["prev_location"] = list(loc)
+
+			delayed_pose = base_world_pos[prev_frame][node]
+			delayed_parent_pose = base_world_pos[prev_frame][parent]
+			base_location = _v_add(parent_sim, _v_sub(delayed_pose, delayed_parent_pose))
+
+			# Kawaii コア簡略: target へのばね追従 + 減衰。
+			for _ in range(max(1, int(substeps))):
+				acc = _v_mul(_v_sub(base_location, loc), follow)
+				vel = _v_add(vel, _v_mul(acc, dt))
+				vel = _v_mul(vel, damping)
+				loc = _v_add(loc, _v_mul(vel, dt))
+
+			pull_alpha = 1.0 - ((1.0 - stiffness) ** exponent)
+			loc = _v_add(loc, _v_mul(_v_sub(base_location, loc), pull_alpha))
+
+			bone_length = _v_len(_v_sub(pose, parent_pose))
+			dir_vec = _v_safe_normalize(_v_sub(loc, parent_sim))
+			if bone_length > 1e-8 and _v_len(dir_vec) > 0.0:
+				loc = _v_add(parent_sim, _v_mul(dir_vec, bone_length))
+
+			state[node]["location"] = list(loc)
+			sim_pos[node] = list(loc)
+
+		for i, node in enumerate(children, 1):
+			# tip は parent->self ベクトル、その他は self->child ベクトルで回転差を作る。
+			if i < len(chain) - 1:
+				next_node = chain[i + 1]
+				pose_vec = _v_sub(base_world_pos[frame][next_node], base_world_pos[frame][node])
+				sim_vec = _v_sub(sim_pos[next_node], sim_pos[node])
+			else:
+				parent = chain[i - 1]
+				pose_vec = _v_sub(base_world_pos[frame][node], base_world_pos[frame][parent])
+				sim_vec = _v_sub(sim_pos[node], sim_pos[parent])
+			if _v_len(pose_vec) <= 1e-8 or _v_len(sim_vec) <= 1e-8:
+				for name, value in zip(("rotateX", "rotateY", "rotateZ"), base_local_rot[frame][node]):
+					node.getPlug(name).set(value)
+				node.setKey(["rotateX", "rotateY", "rotateZ"], time=frame)
+				continue
+
+			# cmds.angleBetween(euler=True) と同じく、pose_vec を sim_vec へ向ける回転を XYZ 順の度で求める。
+			delta = Vector(pose_vec).rotateTo(Vector(sim_vec)).asEulerRotation()
+			delta_world_euler = [math.degrees(value) for value in (delta.x, delta.y, delta.z)]
+			base_wr = base_world_rot[frame][node]
+			_set_world_rotation_with_delta(node, base_wr, delta_world_euler)
+			node.setKey(["rotateX", "rotateY", "rotateZ"], time=frame)
+
+		delta_time_old = delta_time
+
+	try:
+		for node in children:
+			node.setKeyTangent(
+				["rotateX", "rotateY", "rotateZ"],
+				inTangentType="auto",
+				outTangentType="auto",
+				time=(start_frame, end_frame),
+			)
+	except Exception:
+		pass
+
+	return len(children)
+
+
+def create_pbd_overlap_rotation_bake(
+	start_frame=None,
+	end_frame=None,
+	stiffness=0.08,
+	damping=0.92,
+	follow=0.35,
+	substeps=2,
+):
+	"""選択ノードのみを対象に KawaiiPhysics コア風の回転揺れ遅れをベイクする。
+
+	子ノードは既存回転キーを範囲削除したうえで、速度積分 + 減衰 +
+	pose への復帰(stiffness) + 骨長復元を使って遅延を計算し、rotate に焼き込む。
+	root は入力アニメを維持する。コリジョン/外力/制約は対象外。
+
+	Args:
+		start_frame (int | None): 開始フレーム。None の場合は再生レンジ最小値。
+		end_frame (int | None): 終了フレーム。None の場合は再生レンジ最大値。
+		stiffness (float): pose への復帰強度。大きいほど形状維持が強い。
+		damping (float): 速度保持率。0 に近いほど減衰強、1 に近いほど残る。
+		follow (float): target 位置へ引くばね強度。大きいほど追従が速い。
+		substeps (int): 内部積分回数。シーン FPS から算出した秒 dt を分割して積分する。
+
+	Returns:
+		dict: 実行サマリ。
+	"""
+	chain = _selected_chain_nodes()
+	if len(chain) < 2:
+		cmds.warning("Select two or more transforms/joints in order from root to tip.")
+		return {"processed_roots": 0, "baked_nodes": 0}
+
+	playback_start, playback_end = Time.getPlaybackRange()
+	if start_frame is None:
+		start_frame = int(playback_start)
+	if end_frame is None:
+		end_frame = int(playback_end)
+
+	if end_frame < start_frame:
+		cmds.warning("The end frame is before the start frame.")
+		return {"processed_roots": 0, "baked_nodes": 0}
+
+	substeps = max(1, int(substeps))
+	damping = max(0.0, min(float(damping), 0.9999))
+	stiffness = max(0.0, min(float(stiffness), 0.9999))
+
+	total_baked = _bake_pbd_overlap_for_chain(
+		chain=chain,
+		start_frame=start_frame,
+		end_frame=end_frame,
+		stiffness=float(stiffness),
+		damping=damping,
+		follow=float(follow),
+		substeps=substeps,
+	)
+	processed = 1
+
+	print(
+		"Kawaii-core overlap rotation bake finished: roots={0}, bakedNodes={1}, range={2}-{3}, substeps={4}".format(
+			processed,
+			total_baked,
+			start_frame,
+			end_frame,
+			substeps,
+		)
+	)
+
+	return {
+		"processed_roots": processed,
+		"baked_nodes": total_baked,
+		"start_frame": start_frame,
+		"end_frame": end_frame,
+		"substeps": substeps,
+	}
+
+
+if __name__ == "__main__":
+	# 既定は「揺れ遅れを強める」寄りに設定（Kawaii コア簡略）。
+	create_pbd_overlap_rotation_bake(
+		stiffness=0.08,
+		damping=0.92,
+		follow=0.35,
+		substeps=8,
+	)

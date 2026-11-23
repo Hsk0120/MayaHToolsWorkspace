@@ -39,10 +39,8 @@ def createMotionTrails(nodes=None, increment=1.0):
     start, end = Time.getPlaybackRange()
     created = []
     for node in nodes:
-        # mlib にはモーショントレイルの作成の入口が無いため、Mayaのコマンドを使う。
-        result = cmds.snapshot(node.getFullName(), motionTrail=True, startTime=start, endTime=end,
-                               increment=increment, name=node.getNodeName(removeNamespace=True) + "_animBarTrail")
-        trail = mlib.Node(result[0])
+        trail = mlib.createMotionTrail(node, startTime=start, endTime=end, increment=increment,
+                                       name=node.getNodeName(removeNamespace=True) + "_animBarTrail")
         trail.addAttr(longName=TRAIL_ATTRIBUTE, attributeType="bool", defaultValue=True)
         created.append(trail)
     return created
@@ -163,7 +161,7 @@ def _scale_micro():
         None: 値を返さない。
     """
     factor = getMicroFactor()
-    if cmds.play(query=True, state=True):
+    if Time.isPlaying():
         # 再生中の値の変化は縮めない。
         _snapshot_micro()
         return

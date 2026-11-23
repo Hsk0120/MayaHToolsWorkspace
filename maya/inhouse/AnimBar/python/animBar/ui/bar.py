@@ -9,7 +9,8 @@ import functools
 import maya.cmds as cmds
 import maya.OpenMayaUI as omui
 
-from mlib.common import Time
+import mlib
+from mlib.common import ScriptJob, Time
 from mlib.decorator import undoChunk
 
 from ..core import (animCopy, crashRecovery, keys, keyTransform, mirror, selectSets, spaceTools, tangents,
@@ -417,7 +418,7 @@ class AnimBar(QtWidgets.QWidget):
         layout.addStretch(1)
         self.refreshSets()
         self.applyPreferences()
-        self._job = cmds.scriptJob(event=("SceneOpened", self.refreshSets), protected=True)
+        self._job = ScriptJob(event="SceneOpened", callback=self.refreshSets, protected=True)
 
     def _settings_button(self):
         """設定の画面を開く歯車のボタン。"""
@@ -660,7 +661,9 @@ class AnimBar(QtWidgets.QWidget):
 
     def _playblast_menu(self, menu):
         """カメラを選んでのプレイブラスト・直前の再生・カメラの複製。"""
-        for camera in cmds.listCameras(perspective=True) or []:
+        # 透視投影のカメラのトランスフォームを、名前の順に並べる(cmds.listCameras(perspective=True) と同じ並び)。
+        cameras = sorted(str(shape.getTransform()) for shape in mlib.ls(type="camera") if not shape.isOrtho())
+        for camera in cameras:
             _action(menu, "Playblast " + camera, functools.partial(timeline.playblast, camera),
                     tip="Playblast through the camera '{}' instead of the active viewport's camera.".format(camera))
         menu.addSeparator()
@@ -1042,8 +1045,7 @@ class AnimBar(QtWidgets.QWidget):
 
     def closeEvent(self, event):
         """閉じるときに scriptJob を外す。"""
-        if cmds.scriptJob(exists=self._job):
-            cmds.scriptJob(kill=self._job, force=True)
+        self._job.stop()
         super().closeEvent(event)
 
 

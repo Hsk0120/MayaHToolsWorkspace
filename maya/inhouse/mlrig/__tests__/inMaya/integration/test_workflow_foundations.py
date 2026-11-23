@@ -156,17 +156,13 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertFalse(node.getPlug("tx").isSettable())
 
     def test_maya_command_boundary_in_mlrig(self):
-        """mlibに入口が無い環境照会・UI・並び順・シェーダー作成だけcmds直接使用を許可する。"""
+        """mlibに入口が無い環境照会・UIだけcmds直接使用を許可する。"""
         import ast
         from pathlib import Path
 
         root = Path(__file__).resolve().parents[4] / "mlrig"
         # 廃止したコマンドラッパーの代替は、実際の使用ファイルに限定する。
-        direct_commands = {
-            # DAGの並び順(reorder)と、シェーダー・シェーディンググループの作成は mlib に入口が無い。
-            "channel_controls.py": {"reorder"},
-            "examples/humanoid.py": {"shadingNode", "sets"},
-        }
+        direct_commands = {}
         violations = []
         for path in root.rglob("*.py"):
             if "__tests__" in path.parts:
