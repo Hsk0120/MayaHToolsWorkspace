@@ -19,7 +19,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
-- Claude Code: 2026-11-23 mlibの本体の修正(テストで見つかった docstring の Raises を起こせないもの F-1〜F-4。ユーザーが直し方を決めた)。対象: mlibの nodes・common と該当のテスト・docstring・型スタブ。
 
 
 
@@ -204,6 +203,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-23): mlibの docstring の Raises を起こせなかったもの(F-1〜F-4)を直した。Mayaが黙って通す操作は check に関係なく先にロック等を確かめて RuntimeError、起きる条件が無い例外は Raises から消した、loadDeformerWeights・replaceFile は失敗してもシーンを変えない。Maya 2022・2025・2027 と run_rig_packages(955件)で確認。
 - Claude Code (2026-11-23): mlibのnodesのRaisesの残りのテストを足した(test_errors_nodeRaisesRemaining.py、119件)。mlrigの JointHierarchy.delete(safe=) を skipConnected に改名。Mayaの起動バッチ(maya_core.bat・install_packages.bat)の C:\Program Files の決め打ちを MAYA_INSTALL_ROOT か %ProgramFiles%\Autodesk に直し、CD /d に引用符を付けた。ワークスペースをE:、作業フォルダーをG:、Mayaの場所をF:にして、仮の maya.exe で起動バッチの環境を、その環境で本物のmayapy 2027の起動とimportを確かめた(ユーザーのMayaが起動中だったのでGUIは起動していない)。Maya 2022・2025・2027 と run_rig_packages(955件)で確認。tools/ の demo_*.py など94本に C:\Program Files の決め打ちが残っている(未対応)。
 - Claude Code (2026-11-22): mlibの書式の検査を強めた(ユーザーと1項目ずつ決めた。ruffのルールをコードで1つずつ追加、Mayaのimportの別名の固定、check_mlib_layout.py に L053〜L055、コミット前に format_mlib.bat --check を必ず通すと指示ファイルへ記載。フックは置かない)。テストを厚くした(新しい8ファイル)。見つかった不具合を直した(check=True は書く前に全部確かめる、無効なノード・型の誤りの例外、createWire の作りかけなど)。一覧は docs/research/mlib-test-findings-2026-11-22.md。Maya 2022・2025・2027 と run_rig_packages(945件)で確認。mlib 99eba4c。
 - Codex (2026-11-22): QPEの新規タブをCドライブ直下へ開く最終仕様を、関連テスト/文書/Windows exe/2022〜2027mllとともにコミット対象へ選定。Qt操作5件合格・Sphinx成功の記録、7バイナリのSHA256一致、差分チェックを再確認。
