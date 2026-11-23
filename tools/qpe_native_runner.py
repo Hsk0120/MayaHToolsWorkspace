@@ -1,4 +1,5 @@
 """固定の配布mllから既存QPE回帰を専用Mayaで実行する。"""
+import os
 import argparse
 import json
 from pathlib import Path
@@ -48,7 +49,7 @@ def main():
             "main = runpy.run_path({!r})['main']\n".format(
                 str(out / key / 'settings.json'), plugin.as_posix(), str(root / 'tools'), str(suite)), encoding='utf-8')
         try:
-            result = run_version(args.version, out / key, Path('C:/Program Files/Autodesk'), args.timeout,
+            result = run_version(args.version, out / key, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", args.timeout,
                                  shutdown_timeout=45, suite_path=bootstrap,
                                  environment={'MAYA_MODULE_PATH': str(modules)})
         except OSError as error:

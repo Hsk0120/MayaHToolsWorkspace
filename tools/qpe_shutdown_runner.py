@@ -1,4 +1,5 @@
 """QPE終了時クラッシュを専用Mayaの終了コード・ダンプで判定する。"""
+import os
 import argparse
 import json
 from pathlib import Path
@@ -27,7 +28,7 @@ def main():
     for index in range(args.repeat):
         for mode in modes:
             target = out / ("%02d-%s" % (index + 1, mode))
-            result = run_version(args.maya, target, Path("C:/Program Files/Autodesk"),
+            result = run_version(args.maya, target, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk",
                                  180, shutdown_timeout=30,
                                  suite_path=root / "tools/qpe_ui_shutdown.py",
                                  environment={"QPE_SHUTDOWN_TEST": "1", "QPE_SHUTDOWN_MODE": mode})

@@ -7,6 +7,7 @@
 既存の Maya・ユーザー設定には触れず、空シーン・専用設定の Maya を起動する。
 画像は ``docs/_static/images/`` へコピーする。親リポジトリの ``maya/inhouse/mlib/__tests__/runGui.py`` を利用する。
 """
+import os
 import argparse
 import datetime
 import json
@@ -60,7 +61,7 @@ def main():
         "active": 0, "explorerVisible": True, "folders": [str(sample)], "tabs": tabs, "version": 1},
         ensure_ascii=False, indent=4), encoding="utf-8")
     print("Evidence: " + str(directory), flush=True)
-    outcome = run_version(args.version, directory, Path("C:/Program Files/Autodesk"), args.timeout,
+    outcome = run_version(args.version, directory, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", args.timeout,
                           shutdown_timeout=60, suite_path=Path(__file__).with_name("capture_suite.py"),
                           environment={"MAYA_MODULE_PATH": str(modules), "MCE_TEST_COMMANDS": "1",
                                        "MCE_SESSION_FILE": str(session / "tabs.json")})

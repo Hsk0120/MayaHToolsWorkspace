@@ -161,7 +161,7 @@ def copyFromMesh(source, target):
     vertices = target.editVertices()
     points = target.mesh.getPoints(worldSpace=True)
     closest = source.mesh.getClosestVertices([points[vertex] for vertex in vertices], worldSpace=True)
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     current = weights_module.readRows(skin, influences, vertices)
     written = []
     for nearest, row in zip(closest, current):
@@ -218,7 +218,7 @@ def importWeights(target, path, method="index", addMissing=False):
         grid = _Grid([tuple(point) for point in data["positions"]])
         points = target.mesh.getPoints()
         sources = [grid.nearest((points[vertex].x, points[vertex].y, points[vertex].z)) for vertex in vertices]
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     current = weights_module.readRows(skin, influences, vertices)
     written = []
     for source, row in zip(sources, current):

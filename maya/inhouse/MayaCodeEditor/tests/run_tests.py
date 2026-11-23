@@ -49,7 +49,7 @@ def main():
     output.mkdir(parents=True)
     for version in (sys.argv[1:] or ['2022', '2023', '2024', '2025', '2026', '2027']):
         directory = output / version; directory.mkdir()
-        executable = Path('C:/Program Files/Autodesk/Maya' + version + '/bin/mayapy.exe')
+        executable = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk" / ("Maya" + version) / "bin" / "mayapy.exe"
         env = isolated_environment(executable, directory)
         env['MAYA_MODULE_PATH'] = str(ROOT / 'maya/modules')
         env['MCE_TEST_COMMANDS'] = '1'  # テスト専用のmayaCodeEditorTestコマンドを登録させる。

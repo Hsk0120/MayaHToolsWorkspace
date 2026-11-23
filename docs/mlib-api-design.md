@@ -1201,3 +1201,4 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - `Components.getNames()`は`cmds.ls(flatten=True)`と同じ1要素ずつの名前を返す。
 - `Matrix.asRotateMatrix()`は回転だけ(正規直交)を返す。`om2.MTransformationMatrix(m).asRotateMatrix()`はスケール・シアーを含む3x3を返すので、元の計算に合わせるときはそちらを使う。
 - 足さなかったもの: `polyExtrudeFacet`・`cycleCheck`(その他のMayaコマンドは利用側で直接使う)、`listAttr`の名前の一覧(Plugにできない名前を返すため)、Mayaが知っているノード型かの判定(`ls`が空を返すため)。
+- SkinWeightKitの見直し(同日のユーザー回答): `SkinCluster.limitInfluences(count, *, vertices, fast, check)`・`roundWeights(decimals=3, *, vertices, fast, check)`を足し、`transferWeights`に`vertices`・`add`を足した(ロックしたインフルエンスは値を保ち、残りの比率で合計1にする規則。`vertices`か`add`を指定したときは行を読んで変わった値だけを書き、移す元・先がロックされていればRuntimeError)。ロックの照会・変更は`getLockedInfluences`・`setInfluencesLocked`がジョイント以外も扱えるので変えていない。

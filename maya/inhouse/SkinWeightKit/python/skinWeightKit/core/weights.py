@@ -111,7 +111,7 @@ def _context(target):
     """操作に使う skinCluster・インフルエンス・ロック・頂点を返す。"""
     skin = target.requireSkin()
     influences = skin.getInfluences()
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     return skin, influences, locked, target.requireVertices()
 
 
@@ -159,7 +159,7 @@ def setValue(target, influence, value, mode="set"):
     skin = target.requireSkin()
     vertices = target.requireVertices()
     node = influences_module.find(skin, influence)
-    if influences_module.isLocked(node):
+    if influences_module.isLocked(skin, node):
         raise ValueError("{} is locked".format(node.getNodeName()))
     current = list(skin.getWeights([node], vertices=vertices))
     skin.setWeights([node], newValues(current, float(value), mode), vertices=vertices, normalize=True)
@@ -217,7 +217,7 @@ def assignClosest(target):
     """
     skin = target.requireSkin()
     influences = skin.getInfluences()
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     free = [column for column in range(len(influences)) if not locked[column]]
     if not free:
         raise ValueError("Every influence is locked")
@@ -271,10 +271,10 @@ def setVertexValues(target, vertices, influence, value):
     """
     skin = target.requireSkin()
     node = influences_module.find(skin, influence)
-    if influences_module.isLocked(node):
+    if influences_module.isLocked(skin, node):
         raise ValueError("{} is locked".format(node.getNodeName()))
     influences = skin.getInfluences()
-    locked = [influences_module.isLocked(other) for other in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     column = influences.index(node)
     vertices = list(vertices)
     rows = readRows(skin, influences, vertices)
@@ -390,7 +390,6 @@ def average(target):
     return len(vertices)
 
 
-@undoChunk("skinWeightKitMoveWeights")
 def moveWeights(target, source, destination):
     """インフルエンスのウェイトを、別のインフルエンスへ移す(移した元は0になる。合計は変わらない)。
 
@@ -408,21 +407,15 @@ def moveWeights(target, source, destination):
         ValueError: 元と先が同じ、またはどちらかがロックされている場合。
     """
     skin = target.requireSkin()
-    influences = skin.getInfluences()
     source_node = influences_module.find(skin, source)
     destination_node = influences_module.find(skin, destination)
     if source_node == destination_node:
         raise ValueError("Choose two different influences")
     for node in (source_node, destination_node):
-        if influences_module.isLocked(node):
+        if influences_module.isLocked(skin, node):
             raise ValueError("{} is locked".format(node.getNodeName()))
     vertices = target.editVertices()
-    columns = (influences.index(source_node), influences.index(destination_node))
-    rows = readRows(skin, influences, vertices)
-    for row in rows:
-        row[columns[1]] += row[columns[0]]
-        row[columns[0]] = 0.0
-    writeRows(skin, influences, vertices, rows)
+    skin.transferWeights([(source_node, destination_node)], vertices=vertices, add=True)
     return len(vertices)
 
 

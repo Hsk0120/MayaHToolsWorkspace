@@ -129,7 +129,7 @@ def mirrorVertices(target, axis="x", tolerance=0.01):
     sources = [unique[destination] for destination in destinations]
     if not destinations:
         return 0, len(vertices)
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     source_rows = weights_module.readRows(skin, influences, sources)
     destination_rows = weights_module.readRows(skin, influences, destinations)
     written = []

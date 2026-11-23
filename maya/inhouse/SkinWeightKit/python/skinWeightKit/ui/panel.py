@@ -974,7 +974,7 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
         if column == LOCK_COLUMN and self.target is not None and self.target.skin is not None:
             node = run(influences.find, self.target.skin, name)
             if node is not None:
-                run(influences.setLocked, [node], item.checkState(LOCK_COLUMN) == QtCore.Qt.Checked)
+                run(influences.setLocked, self.target.skin, [node], item.checkState(LOCK_COLUMN) == QtCore.Qt.Checked)
                 self.refresh()
 
     # --- 操作 -----------------------------------------------------------------------
@@ -1262,7 +1262,11 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
 
     def _lock_all(self, state):
         """全部をロック・解除する。"""
-        run(lambda: influences.setLocked(self._require_target().requireSkin().getInfluences(), state))
+        def lock_all():
+            skin = self._require_target().requireSkin()
+            return influences.setLocked(skin, skin.getInfluences(), state)
+
+        run(lock_all)
         self.refresh()
 
     def _add_influences(self):

@@ -1,4 +1,5 @@
 """専用のMaya GUIで実行する。セキュリティ確認の自動承認はしない。"""
+import os
 import datetime
 import argparse
 import json
@@ -31,7 +32,7 @@ if __name__ == '__main__':
     (modules / 'MayaCodeEditor.mod').write_text(definition, encoding='utf-8')
     print('GUI evidence: ' + str(directory), flush=True)
     result = run_version(args.version, directory,
-                         Path('C:/Program Files/Autodesk'), args.timeout, shutdown_timeout=args.shutdown_timeout,
+                         Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", args.timeout, shutdown_timeout=args.shutdown_timeout,
                          suite_path=PROJECT / 'tests' / args.suite,
                          environment={'MAYA_MODULE_PATH': str(modules), 'MCE_TEST_COMMANDS': '1', 'MCE_PROJECT_ROOT': str(directory), 'MCE_LANGUAGE_TRACE': str(directory / 'language.jsonl'), 'MCE_TEST_MANUAL_FOCUS': '1' if args.manual_focus else '0'})
     # GUI処理の成功を、終了時の停止によって見失わない。終了異常は非ゼロで通知する。

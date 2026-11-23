@@ -1,4 +1,5 @@
 """専用Mayaを2つ同時起動し、強制終了直後と再起動後の未保存タブを検証する。"""
+import os
 from concurrent.futures import ThreadPoolExecutor
 import ctypes
 import datetime
@@ -68,7 +69,7 @@ def main():
     print(str(directory), flush=True)
 
     def run(stage):
-        outcome = run_version(version, directory / stage, Path("C:/Program Files/Autodesk"), 180,
+        outcome = run_version(version, directory / stage, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", 180,
                               shutdown_timeout=30, suite_path=PROJECT / "tests/recovery_gui.py",
                               environment={"MAYA_MODULE_PATH": str(modules), "MCE_TEST_COMMANDS": "1",
                                            "MCE_SESSION_FILE": str(session), "MCE_RECOVERY_STAGE": stage,

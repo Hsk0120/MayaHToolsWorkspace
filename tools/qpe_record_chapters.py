@@ -1,4 +1,5 @@
 """隔離Mayaを章ごとに起動し、操作動画一式を順番に生成する。"""
+import os
 import sys
 import argparse
 import json
@@ -20,7 +21,7 @@ def main():
     results = {}
     for chapter in args.chapters:
         suite = 'qpe_ui_finder' if chapter == 'finder' else 'qpe_record_'+chapter if chapter in ('advanced', 'productivity') else 'qpe_record_full'
-        result = run_version('2027', out/chapter, Path('C:/Program Files/Autodesk'), 480, shutdown_timeout=45,
+        result = run_version('2027', out/chapter, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", 480, shutdown_timeout=45,
             suite_path=root/'tools'/(suite+'.py'), environment={'QPE_FFMPEG': str(ffmpeg), 'QPE_REVIEW_CHAPTER': chapter})
         results[chapter] = result
         result['crashDumps'] = [str(path) for path in (out/chapter).rglob('*.dmp')]

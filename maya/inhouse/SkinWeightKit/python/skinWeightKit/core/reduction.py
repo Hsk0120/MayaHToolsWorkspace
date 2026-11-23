@@ -126,7 +126,7 @@ def reduce(targets, threshold=0.0, maxInfluences=None, steps=None, removeUnused=
     for current in targets:
         skin = current.skin
         influences = skin.getInfluences()
-        locked = [influences_module.isLocked(node) for node in influences]
+        locked = influences_module.lockedFlags(skin, influences)
         vertices = current.editVertices()
         rows = weights_module.readRows(skin, influences, vertices)
         written = [reduceRow(row, locked, threshold, maxInfluences, steps) for row in rows]
@@ -168,7 +168,7 @@ def limitBones(current, maxBones):
         totals = [sum(flat[column::width]) for column in range(width)]
         candidates = []
         for column, node in enumerate(influences):
-            if influences_module.isLocked(node) or not hasattr(node, "getTransferTarget"):
+            if influences_module.isLocked(skin, node) or not hasattr(node, "getTransferTarget"):
                 continue
             parent = node.getTransferTarget(skin)
             if parent is not None:

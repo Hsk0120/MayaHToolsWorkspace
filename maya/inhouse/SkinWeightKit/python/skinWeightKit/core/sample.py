@@ -88,7 +88,7 @@ def apply(target, mode="average", power=2.0):
     vertices = target.requireVertices()
     influences = skin.getInfluences()
     column_of = _columns(skin, influences)
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     samples = []
     for row in _sample["rows"]:
         full = [0.0] * len(influences)

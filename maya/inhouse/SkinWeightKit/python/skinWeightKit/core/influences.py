@@ -7,9 +7,6 @@ from mlib.decorator import undoChunk
 
 from . import target as target_module
 
-#: ロックの状態を持つアトリビュート(skinCluster がインフルエンスへ足す)。
-LOCK_ATTRIBUTE = "lockInfluenceWeights"
-
 #: 影響しているとみなすウェイトの下限。
 THRESHOLD = 1e-4
 
@@ -49,42 +46,48 @@ def find(skin, influence):
     raise ValueError("{} is not an influence of {}".format(influence, skin.getNodeName()))
 
 
-def isLocked(node):
+def lockedFlags(skin, influences):
+    """インフルエンスごとに、ロックされているかを返す(mlib の ``SkinCluster.getLockedInfluences``)。
+
+    Args:
+        skin (mlib.SkinCluster): skinCluster。
+        influences (Iterable[mlib.Node]): 調べるインフルエンス。
+
+    Returns:
+        list[bool]: influences の順に、ロックされていればTrue。
+    """
+    locked = {node.getFullName() for node in skin.getLockedInfluences()}
+    return [node.getFullName() in locked for node in influences]
+
+
+def isLocked(skin, node):
     """インフルエンスがロックされているかを返す。
 
     Args:
+        skin (mlib.SkinCluster): skinCluster。
         node (mlib.Node): インフルエンス。
 
     Returns:
         bool: ロックされていればTrue。
     """
-    if isinstance(node, mlib.Joint):
-        return node.isInfluenceLocked()
-    return node.hasAttr(LOCK_ATTRIBUTE) and bool(node.getPlug(LOCK_ATTRIBUTE).get())
+    return lockedFlags(skin, [node])[0]
 
 
-@undoChunk("skinWeightKitLock")
-def setLocked(nodes, state):
-    """インフルエンスのロックを変える。
+def setLocked(skin, nodes, state):
+    """インフルエンスのロックを変える(mlib の ``SkinCluster.setInfluencesLocked``)。
 
     Args:
+        skin (mlib.SkinCluster): skinCluster。
         nodes (Iterable[mlib.Node]): インフルエンス。
         state (bool): Trueはロック、Falseは解除。
 
     Returns:
         int: 変えた数。
     """
-    count = 0
-    for node in nodes:
-        if not node.hasAttr(LOCK_ATTRIBUTE):
-            continue
-        if isinstance(node, mlib.Joint):
-            node.setInfluenceLocked(bool(state))
-        else:
-            node.getPlug(LOCK_ATTRIBUTE).set(bool(state))
-        count += 1
-    return count
-
+    nodes = list(nodes)
+    if nodes:
+        skin.setInfluencesLocked(nodes, bool(state))
+    return len(nodes)
 
 
 def lockOthers(target, keep):
@@ -100,8 +103,8 @@ def lockOthers(target, keep):
     keep = list(keep)
     skin = target.requireSkin()
     with undoChunk("skinWeightKitLockOthers"):
-        setLocked(keep, False)
-        return setLocked([node for node in skin.getInfluences() if node not in keep], True)
+        setLocked(skin, keep, False)
+        return setLocked(skin, [node for node in skin.getInfluences() if node not in keep], True)
 
 
 def listInfluences(target):
@@ -122,7 +125,8 @@ def listInfluences(target):
         width = len(influences)
         count = len(target.vertices)
         values = [sum(flat[row * width + column] for row in range(count)) / count for column in range(width)]
-    return [InfluenceInfo(node, isLocked(node), value) for node, value in zip(influences, values)]
+    locked = lockedFlags(target.skin, influences)
+    return [InfluenceInfo(node, flag, value) for node, flag, value in zip(influences, locked, values)]
 
 
 def affectedVertices(target, influence, threshold=THRESHOLD):
@@ -137,9 +141,7 @@ def affectedVertices(target, influence, threshold=THRESHOLD):
         list[int]: 頂点の番号。
     """
     skin = target.requireSkin()
-    node = find(skin, influence)
-    weights = skin.getWeights([node])
-    return [index for index, value in enumerate(weights) if value > threshold]
+    return list(skin.getInfluenceVertices(find(skin, influence), threshold=threshold).indices)
 
 
 def verticesInRange(target, influence, minimum, maximum):

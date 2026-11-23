@@ -113,7 +113,7 @@ class ValueTest(_Case):
         found = self.select_vertices(20)
         weights.setValue(found, self.joints[0], 0.2)
         before = _weights(self.skin, 20)[self.joints[0]]
-        influences.setLocked([mlib.getNode(self.joints[0])], True)
+        influences.setLocked(mlib.getNode(self.skin), [mlib.getNode(self.joints[0])], True)
         weights.setValue(found, self.joints[1], 0.5)
         self.assertAlmostEqual(_weights(self.skin, 20)[self.joints[0]], before, places=5)
         with self.assertRaises(ValueError):

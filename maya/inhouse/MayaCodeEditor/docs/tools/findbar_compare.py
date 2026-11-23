@@ -12,6 +12,7 @@
 出力は ``.maya-output/mce-findbar/<日時>/``(VS Code の画像は ``<日時>-vscode/``。Git 対象外)。既存の Maya・VS Code の設定には触れない。
 親リポジトリの ``maya/inhouse/mlib/__tests__/runGui.py`` を利用する。
 """
+import os
 import argparse
 import datetime
 import json
@@ -57,7 +58,7 @@ def main():
     session.mkdir(parents=True)
     environment.update({"MAYA_MODULE_PATH": str(modules), "MCE_TEST_COMMANDS": "1",
                         "MCE_SESSION_FILE": str(session / "tabs.json")})
-    outcome = run_version(args.version, directory, Path("C:/Program Files/Autodesk"), args.timeout,
+    outcome = run_version(args.version, directory, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", args.timeout,
                           shutdown_timeout=60, suite_path=TOOLS / "findbar_suite.py", environment=environment)
     suite = directory / "result.json"
     data = json.loads(suite.read_text(encoding="utf-8")) if suite.exists() else {}

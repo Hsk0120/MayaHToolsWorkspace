@@ -87,7 +87,7 @@ if __name__ == '__main__':
             'QPE_SETTINGS_FILE': str(base / 'settings.json'), 'QPE_DOCK_PHASE': str(phase)}
         if phase > 1:
             environment['MAYA_APP_DIR'] = str(base / 'phase1/maya_app')
-        result = run_version(args.version, base / ('phase' + str(phase)), Path('C:/Program Files/Autodesk'),
+        result = run_version(args.version, base / ('phase' + str(phase)), Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk",
                              120, 30, suite_path=Path(__file__).resolve(), environment=environment)
         result['crashDumps'] = [str(path) for path in (base / ('phase' + str(phase))).rglob('*.dmp')]
         if result['crashDumps']:

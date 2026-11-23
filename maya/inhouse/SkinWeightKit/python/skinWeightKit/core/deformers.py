@@ -66,12 +66,12 @@ def toInfluence(target, deformer, influence, threshold=0.0):
     if not found:
         raise ValueError("{} is not a deformer of {}".format(deformer, target.mesh.getNodeName()))
     node = influences_module.find(skin, influence)
-    if influences_module.isLocked(node):
+    if influences_module.isLocked(skin, node):
         raise ValueError("{} is locked".format(node.getNodeName()))
     values = deformerWeights(found[0], target.mesh.getNumVertices())
     vertices = [vertex for vertex in target.editVertices() if values[vertex] > threshold]
     influences = skin.getInfluences()
-    locked = [influences_module.isLocked(other) for other in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     column = influences.index(node)
     rows = weights_module.readRows(skin, influences, vertices)
     written = [weights_module.fitColumn(row, column, values[vertex], locked) for vertex, row in zip(vertices, rows)]

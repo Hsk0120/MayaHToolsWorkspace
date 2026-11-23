@@ -1,4 +1,5 @@
 """独立プロセスでQPEの回帰テストを順番に実行し、結果を集約する。"""
+import os
 import argparse
 import json
 from pathlib import Path
@@ -45,7 +46,7 @@ def main():
                         'main = runpy.run_path({!r})["main"]\n'.format(
                             str(root / 'tools'), str(root / 'tools' / (suite + '.py'))),
                         encoding='utf-8')
-                    outcome = run_version(args.maya, target, Path('C:/Program Files/Autodesk'), 240,
+                    outcome = run_version(args.maya, target, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", 240,
                                           shutdown_timeout=45, suite_path=bootstrap)
                     summary[name] = outcome
                     dumps = [str(path) for path in target.rglob('*.dmp')]

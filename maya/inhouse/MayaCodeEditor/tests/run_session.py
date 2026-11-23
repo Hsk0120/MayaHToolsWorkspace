@@ -1,4 +1,5 @@
 """専用Mayaを終了・再起動して復元を確認する。"""
+import os
 import datetime
 import json
 from pathlib import Path
@@ -18,7 +19,7 @@ definition = (ROOT / 'maya/modules/MayaCodeEditor.mod').read_text(encoding='asci
 results = []
 for version in sys.argv[1:] or ['2024', '2027']:
     for stage in ('write', 'read'):
-        outcome = run_version(version, directory / version / stage, Path('C:/Program Files/Autodesk'), 120,
+        outcome = run_version(version, directory / version / stage, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", 120,
                               shutdown_timeout=60, suite_path=PROJECT / 'tests/session_smoke.py',
                               environment={'MAYA_MODULE_PATH': str(modules), 'MCE_TEST_COMMANDS': '1', 'MCE_SESSION_STAGE': stage,
                                            'MCE_SESSION_FILE': str(directory / version / 'tabs.json')})

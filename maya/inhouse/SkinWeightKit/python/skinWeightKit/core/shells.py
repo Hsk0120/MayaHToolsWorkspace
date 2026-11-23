@@ -46,7 +46,7 @@ def unifyShells(target, mode="average"):
         raise ValueError("mode must be one of " + ", ".join(MODES))
     skin = target.requireSkin()
     influences = skin.getInfluences()
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     shells = shellsOf(target.mesh, target.vertices)
     for shell in shells:
         rows = weights_module.readRows(skin, influences, shell)

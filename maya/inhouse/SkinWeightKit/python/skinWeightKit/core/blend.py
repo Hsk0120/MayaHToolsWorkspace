@@ -55,13 +55,13 @@ class SlideSession(object):
         self.skin = target.requireSkin()
         self.influences = self.skin.getInfluences()
         node = influences_module.find(self.skin, influence)
-        if influences_module.isLocked(node):
+        if influences_module.isLocked(self.skin, node):
             raise ValueError("{} is locked".format(node.getNodeName()))
         if falloff is None:
             falloff = {index: 1.0 for index in target.requireVertices()}
         self.vertices = sorted(falloff)
         self.falloff = [falloff[index] for index in self.vertices]
-        self.locked = [influences_module.isLocked(other) for other in self.influences]
+        self.locked = influences_module.lockedFlags(self.skin, self.influences)
         self.column = self.influences.index(node)
         self.original = weights_module.readRows(self.skin, self.influences, self.vertices)
         self.amount = 0.0
@@ -152,9 +152,9 @@ def fromSoftSelection(influence, current=None, falloff=None):
     skin = current.requireSkin()
     influences = skin.getInfluences()
     node = influences_module.find(skin, influence)
-    if influences_module.isLocked(node):
+    if influences_module.isLocked(skin, node):
         raise ValueError("{} is locked".format(node.getNodeName()))
-    locked = [influences_module.isLocked(other) for other in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     column = influences.index(node)
     vertices = sorted(falloff)
     rows = weights_module.readRows(skin, influences, vertices)
@@ -199,14 +199,14 @@ def ramp(target, start, end, easing="linear"):
     if nodes[0] == nodes[1]:
         raise ValueError("Choose two different influences")
     for node in nodes:
-        if influences_module.isLocked(node):
+        if influences_module.isLocked(skin, node):
             raise ValueError("{} is locked".format(node.getNodeName()))
     origin = nodes[0].getTranslation(worldSpace=True)
     axis = nodes[1].getTranslation(worldSpace=True) - origin
     length_squared = axis * axis
     if length_squared <= weights_module.TOLERANCE:
         raise ValueError("The two influences are at the same position")
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     columns = [influences.index(node) for node in nodes]
     positions = target.mesh.getVertices(vertices).getPosition(worldSpace=True)
     rows = weights_module.readRows(skin, influences, vertices)

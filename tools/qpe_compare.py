@@ -11,7 +11,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / 'maya/inhouse/QuickPathExplorer'
-MAYA = Path('C:/Program Files/Autodesk/Maya2027')
+MAYA = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk" / "Maya2027"
 sys.path.insert(0, str(PROJECT / 'python'))
 from qpeMetrics import memory
 

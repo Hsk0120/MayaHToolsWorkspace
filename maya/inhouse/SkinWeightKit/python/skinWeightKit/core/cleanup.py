@@ -47,9 +47,10 @@ def normalize(target):
     return _rewrite(target, lambda row, locked: list(row))
 
 
-@undoChunk("skinWeightKitLimit")
 def limitInfluences(target, count):
     """頂点ごとのインフルエンスの数を count 以下にする(小さい値から0にし、合計を1に戻す)。
+
+    mlib の ``SkinCluster.limitInfluences`` を使う(ロックしたものは残し、先に数に入れる)。
 
     Args:
         target (Target): 対象。
@@ -63,19 +64,15 @@ def limitInfluences(target, count):
     """
     if count < 1:
         raise ValueError("count must be 1 or more")
-
-    def keep_largest(row, locked):
-        """ロックしたもの・大きい順の count 個だけを残す。"""
-        order = sorted(range(len(row)), key=lambda index: (not locked[index], -row[index]))
-        kept = set(order[:count])
-        return [value if index in kept or locked[index] else 0.0 for index, value in enumerate(row)]
-
-    return _rewrite(target, keep_largest)
+    vertices = target.editVertices()
+    target.requireSkin().limitInfluences(count, vertices=vertices)
+    return len(vertices)
 
 
-@undoChunk("skinWeightKitRound")
 def roundWeights(target, decimals=3):
     """ウェイトを小数 decimals 桁に丸め、合計のずれを最も大きいロックしていない値で吸収する。
+
+    mlib の ``SkinCluster.roundWeights`` を使う。
 
     Args:
         target (Target): 対象。
@@ -89,19 +86,8 @@ def roundWeights(target, decimals=3):
     """
     if decimals < 1:
         raise ValueError("decimals must be 1 or more")
-    skin = target.requireSkin()
-    influences = skin.getInfluences()
-    locked = [influences_module.isLocked(node) for node in influences]
     vertices = target.editVertices()
-    rows = []
-    for row in weights_module.readRows(skin, influences, vertices):
-        rounded = [value if locked[index] else round(value, decimals) for index, value in enumerate(row)]
-        free = [index for index in range(len(row)) if not locked[index]]
-        if free:
-            largest = max(free, key=lambda index: rounded[index])
-            rounded[largest] = round(max(0.0, rounded[largest] + 1.0 - sum(rounded)), decimals + 3)
-        rows.append(rounded)
-    weights_module.writeRows(skin, influences, vertices, rows)
+    target.requireSkin().roundWeights(decimals, vertices=vertices)
     return len(vertices)
 
 
@@ -109,7 +95,7 @@ def _rewrite(target, change):
     """行を change で変えてから、ロックを保って合計を1に戻して書く。"""
     skin = target.requireSkin()
     influences = skin.getInfluences()
-    locked = [influences_module.isLocked(node) for node in influences]
+    locked = influences_module.lockedFlags(skin, influences)
     vertices = target.editVertices()
     rows = weights_module.readRows(skin, influences, vertices)
     written = [weights_module.fitRow(change(row, locked), row, locked) for row in rows]

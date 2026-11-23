@@ -50,7 +50,7 @@ if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "maya/inhouse/mlib/__tests__"))
     from runGui import run_version
     output = ROOT / ".maya-output/htools-migration-gui" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    result = run_version("2027", output, Path("C:/Program Files/Autodesk"), 180,
+    result = run_version("2027", output, Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk", 180,
                          suite_path=Path(__file__).resolve(), environment={"MLIB_DISPOSABLE_GUI": "1"})
     print(json.dumps(result, ensure_ascii=False, indent=2))
     sys.exit(0 if result["status"] == "passed" else 1)
