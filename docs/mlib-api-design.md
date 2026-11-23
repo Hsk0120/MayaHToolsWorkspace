@@ -1224,3 +1224,17 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
   - 例外: `MissingAttributeError` は `AttributeError` だけ、`DeletedAttributeError` は `ValueError` だけの派生にした(以前はどちらも `RuntimeError` の派生でもあった)。
     名前のアトリビュートが見つからないとき(`mlib.getPlug("node.nope")`・文字列を渡す `connect`・`isConnectedTo`・`DrivenKey` など)は、`except RuntimeError` では捕まえられず、
     `except AttributeError` で捕まえる。アトリビュートが削除されたPlugをノードの引数に渡したときは `ValueError`。
+
+## メソッドの共通化(2026-11-23〜)
+
+ユーザー指定により、公開メソッドの数を減らす。機能は減らさず、(1) 汎用の入口(Plug・`mfn()`)で書けて利用側が使っていない専用メソッドを削る、
+(2) 似たメソッドを、違いを引数で選ぶ1つにまとめる、(3) 同じ中身を基底へ上げる、の3つで進める。
+検討の経緯と数はローカルの `docs/research/mlib-method-consolidation/`(proposal3〜12.md、進み具合は implementation-plan.md)。段ごとに実装し、ここへ結果を書く。
+
+- 段1(計算ノード): `multiplyDivide`・`plusMinusAverage`・`condition`・`composeMatrix`/`decomposeMatrix`・`blendMatrix`・`remapValue` など27型のクラスから、
+  専用メソッド112個(`setInput`・`getResult`・`getOutputPlug`・`get/setOperation`・`get/setRotateOrder`・`addInput`/`removeInput`/`getInputIndices`・
+  `addTarget`/`removeTarget`/`getTargetIndices`・ランプの点の操作など)と補助の `nodes/_calculation.py` を削った。クラスは型の選択と `isinstance` のために残す。
+  代わりの書き方: 値は `node.getPlug("input1").set(...)`、接続は `plug.connect(...)`、結果は `node.getPlug("output").get()`、
+  演算の種類は `node.getPlug("operation").set("Divide")`(Maya のフィールド名。番号でもよい)と `getEnumName()`、
+  マルチアトリビュートの入力は `MultiPlug.getNextAvailable()`・`removeElement()`・`getIndices()`、ランプは `RampPlug.getEntries()`・`setEntries()`。
+  専用メソッドが受けていた小文字の演算名(`"divide"`)は無くなり、Maya の表記(`"Divide"`)になる。利用側での使用は無かった。
