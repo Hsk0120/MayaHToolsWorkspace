@@ -15,8 +15,8 @@
 ```
 mlib/json/
 ├ __init__.py              公開名(__all__)
-├ codec.py                 encode / decode(数学型 ⇔ JSON の値)
-├ file.py                  dump / load と Header(ヘッダー付き JSON、形式・版の検査、fps の換算)
+├ codec.py                 _encode / _decode(数学型 ⇔ JSON の値。内部の部品)
+├ file.py                  _dump / _load と Header(ヘッダー付き JSON、形式・版の検査、fps の換算。_dump・_load は内部の部品)
 ├ nodeRef.py               NodeRef(名前・パス・型で記録し、シーンのノードへ対応付ける)
 ├ plugRef.py               PlugRef(NodeRef + アトリビュート名)
 ├ componentRef.py          ComponentRef(NodeRef + コンポーネントの種類と番号)
@@ -32,8 +32,8 @@ mlib/json/
 `ValidationReport` は `Snapshot` 専用の小さな結果クラスなので、例外的に snapshot.py へ同居させる(要確認)。
 
 - 下の層(codec・file・参照・NameMapping)は、どの種類からも使う部品。
-- 中の層 `Snapshot` 基底は、`save` / `load` / `validate` / `apply` の共通の流れを持つ。各種類は `capture`・`toData`・`fromData`・
-  `_validate`・`_apply` だけを書く。
+- 中の層 `Snapshot` 基底は、`save` / `load` / `validate` / `apply` の共通の流れを持つ。各種類は `capture`・`_validate`・`_apply` だけを書く
+  (`apply`・`toData` は基底が持つ。種類ごとの指定を足す `AnimationSnapshot` だけが `apply` を上書きする)。
 - 複数ノードにまたがるデータ(ポーズ・アニメーション・アトリビュート・ドリブンキー・選択)は、Snapshot クラスを直接使う。
 - 1つのノードが持つデータ(スキンウェイト・カーブ形状・BlendShape)は、処理をそのノードのクラスに直接書く。
   json 側に内部クラスは置かず、ノードのクラスが codec・file・参照・NameMapping を直接使う。
@@ -95,7 +95,7 @@ mlib/json/
 ## 6. snapshot 層
 
 - `Snapshot` 基底: `capture(...)`(取得)、`validate(...)`(検査。報告を返す)、`apply(...)`(適用)、
-  `toData()` / `fromData(data)`、`save(path)` / `load(path)`。
+  `toData()`(辞書から作るときはコンストラクターへ渡す)、`save(path)` / `load(path)`。
 - `apply` は内部でも検査する。適用できない問題(頂点数の違い等)は例外、見つからないノードは警告とする。
 - `apply` は通常1回の Undo にまとめ、途中で失敗したら巻き戻す。OpenMaya で速くなる種類だけ `fast=True`(Undo なし)を持つ。
 
@@ -211,3 +211,19 @@ CLAUDE.md の次の2か所を変更する。
   `addInBetween` / `replaceTarget` は self を返す。`duplicateTarget(target, name=None)` は `<元の名前>Copy`。
   Shape Editor のフォルダは `targetDirectory` と `parentDirectory` で戻す。envelope・origin・デフォーマーの順序は保存しない。
 
+## 12. 内部の部品の非公開化(2026-11-23、メソッドの共通化の段5)
+
+利用側が使わず、mlib の中(Snapshot・各ノードの export/import)だけが使う部品は、先頭に `_` を付けて非公開にした。
+自分で Snapshot の種類を足すときは、これらの `_` 付きの名前を使う。
+
+- 非公開にしたもの(21): `NodeRef`・`PlugRef`・`ComponentRef` の `_from_data`・`_to_data`・`_mapped_name`、
+  `ValidationReport` の `_add_missing`・`_add_skipped`・`_add_error`、`Header` の `_from_data`・`_to_data`・`_convert_time`、
+  `codec._encode`・`_decode`、`file._current_fps`・`_dump`・`_load`、`NameMapping._apply_path`。
+  `mlib.json` の直下の `encode`・`decode`・`dump`・`load` は無くした。
+- 削ったもの(2): `NameMapping.isIdentity`(使われていない)、`Snapshot.fromData`(コンストラクターと同じ。`PoseSnapshot(data)` と書く)。
+- 公開のまま残したもの: `Snapshot` の `capture`・`validate`・`apply`・`save`・`load`・`header`・`toData`、
+  `ValidationReport` の `missing`・`skipped`・`errors`・`valid`(`apply`・`validate` の結果を読むため)、
+  `Header` の `format`・`version`・`mlib`・`maya`・`fps`(読み込んだファイルの情報を読むため)、
+  参照クラスの `capture`・`resolve` とプロパティ、`NameMapping.apply`。
+- `AttributesSnapshot`・`DrivenKeysSnapshot`・`PoseSnapshot`・`SelectionSnapshot` の `apply` は本体が同じだったので、基底の `Snapshot.apply` へ上げた
+  (種類ごとの説明は各クラスの docstring へ移した)。

@@ -330,7 +330,7 @@ class SplineRig:
             if i in (0, len(controls) - 1):
                 source = matrices[0 if i == 0 else -1]
                 rotation = source.quaternion.asUnitMatrix()
-                local_rotation = Matrix(rest.inverse() * rotation * parent_inverse).euler
+                local_rotation = Matrix(rest.inverse() * rotation * parent_inverse).rotate
                 local_rotation.reorderIt(control.getPlug("rotateOrder").get())
                 for a, value in zip("XYZ", local_rotation):
                     control.getPlug("rotate" + a).set(value, unit="rad")

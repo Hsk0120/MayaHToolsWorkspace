@@ -1236,7 +1236,7 @@ def _compute_joint_orient_degrees(
         _compute_debug_log_matrix_axes(joint_name, "JointOrientRot", joint_orient_rot)
 
     # 求めた回転行列を jointOrient に設定可能な Euler 角（rad）へ変換する。
-    euler = mlib.Matrix(joint_orient_rot).euler
+    euler = mlib.Matrix(joint_orient_rot).rotate
     euler_rebuild = None
     if debug_verbose:
         euler_rebuild = _compute_debug_log_euler_rebuild(joint_name, euler, joint_orient_rot)

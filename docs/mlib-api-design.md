@@ -1248,3 +1248,31 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
   残したもの: mlib の内部が使うもの(`Plug.getShortName`・`isChannelBox`・`isProxy`、`AnimCurve.isWeighted`、`IkHandle.getSolver` など16個)、
   対になる設定側が残るもの(`Camera.getAspectRatio`・`Plug.getAlias`・`Edge.isSmooth` など6個)、
   コンポーネントのクラスが名前の文字列(`count_attribute`)で呼ぶ要素数の取得(`Mesh.getNumPolygons`・`getNumEdges`・`getNumUVs`、`NurbsCurve`・`NurbsSurface` の `getNumCVs`)。
+- 段3(転送と同じ複数形・数学型の自身を変える版・別名): 13個を削った。
+  - 数学型の「自身を変える版」11個: `EulerRotate.mirrorIt`・`roundIt`・`reverseDirectionIt`、`Matrix.transposeIt`・`mirrorIt`、`Quaternion.unitIt`・`mirrorIt`、
+    `Vector.mirrorIt`・`roundIt`・`unitIt`・`orthogonalIt`。代わりは、コピーを返す版を受け取る(`v = v.unit()`・`m = m.mirror("x")`)。
+    om2 から継承した名前(`invertIt`・`reorderIt`・`normalize()` など)は残る。独自の「…It」は置かない決まりにした。
+  - 別名3個: `Selection.items` → `getItems()`、`Matrix.euler` → `rotate`、`Quaternion.asEulerRotate()` → `asEulerRotation()`(om2 の名前)。
+    `Shape.getTransform` は利用側で広く使われているので残した。
+  - 複数形の明示メソッド2個: `Nodes.setAttrFlags`・`setLocked`。自動の転送(`__getattr__` → `_forward`)と同じ動きなので、呼び方は変わらない
+    (Undo チャンク名も同じ `mlibNodesSetAttrFlags`・`mlibNodesSetLocked`)。戻り値だけが `None` から要素ごとの `[None, ...]` になる。
+  - 削らなかったもの: `Nodes.show`・`hide`・`getOverrideColor`・`getOutlinerColor`。この4つは `DagNode` のメソッドなので、転送にすると
+    要素が無い `Nodes`(`item_class` が `Node`)で AttributeError になる(明示メソッドは何もせず `None`・`[]` を返す。`mlib.ls(...)` の結果が空のときに違いが出る)。
+    `Nodes.setOverrideColor`・`setOutlinerColor`・`setVisibility`・`resetAttrs`・`setParent`、`Joints.setRadius`・`setSegmentScaleCompensate`・`getSkinClusters`、
+    `Edges.getVertices`、`Faces.getVertices`・`getEdges`、`UVs.getPosition` も、書く前に全要素を確かめる・結果を1つにまとめる・まとめて読むので残した。
+- 段5(json の内部の部品・兄弟クラスの同じ本体): 公開の名前を30個減らした(非公開へ21、削除2、基底へ上げて7)。
+  - json の部品21個を非公開にした: `NodeRef`・`PlugRef`・`ComponentRef` の `fromData`/`toData`/`mappedName` → `_from_data`/`_to_data`/`_mapped_name`、
+    `ValidationReport.addMissing`/`addSkipped`/`addError` → `_add_missing`/`_add_skipped`/`_add_error`、
+    `Header.fromData`/`toData`/`convertTime` → `_from_data`/`_to_data`/`_convert_time`、`codec.encode`/`decode` → `_encode`/`_decode`、
+    `file.currentFps`/`dump`/`load` → `_current_fps`/`_dump`/`_load`、`NameMapping.applyPath` → `_apply_path`。
+    `mlib.json.encode`・`decode`・`dump`・`load`(パッケージ直下の再公開)も無くした。利用側での使用は無かった。
+  - 削った2個: `NameMapping.isIdentity`(どこからも使われていない)、`Snapshot.fromData`(コンストラクターと同じ。`PoseSnapshot(data)`)。
+  - 候補のうち公開のまま残した6個: `ValidationReport.missing`・`skipped`・`valid`(`apply`・`validate` が返す結果を利用者が読む)、
+    `Header.mlib`・`fps`(`Snapshot.header` で読み込んだファイルの情報を読む。`format`・`version`・`maya` と同じ扱い)、
+    `Snapshot.toData`(データを辞書で取り出す唯一の入口)。
+  - Snapshot の4種類(`AttributesSnapshot`・`DrivenKeysSnapshot`・`PoseSnapshot`・`SelectionSnapshot`)の `apply` は本体が同じなので、基底の `Snapshot.apply` へ上げた
+    (引数と動きは同じ。種類ごとの説明は各クラスの docstring へ移した。追加の引数を持つ `AnimationSnapshot.apply` は上書きのまま)。
+  - `Module` と `Plugin` の同じ本体(`name`・`getVersion`・`isVersionAtLeast` と `__init__`・`__str__`)を、新しい共通の親 `common/versionedItem.py` の
+    `_VersionedItem` へ上げた。Maya のコマンドが違う `isRegistered`・`getPath`・`getVersionText` と、型を比べる `__eq__`・`__hash__`・`__repr__` は各クラスに残した。
+  - 対象外: `Component` と `Components` の `shape`・`index`、`isOnBoundary`(Vertex・Edge・Face)は、共通の親が無い
+    (親に置くと関係ないクラスにも付く)ので上げていない。
