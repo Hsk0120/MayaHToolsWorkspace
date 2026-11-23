@@ -169,7 +169,7 @@ class AimAxisConversionWindow:
                 preserve_pose=cmds.checkBox(self.preserve, query=True, value=True),
                 use_container=cmds.checkBox(self.useContainer, query=True, value=True))
             self.refresh()
-        except (RuntimeError, ValueError, TypeError) as error:
+        except (RuntimeError, ValueError, TypeError, AttributeError) as error:
             self._error(error)
 
     def restore(self, *_):
@@ -185,7 +185,7 @@ class AimAxisConversionWindow:
                 raise ValueError("This Aim has not been converted.")
             graph.restore()
             self.refresh()
-        except (RuntimeError, ValueError, TypeError) as error:
+        except (RuntimeError, ValueError, TypeError, AttributeError) as error:
             self._error(error)
 
     def refresh(self, *_):
@@ -216,7 +216,7 @@ class AimAxisConversionWindow:
                 lines.append("Diagnosis: " + ("valid" if valid else "check needed (ambiguous range, singularity or Rotate Order change)"))
             lines.append("Press 'Refresh Result' after moving the timeline or the targets.")
             cmds.scrollField(self.status, edit=True, text="\n".join(lines))
-        except (RuntimeError, ValueError, TypeError) as error:
+        except (RuntimeError, ValueError, TypeError, AttributeError) as error:
             self._error(error)
 
     def _requireSource(self):

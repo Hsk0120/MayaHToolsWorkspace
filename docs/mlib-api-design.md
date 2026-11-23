@@ -1207,3 +1207,20 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
   - `mlib.findCycles(nodes=None, *, dag=False, timeLimit=None, firstOnly=False)`(`cmds/`)は`cycleCheck(list=True, secondary=True)`の経路ごとに`Plugs`を返す(Noneはシーン全体)。`Node.findCycles()`は1つのノードを通る単純な循環を接続からたどって並べるもので、DAGの依存・部分経路を返す`cycleCheck`の指定とは意味が合わないため、引数は足していない。
   - `mlib.isNodeType(name)`(`cmds/`)は`cmds.allNodeTypes(includeAbstract=True)`にある型名か(抽象型も含む)を返す。
 - SkinWeightKitの見直し(同日のユーザー回答): `SkinCluster.limitInfluences(count, *, vertices, fast, check)`・`roundWeights(decimals=3, *, vertices, fast, check)`を足し、`transferWeights`に`vertices`・`add`を足した(ロックしたインフルエンスは値を保ち、残りの比率で合計1にする規則。`vertices`か`add`を指定したときは行を読んで変わった値だけを書き、移す元・先がロックされていればRuntimeError)。ロックの照会・変更は`getLockedInfluences`・`setInfluencesLocked`がジョイント以外も扱えるので変えていない。
+
+## クラスの親は1つ(2026-11-23)
+
+ユーザー指定により、mlibのクラスの親は1つにする。ミックスイン・多重継承は使わず、責務は1本の継承の中に収める(例外クラスも同じ)。
+`_tools/check_mlib_layout.py` の L056 が、親が2つ以上あるクラスを報告する。
+
+- 別の系統のクラスで同じ処理が要るときは、共通の親へ上げるか、モジュールの関数に置いて各クラスから呼ぶ。
+  種類ごとの違いは、クラス属性と、派生クラスが上書きする先頭 `_` のメソッドで持つ。
+- 既にあった多重継承を無くした。
+  - コンポーネント: 番号を複数持つ要素(`SurfaceCV`・`LatticePoint`・`VertexFace` と複数形)のミックスイン `_MultiIndexComponent`・`_MultiIndexComponents` をやめ、
+    基底の `Component`・`Components` に取り込んだ。具体的なクラスは `index_size` を2以上にし、`_element_count`・`_multi_indices`・`_flat_indices` を上書きする。
+    `getMultiIndex()` は基底のメソッドになり、番号が1つの要素では `(index,)` を返す。
+  - コンテナー: `_ContainerMixin` をやめ、メンバー・公開の操作13個は `Container(Node)` に置いた。`DagContainer` は `Transform` だけを親にし、
+    同じ名前の13個のメソッドが `Container` のメソッドを呼ぶ(ユーザーの選択。`isinstance(dag, Container)` はFalseになるので、コンテナかは `isType("containerBase")` で調べる)。
+  - 例外: `MissingAttributeError` は `AttributeError` だけ、`DeletedAttributeError` は `ValueError` だけの派生にした(以前はどちらも `RuntimeError` の派生でもあった)。
+    名前のアトリビュートが見つからないとき(`mlib.getPlug("node.nope")`・文字列を渡す `connect`・`isConnectedTo`・`DrivenKey` など)は、`except RuntimeError` では捕まえられず、
+    `except AttributeError` で捕まえる。アトリビュートが削除されたPlugをノードの引数に渡したときは `ValueError`。

@@ -19,6 +19,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+- Claude Code (2026-11-23〜): mlib のメソッドの共通化を段ごとに実装中(ユーザー指示「検討したこと全て実装」)。mlib の nodes/・plugs/・components/・common/・cmds/・maths/・__tests__/ と、利用側(mlrig・AnimBar・SkinWeightKit・HTools/byMlib ほか)の呼び出し。段と進み具合はローカルの docs/research/mlib-method-consolidation/implementation-plan.md。
+
+
 
 
 
@@ -203,6 +206,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-23): mlib のクラスの親を1つにした(ユーザー指定。ミックスイン・多重継承をやめる。mlib 7a4c59b)。check_mlib_layout.py に L056 を足し、コンポーネントの _MultiIndexComponent(s) を Component(s) に取り込み、Container/DagContainer は DagContainer が Transform だけを親にして同名のメソッドで Container を呼ぶ形にし、MissingAttributeError は AttributeError だけ・DeletedAttributeError は ValueError だけの派生にした(アトリビュートが見つからないときは except RuntimeError で捕まえられない)。HTools/byMlib の convertAimAxes は AttributeError も受ける。Maya 2022・2025・2027、run_rig_packages(955件)で確認。
 - Claude Code (2026-11-23): byMlib の残り7件の目印を外した(ユーザーの回答で mlib に足した)。mlib 811e8c8: SkinCluster の get/setWeights・get/setVertexWeights・smoothWeights に geometryIndex(Maya の skinCluster は形状どうしで weightList を共有することを確認)、Node.getAttrNames、Faces.extrude、mlib.findCycles、mlib.isNodeType。HTools/byMlib/rigging の5ファイルと SimplePhysics/byMlib の ui.py を書き換え、collapseJointWeightsToParent の _list_geo_vertices が Transform を受けない違いも直した。Maya 2022・2025・2027、run_rig_packages(955件)、元の版と byMlib 版の比較17件、inspectCycles・SimplePhysics の元のテストを byMlib 版で確認。
 - Claude Code (2026-11-23): 残りの課題1・4・5。(1) AnimBar のバーを使い捨てのGUI(run_gui.py、2027)で確認、editSkinJoints を元の版と byMlib 版で使い捨てのGUIで確認(同じ結果。GUIの起動処理の途中で操作すると scriptJob がまだ動かず子の保持が働かないが、テストの操作が早すぎたためで、起動が落ち着いてからの操作では元の版も mlib 版も保持される。ツールは変えていない)。(4) tools/ の C:\Program Files の決め打ちは94本のうち実際は16本(qpe_*・GUIテスト2本・MayaCodeEditor 7本・QuickPathExplorer の build_maya_plugin)で、%ProgramFiles% を読む形に直した(残りは既に %ProgramFiles% を読んで既定値に書いているだけ)。(5) SkinWeightKit の見直し: mlib の SkinCluster に limitInfluences・roundWeights を足し、transferWeights に vertices・add を足した。SkinWeightKit は getInfluenceVertices・ロックの一括API・新しいメソッドを使う形にした。Maya 2022・2025・2027、run_rig_packages(955件)、SkinWeightKit 87件と画面の確認で確認。
 - Claude Code (2026-11-23): mlibの使用事例を増やすため、mlrig・AnimBar・SkinWeightKit を mlib で書き換え、ほかの inhouse のツール(HTools・SimpleCloth・SimplePhysics・mlib_bifrost・integrations・MayaCommandPorts・MayaExprespy・QuickPathExplorer・MayaCodeEditor・FramePlayer)は各ツールの byMlib/ に mlib 版を置いた(元のファイルは変えない)。tools/by_mlib.py で byMlib/ の版を元のモジュール名で読み込んで元のテストを流せる。HToolsメニューに byMlib を出す。足りなかったAPIを mlib に足し(mlib 146a2bc)、mlib.common に Scene を追加。Maya 2022・2025・2027、run_rig_packages(955件)、AnimBar 57件・SkinWeightKit 87件、byMlib の比較で確認。AnimBar のバーと editSkinJoints の画面は GUI 未確認。不足の一覧と残り7か所の目印の理由はローカルの docs/research/byMlib/。
