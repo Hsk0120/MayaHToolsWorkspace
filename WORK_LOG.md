@@ -19,7 +19,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
-- Claude Code (2026-11-24〜): mlib のテストを網羅的に厚くする(ユーザー指示)。範囲は mlib(`__tests__/inMaya/unit/` 全パッケージ)。行の通過を実行して測り(基準94.9%)、パッケージ単位で並行して追加中。mlib本体は変えない。
 
 
 
@@ -206,6 +205,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-24): mlib のテストを網羅的に厚くした(ユーザー指示)。テストを実行して通った行を測り(標準ライブラリの sys.settrace。道具はローカルの docs/research/mlib-test-coverage/tools/)、パッケージ単位で並行して 96 ファイルを追加・追記し、行の通過率を 94.9% から 98.7% にした。テストで見つかった不具合を直した: fast の子の無い compound の addAttr で Maya が落ちる、時間のドライバーのドリブンキーの保存の倍率、settings の無いスキンウェイトのデータ、ロックした点への通常の書き込みが黙って飛ばされる、コンパウンドの片側の setRange、入れ子のマルチアトリビュートの compact の Undo、docstring と違う例外の型 5 件、別の形状の頂点のデフォーマーウェイト、呼び出し元の無い内部の関数 5 個の削除。Maya 2022・2025・2027 と run_rig_packages(955件)で確認。経緯と残りの未通過の行の理由はローカルの docs/research/mlib-test-coverage/findings/。
 - Claude Code (2026-11-23〜24): mlib のメソッドの共通化を実装した(ユーザー指示「検討したこと全て実装」)。機能を減らさずに公開メソッドを約460個減らした: 計算ノード27クラスの専用メソッド(112)、使われていない専用の get/set・照会(63)、別名・自身を変える版・転送と同じ複数形(13)、json の内部の部品の非公開化と基底へ(30)、コンポーネント(44)・Plug(38)・基本のノード(62)・形状/デフォーマー/カメラなど(63)・common/cmds/数学型(31)をフラグ・引数でまとめ、getFullName を getName(full=True) にまとめた。あわせてクラスの親は1つ(L056)にした。利用側(mlrig・AnimBar・SkinWeightKit・HTools/byMlib ほか)の呼び出しも直した。各段で Maya 2022・2025・2027、run_rig_packages(955件)、AnimBar・SkinWeightKit のテストを通した。消した名前と代わりの書き方は docs/mlib-api-design.md の「メソッドの共通化(2026-11-23〜)」、経緯はローカルの docs/research/mlib-method-consolidation/。完了後に byMlib 版の確認も流した(HTools: largeMigration 55件・mlibMigration 12項目・inspectCycles 5件・以前の比較17件、SimpleCloth 13件・SimplePhysics 15件、mlib_bifrost 8件、テストの無い FramePlayer・integrations は書き換えた呼び出しを直接動かして確認)。すべて通過。
 - Claude Code (2026-11-23): mlib のクラスの親を1つにした(ユーザー指定。ミックスイン・多重継承をやめる。mlib 7a4c59b)。check_mlib_layout.py に L056 を足し、コンポーネントの _MultiIndexComponent(s) を Component(s) に取り込み、Container/DagContainer は DagContainer が Transform だけを親にして同名のメソッドで Container を呼ぶ形にし、MissingAttributeError は AttributeError だけ・DeletedAttributeError は ValueError だけの派生にした(アトリビュートが見つからないときは except RuntimeError で捕まえられない)。HTools/byMlib の convertAimAxes は AttributeError も受ける。Maya 2022・2025・2027、run_rig_packages(955件)で確認。
 - Claude Code (2026-11-23): byMlib の残り7件の目印を外した(ユーザーの回答で mlib に足した)。mlib 811e8c8: SkinCluster の get/setWeights・get/setVertexWeights・smoothWeights に geometryIndex(Maya の skinCluster は形状どうしで weightList を共有することを確認)、Node.getAttrNames、Faces.extrude、mlib.findCycles、mlib.isNodeType。HTools/byMlib/rigging の5ファイルと SimplePhysics/byMlib の ui.py を書き換え、collapseJointWeightsToParent の _list_geo_vertices が Transform を受けない違いも直した。Maya 2022・2025・2027、run_rig_packages(955件)、元の版と byMlib 版の比較17件、inspectCycles・SimplePhysics の元のテストを byMlib 版で確認。
