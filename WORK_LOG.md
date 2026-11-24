@@ -19,6 +19,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+- Claude Code (2026-11-24〜): mlib のテストを網羅的に厚くする(ユーザー指示)。範囲は mlib(`__tests__/inMaya/unit/` 全パッケージ)。行の通過を実行して測り(基準94.9%)、パッケージ単位で並行して追加中。mlib本体は変えない。
 
 
 
