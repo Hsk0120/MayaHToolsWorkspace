@@ -102,7 +102,7 @@ def buildScene():
     cmds.setAttr(setup + ".visibility", True)
     for joint in spine.ik:
         cmds.setAttr(str(joint) + ".drawStyle", 2)
-    curve = spine.graph.member("curve").getFullName()
+    curve = spine.graph.member("curve").getName(full=True)
     cmds.setAttr(curve + ".visibility", True)
     for shape in cmds.listRelatives(curve, shapes=True, fullPath=True):
         cmds.setAttr(shape + ".overrideEnabled", True)
@@ -163,7 +163,7 @@ def evaluate_frame(frame, spine, values, names):
     cmds.setAttr(str(spine.chest) + ".rotate", *chest_r, type="double3")
     cmds.setAttr(str(spine.hips) + ".translate", *hips_t, type="double3")
     cmds.setAttr(str(spine.fk[2]) + ".rotateZ", fk_rz)
-    curve = spine.graph.member("curve").getFullName()
+    curve = spine.graph.member("curve").getName(full=True)
     shape = cmds.listRelatives(curve, shapes=True, fullPath=True)[0]
     selection = om.MSelectionList()
     selection.add(shape)

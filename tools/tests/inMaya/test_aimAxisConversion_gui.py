@@ -66,7 +66,7 @@ def main(output_dir=None, finished=None):
         graph = AimAxisConversion.find(constraint)
         assert graph.container.getType() == "network"
         assert not cmds.ls(type="container")
-        cmds.select(graph.container.getFullName())
+        cmds.select(graph.container.getName(full=True))
         cmds.checkBox(ui.useContainer, edit=True, value=True)
         ui.loadSelection()
         assert not cmds.checkBox(ui.useContainer, query=True, value=True)

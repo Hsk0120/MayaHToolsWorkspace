@@ -56,7 +56,7 @@ class SpaceSwitchTest(unittest.TestCase):
         external = mlib.createNode("transform", name="external", skipSelect=True)
         self.switch.add("external", external)
         self.switch.switch("external")
-        self.assertNotIn(external.getFullName(), [node.getFullName() for node in self.switch.getNodes()])
+        self.assertNotIn(external.getName(full=True), [node.getName(full=True) for node in self.switch.getNodes()])
         external.setTranslation((0, 3, 0), at=4)
         self.assertAlmostEqual(self.child.getTranslation(worldSpace=True, at=4)[1], 3)
 

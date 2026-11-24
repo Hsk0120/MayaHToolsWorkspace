@@ -64,7 +64,7 @@ def _findPlug(text):
 
 
 def _targetName(target):
-    """調査対象の名前を、ノードは最短一意名、アトリビュートは ``Plug.getFullName`` の形式へ揃える。
+    """調査対象の名前を、ノードは最短一意名、アトリビュートは ``Plug.getName(full=True)`` の形式へ揃える。
 
     Args:
         target (str): ノード名またはアトリビュート名。
@@ -79,7 +79,7 @@ def _targetName(target):
     if not isinstance(target, str):
         raise TypeError("Specify node or attribute names.")
     if "." in target:
-        return _findPlug(target).getFullName()
+        return _findPlug(target).getName(full=True)
     try:
         return mlib.getNode(target).getName()
     except RuntimeError:
@@ -137,17 +137,17 @@ def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False
         plugs = []
         for plug in cycle:
             try:
-                plugs.append(plug.getFullName())
+                plugs.append(plug.getName(full=True))
                 node = plug.getNode()
                 nodes[node.getName()] = node.getType()
                 # 変換ノードを省略しない直接の入力元と出力先(経路外の接続も含む)。
                 source = plug.getConnections(input=True)
                 edges = [(source, plug)] if source is not None else []
                 edges.extend((plug, dest) for dest in plug.getConnections(outputs=True))
-                connections.update((a.getFullName(), b.getFullName()) for a, b in edges)
+                connections.update((a.getName(full=True), b.getName(full=True)) for a, b in edges)
                 if isinstance(node, mlib.DagNode):
                     child = node.getName()
-                    parents.update((parent.getFullName(), child) for parent in node.getParent(instances=True))
+                    parents.update((parent.getName(full=True), child) for parent in node.getParent(instances=True))
             except (RuntimeError, ValueError, TypeError) as error:
                 errors.append(str(error))
         groups.append(dict(plugs=plugs, nodes=nodes, connections=sorted(connections),

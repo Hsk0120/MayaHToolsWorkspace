@@ -253,7 +253,7 @@ class SkirtRig:
 
         return (
             list(TweakLayer(self).getJoints())
-            + [node.getFullName() for node in self._members("followers")]
+            + [node.getName(full=True) for node in self._members("followers")]
             + list(self.follow_joints())
         )
 
@@ -442,7 +442,7 @@ class SkirtRig:
                 jobs.stop()
                 del cls._jobs[key]
         for attr in [
-            item.getFullName() for item in mlib.ls("*.mlrigSkirtDefinition", recursive=True)
+            item.getName(full=True) for item in mlib.ls("*.mlrigSkirtDefinition", recursive=True)
         ] or []:
             rig = cls(attr.rsplit(".", 1)[0])
             key = rig.root.getUuid()
@@ -470,7 +470,7 @@ class SkirtRig:
         Args:
             key (str): ルートUUID。
         """
-        roots = [item.getFullName() for item in mlib.ls(key, long=True)] or []
+        roots = [item.getName(full=True) for item in mlib.ls(key, long=True)] or []
         if cls._busy or not roots:
             return
         cls._busy = True

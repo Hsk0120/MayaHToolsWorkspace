@@ -56,8 +56,8 @@ def lockedFlags(skin, influences):
     Returns:
         list[bool]: influences の順に、ロックされていればTrue。
     """
-    locked = {node.getFullName() for node in skin.getInfluences(locked=True)}
-    return [node.getFullName() in locked for node in influences]
+    locked = {node.getName(full=True) for node in skin.getInfluences(locked=True)}
+    return [node.getName(full=True) in locked for node in influences]
 
 
 def isLocked(skin, node):
@@ -304,7 +304,7 @@ def _remove_from(skin, joints):
     Returns:
         list[tuple[str, str, str | None]]: 外した (ジョイント, skinCluster, 移した先の親) の組。
     """
-    joints = [joint for joint in joints if skin.hasInfluence(joint.getFullName())]
+    joints = [joint for joint in joints if skin.hasInfluence(joint.getName(full=True))]
     ordered = sorted(joints, key=_depth, reverse=True)
     targets = [joint.getTransferTarget(skin) for joint in ordered]
     removed = [(joint.getName(node=True), skin.getName(node=True), target.getName() if target is not None else None)

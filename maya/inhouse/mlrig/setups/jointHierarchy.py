@@ -48,7 +48,7 @@ class JointHierarchy:
                 targets = mlib.Joints([joint for joint in targets if not joint._has_delete_connections()])
             plans = JointHierarchy._prepare(targets, fast=fast)
             for joint, transfers in plans:
-                name = joint.getFullName()
+                name = joint.getName(full=True)
                 stage = "transfer weights"
                 try:
                     for skin, target in transfers:

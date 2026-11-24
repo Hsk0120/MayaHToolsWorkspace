@@ -74,7 +74,7 @@ class ChainNet(TwistDistribution):
                 for node in chain:
                     if node.getPlug("offsetParentMatrix").getConnections(input=True, skipConversionNodes=True) is not None:
                         raise ValueError("The offsetParentMatrix of the slave must be unconnected: "
-                                         + node.getFullName())
+                                         + node.getName(full=True))
 
         graph = cls(mlib.createContainer(name=name))
         owner = graph.container

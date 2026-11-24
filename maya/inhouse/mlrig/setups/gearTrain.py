@@ -89,13 +89,13 @@ class GearTrain(TwistDistribution):
         nodes = [driver] + gears
         if any(not isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the driver and the gears")
-        if len({node.getFullName() for node in nodes}) != len(nodes):
+        if len({node.getName(full=True) for node in nodes}) != len(nodes):
             raise ValueError("The driver and the gears must be different nodes")
         channel = "rotate" + axis.upper()
         if connect:
             for gear in gears:
                 if gear.getPlug(channel).getConnections(input=True, skipConversionNodes=True) is not None:
-                    raise ValueError("The rotation of the gear is already connected: " + gear.getFullName())
+                    raise ValueError("The rotation of the gear is already connected: " + gear.getName(full=True))
 
         graph = cls(mlib.createContainer(name=name))
         owner = graph.container

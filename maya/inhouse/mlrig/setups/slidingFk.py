@@ -78,7 +78,7 @@ class SlidingFk(TwistDistribution):
         for node in joints + controls:
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the joints and the controls")
-        names = [node.getFullName() for node in joints + controls]
+        names = [node.getName(full=True) for node in joints + controls]
         if len(set(names)) != len(names):
             raise ValueError("joints and controls must be different nodes")
         if positions is None:

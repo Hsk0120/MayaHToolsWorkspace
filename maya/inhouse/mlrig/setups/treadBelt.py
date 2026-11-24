@@ -82,7 +82,7 @@ class TreadBelt(TwistDistribution):
                 raise ValueError("Expected a NURBS curve transform or shape")
             shape = shapes[0]
         if shape.getPlug("form").get() == 0:
-            raise ValueError("The curve must be closed or periodic: " + shape.getFullName())
+            raise ValueError("The curve must be closed or periodic: " + shape.getName(full=True))
         if driver is not None:
             driver = mlib.getPlug(str(driver))
             if driver.getType() != "doubleLinear":

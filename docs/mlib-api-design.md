@@ -1445,3 +1445,9 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
     `createBlendShape`・`bindSkin` は引数と戻り値が大きく違うので入れていない。型スタブは `kind`・`dag`・`text`・`selected` のオーバーロード(`createPoly` は形ごとに使える引数だけを並べる)。
   - まとめなかったもの: `EulerRotate` の解の選び直し8つ(om2 の名前の上書き。消すと戻り値が om2 の型になるだけ)、`Quaternion` の `asCanonicalAxisAngle`・`asDecomposedEulerRotate`・`safeLog`・`asUnitMatrix`、
     `Vector`・`Quaternion` の `unit`(数学型の独自名はまとめないユーザーの決定)、`Version.minor`・`patch`・`build`(別の情報)、`json.file._current_fps`(非公開のまま)。
+- 最後の段(名前の取得。2026-11-24): 書き換えが多くても(約3,100か所)まとめるユーザーの決定により、`getFullName` を `getName(full=True)` にした(公開の名前は3個減り、コンポーネントの単数に `getName` が1個増えた)。
+  - `Node.getFullName()` → `Node.getName(full=True)`(`full=True` と `node`・`removeNamespace` の同時指定は TypeError。無効なノードで空文字列を返すのは今までどおりで、既定の `getName()` の RuntimeError とは違う)。
+  - `Plug.getFullName()` → `Plug.getName(full=True)`(`str(plug)` と同じ。`full` は bool 以外を TypeError)。
+  - `Component.getFullName()`(`CV` の上書きを含む) → `Component.getName(full=True)`。単数のコンポーネントに `getName(*, full=False)` を足し、既定は `Components.getNames()` の1要素と同じ最短の名前(シェイプの部分だけ `cmds.ls` で最短にする)。
+  - mlib の中で cmds へ名前を渡す所(約480か所)・`__str__`・並べ替えの `methodcaller` は、引数の検査を省くため非公開の `_full_name()`(Node・Plug・Component)を直接呼ぶ。複数形の `getNames(full=True)` は領域1a・2で済んでいる。
+  - 案内の表(`core/object.py`)の `longName`・`fullPath`・`fullPathName` は `getName(full=True)` を案内する。

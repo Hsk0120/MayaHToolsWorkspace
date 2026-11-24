@@ -45,7 +45,7 @@ class FollowLayer:
         """
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
-        return tuple((group.getPlug('joint').getConnections(input=True).getNode().getFullName() for group in selected))
+        return tuple((group.getPlug('joint').getConnections(input=True).getNode().getName(full=True) for group in selected))
 
     @undoTransaction("mlrig.FollowLayer.add")
     def add(self, identifier, joint, mode="full", axis="x", ratio=0.5):
@@ -68,8 +68,8 @@ class FollowLayer:
         if identifier in self.groups():
             raise ValueError("Follow identifier already exists")
         joint = mlib.Node(joint)
-        if joint.getType() != "joint" or not joint.getFullName().startswith(
-            self.rig.root.getFullName() + "|"
+        if joint.getType() != "joint" or not joint.getName(full=True).startswith(
+            self.rig.root.getName(full=True) + "|"
         ):
             raise ValueError("Expected a joint inside the module")
         parent = joint.getParent()
@@ -132,7 +132,7 @@ class FollowLayer:
             from .channel_controls import sync_display
 
             sync_display(self.rig)
-        return bone.getFullName()
+        return bone.getName(full=True)
 
     def update(self):
         """Enabled/LODに応じて出力を切断し、基準姿勢へ戻す。"""

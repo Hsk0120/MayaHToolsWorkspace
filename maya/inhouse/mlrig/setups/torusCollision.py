@@ -140,7 +140,7 @@ class TorusCollision(SphereCollision):
         for node in (target, torus):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the torus")
-        if target.getFullName() == torus.getFullName():
+        if target.getName(full=True) == torus.getName(full=True):
             raise ValueError("target and torus must be different nodes")
 
         graph = cls(mlib.createContainer(name=name))

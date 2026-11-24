@@ -166,7 +166,7 @@ def benchmark_skirt(cmds, args):
                             (120, end * (1 + column * 0.1 + depth * 0.2)),
                         ):
                             cmds.setKeyframe(
-                                driver.getFullName(),
+                                driver.getName(full=True),
                                 attribute="rotate" + axis,
                                 time=frame,
                                 value=value,
@@ -177,8 +177,8 @@ def benchmark_skirt(cmds, args):
                 ("translateX", 0, 12),
                 ("rotateY", 0, 55),
             ):
-                cmds.setKeyframe(rig.root.getFullName(), attribute=attr, time=1, value=start)
-                cmds.setKeyframe(rig.root.getFullName(), attribute=attr, time=120, value=end)
+                cmds.setKeyframe(rig.root.getName(full=True), attribute=attr, time=1, value=start)
+                cmds.setKeyframe(rig.root.getName(full=True), attribute=attr, time=120, value=end)
             outputs = [joint + ".worldMatrix[0]" for joint in rig.getJoints()]
             cmds.evaluationManager(mode=mode)
             values = []

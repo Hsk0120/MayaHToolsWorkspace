@@ -24,7 +24,7 @@ def create_soft_ik(name, length, backend="standard"):
         from mlrig.setups.bifrostSoftIK import SoftIK
 
         graph = SoftIK.create(name, length)
-        return graph.getName(), graph.getParent().getFullName()
+        return graph.getName(), graph.getParent().getName(full=True)
     if backend != "cpp":
         raise ValueError("Unknown backend: " + backend)
     major = mlib.Environment.getMayaVersion().major
@@ -37,6 +37,6 @@ def create_soft_ik(name, length, backend="standard"):
             raise RuntimeError("Build mlrigNodes for Maya " + version)
         # SafeModeの許可リストは変更しない。Mayaが拒否した場合はそのまま失敗する。
         mlib.Plugin(str(plugin)).load(quiet=True)
-    node = mlib.createNode("mlrigSoftIK", name=name, skipSelect=True).getFullName()
+    node = mlib.createNode("mlrigSoftIK", name=name, skipSelect=True).getName(full=True)
     mlib.getPlug(node + ".length").set(length)
     return node, node

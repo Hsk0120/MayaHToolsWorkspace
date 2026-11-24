@@ -60,7 +60,7 @@ class StandardTest(test_limb.LimbTest):
         cmds.file(new=True, force=True)
         demo = build_demo()
         rig = demo["rig"]
-        self.assertEqual(cmds.getAttr(rig.root.getFullName() + ".mlrigBackend"), "standard")
+        self.assertEqual(cmds.getAttr(rig.root.getName(full=True) + ".mlrigBackend"), "standard")
         self.assertEqual(cmds.nodeType(rig._member("softGraph")), "container")
         self.assertNotIn("bifrostGraphShape", set(cmds.nodeType(n) for n in cmds.ls()))
         self.assertNotIn("mlrigSoftIK", set(cmds.nodeType(n) for n in cmds.ls()))

@@ -259,7 +259,7 @@ def playblast(camera=None, play=True, folder=None):
     previous = None
     if camera is not None and panel:
         previous = cmds.modelPanel(panel, query=True, camera=True)
-        cmds.modelPanel(panel, edit=True, camera=mlib.Node(camera).getFullName())
+        cmds.modelPanel(panel, edit=True, camera=mlib.Node(camera).getName(full=True))
     overscan = None
     if settings["overscan"] is not None and panel:
         shape = mlib.Node(cmds.modelPanel(panel, query=True, camera=True))

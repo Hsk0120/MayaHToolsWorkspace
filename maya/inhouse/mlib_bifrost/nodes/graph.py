@@ -48,7 +48,7 @@ class Graph:
                 createNode("bifrostGraphShape", name=name, parent=parent, skipSelect=True)
             )
         except Exception:
-            cmds.delete(parent.getFullName())
+            cmds.delete(parent.getName(full=True))
             raise
 
     @property
@@ -62,7 +62,7 @@ class Graph:
         Returns:
             str: 現在のDG完全名を取得する。
         """
-        return self.node.getFullName()
+        return self.node.getName(full=True)
 
     def getParent(self):
         """所有するDAG親を取得する。
@@ -83,7 +83,7 @@ class Graph:
         core = coreModule()
 
         parent = self.getParent()
-        children = cmds.listRelatives(parent.getFullName(), children=True, fullPath=True) or []
+        children = cmds.listRelatives(parent.getName(full=True), children=True, fullPath=True) or []
         if children != [self.getName()]:
             raise ValueError("Parent contains other children; delete the graph shape explicitly")
         core.delete(parent)

@@ -49,7 +49,7 @@ class TwistLayer:
         selected = [groups[segment]] if segment is not None else list(groups.values())
         result = []
         for group in selected:
-            children = [item.getFullName() for item in group.getChildren(type="joint")]
+            children = [item.getName(full=True) for item in group.getChildren(type="joint")]
             result.extend(
                 sorted(children, key=lambda node: mlib.getPlug(node + ".twistFraction").get())
             )
@@ -64,7 +64,7 @@ class TwistLayer:
         root = self.rig.root
         for node in nodes:
             root.getPlug("mlrigOwned").appendMessage(node)
-        members = [n.getFullName() for n in nodes if n.getFullName() != self.rig._member("twistSet")]
+        members = [n.getName(full=True) for n in nodes if n.getName(full=True) != self.rig._member("twistSet")]
         if members:
             self.rig._layer_members("twistSet", members)
 
@@ -107,7 +107,7 @@ class TwistLayer:
             if mlib.objExists(name):
                 raise ValueError("Twist node already exists: " + name)
         if not root.hasAttr("twistSet"):
-            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("twistSet"), skipSelect=True).getFullName()
+            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("twistSet"), skipSelect=True).getName(full=True)
             self.rig._bind("twistSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             self._own([mlib.Node(selection)])
@@ -141,7 +141,7 @@ class TwistLayer:
                 rest[12 + i] = position[i] * fraction
             joint.addAttr(longName="twistRest", dataType="matrix").set(rest)
             output.connectTo(joint.getPlug("offsetParentMatrix"))
-            joints.append(joint.getFullName())
+            joints.append(joint.getName(full=True))
         self._own([group, graph.container])
         self.rig._layer_members("twistSet", joints)
         from .limb import _lock_group
@@ -187,7 +187,7 @@ class TwistLayer:
         graph = group.getPlug('graph').getConnections(input=True).getNode()
         # container削除が空になった関連セットまで削除しないよう、先に所属を外す。
         mlib.Node(self.rig._member("twistSet")).removeMembers(
-            [group.getFullName(), graph.getFullName()] + list(self.getJoints(segment))
+            [group.getName(full=True), graph.getName(full=True)] + list(self.getJoints(segment))
         )
         mlib.delete([group, graph])
         if count:

@@ -55,10 +55,10 @@ class ApiArgumentsTest(unittest.TestCase):
                     with self.subTest(joint=joint, ws=ws, at=at):
                         self.assertValues(tuple(node.getTranslation(ws=ws, at=at)), tuple(ref.getTranslation(ws=ws, at=at)))
                         values = (6, -2, 8)
-                        before = cmds.getAttr(node.getFullName() + ".translate")[0]
+                        before = cmds.getAttr(node.getName(full=True) + ".translate")[0]
                         expected = ref.setTranslation(values, ws=ws, at=at, get=True)[:3]  # 参照値のMPoint由来w成分は座標比較から除外。
                         self.assertValues(node.setTranslation(values, ws=ws, at=at, get=True), expected)
-                        self.assertEqual(cmds.getAttr(node.getFullName() + ".translate")[0], before)
+                        self.assertEqual(cmds.getAttr(node.getName(full=True) + ".translate")[0], before)
                         node.setTranslation(values, ws=ws, at=at)
                         self.assertValues(tuple(node.getPlug("translate").get()), expected)
                         cmds.undo()

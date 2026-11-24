@@ -138,8 +138,8 @@ class NoFlipPole(TwistDistribution):
         for node in nodes:
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for start, end, control and mid")
-        if start.getFullName() == end.getFullName() or (
-                mid is not None and mid.getFullName() in (start.getFullName(), end.getFullName())):
+        if start.getName(full=True) == end.getName(full=True) or (
+                mid is not None and mid.getName(full=True) in (start.getName(full=True), end.getName(full=True))):
             raise ValueError("start, mid and end must be different nodes")
 
         def world(node):

@@ -17,7 +17,7 @@ class UERBFSolverNode(Node):
         Returns:
             RBFNode: 現在名から外部APIラッパーを取得する。直接編集のUndoは外部仕様。
         """
-        return RBFNode(self.getFullName())
+        return RBFNode(self.getName(full=True))
 
     def drivers(self):
         """接続されたドライバーを外部APIの順序で取得する。

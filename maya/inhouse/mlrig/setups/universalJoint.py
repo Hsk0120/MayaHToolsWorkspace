@@ -94,7 +94,7 @@ class UniversalJoint(TwistDistribution):
         for node in (inputShaft, outputTarget):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the input shaft and the output target")
-        if inputShaft.getFullName() == outputTarget.getFullName():
+        if inputShaft.getName(full=True) == outputTarget.getName(full=True):
             raise ValueError("inputShaft and outputTarget must be different nodes")
         shaft_axis = [float(item == axis) for item in _AXES]
         pin_axis = [float(item == pinAxis) for item in _AXES]

@@ -348,7 +348,7 @@ def selectedPoints():
     groups = []
     for item in Selection.capture().getItems():
         if isinstance(item, mlib.Component):
-            key = (item.shape.getFullName(), type(item))
+            key = (item.shape.getName(full=True), type(item))
             if groups and groups[-1][0] == key:
                 groups[-1][2].append(item)
             else:

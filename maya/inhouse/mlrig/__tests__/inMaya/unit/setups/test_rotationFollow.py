@@ -39,7 +39,7 @@ class RotationFollowTest(unittest.TestCase):
                         vector = om.MVector(*[int(a == axis) for a in "xyz"])
                         expected = om.MQuaternion(angle, vector).asMatrix()
                         self.assertMatrix(graph.getPlug("matrix").get(), expected)
-            cmds.delete(graph.getFullName())
+            cmds.delete(graph.getName(full=True))
 
     def test_combined_rotation_and_rest(self):
         """JointOrient/OPM/移動を含む基準姿勢と複合回転を確認する。"""

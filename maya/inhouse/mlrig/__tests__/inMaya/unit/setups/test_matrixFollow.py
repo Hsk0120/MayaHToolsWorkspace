@@ -53,7 +53,7 @@ class MatrixFollowTest(unittest.TestCase):
         self.assertAlmostEqual(self.target.getTranslation(worldSpace=True, at=4)[0], 0)
         self.source.setTranslation((6, 0, 0), at=4)
         expected = tuple(self.target.getPlug("worldMatrix[0]").get())
-        source_name, target_name = self.source.getFullName(), self.target.getFullName()
+        source_name, target_name = self.source.getName(full=True), self.target.getName(full=True)
         self.assertAlmostEqual(expected[12], 2)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "matrix_follow.ma"
@@ -114,12 +114,12 @@ class MatrixFollowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, self.target)
         cmds.disconnectAttr(
-            self.target.getFullName() + ".translateX", self.source.getFullName() + ".translateX"
+            self.target.getName(full=True) + ".translateX", self.source.getName(full=True) + ".translateX"
         )
         first = cmds.createNode("transform", name="first")
-        cmds.parent(self.parent.getFullName(), first)
+        cmds.parent(self.parent.getName(full=True), first)
         other = cmds.createNode("transform", name="other")
-        cmds.parent(self.parent.getFullName(), other, addObject=True)
+        cmds.parent(self.parent.getName(full=True), other, addObject=True)
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, self.target)
         self.assertEqual(len(cmds.ls(type="multMatrix")), 0)
@@ -139,7 +139,7 @@ class MatrixFollowTest(unittest.TestCase):
 
     def test_world_buffer_and_message_reference(self):
         """親なしのバッファと評価依存しないmessage参照を使用できる。"""
-        cmds.parent(self.target.getFullName(), world=True)
+        cmds.parent(self.target.getName(full=True), world=True)
         self.source.addAttr(longName="owner", attributeType="message")
         self.target.getPlug("message").connectTo(self.source.getPlug("owner"))
         MatrixFollow.create(self.source, self.target, maintain_offset=False)

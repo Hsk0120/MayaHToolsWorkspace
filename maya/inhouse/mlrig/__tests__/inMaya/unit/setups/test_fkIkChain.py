@@ -140,8 +140,8 @@ class FkIkChainTest(unittest.TestCase):
 
     def test_match_fk_to_ik(self):
         """matchFkToIkでFKの各節がIKと同じワールド行列になり、切り替えても跳ねない。Undoで戻る。"""
-        self.assertEqual([node.getFullName() for node in self.setup.getChain("fk")], self.fk)
-        self.assertEqual([node.getFullName() for node in self.setup.getChain("ik")], self.ik)
+        self.assertEqual([node.getName(full=True) for node in self.setup.getChain("fk")], self.fk)
+        self.assertEqual([node.getName(full=True) for node in self.setup.getChain("ik")], self.ik)
         before = self._worlds(self.fk)
         cmds.undoInfo(state=True)
         FkIkChain(self.owner).matchFkToIk()

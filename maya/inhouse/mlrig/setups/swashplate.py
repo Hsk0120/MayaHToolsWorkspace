@@ -121,11 +121,11 @@ class Swashplate(TwistDistribution):
         nodes = [mlib.Node(swashplate), mlib.Node(rotor)] + [mlib.Node(blade) for blade in blades]
         if not all(isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the swashplate, the rotor and the blades")
-        if len({node.getFullName() for node in nodes}) != len(nodes):
+        if len({node.getName(full=True) for node in nodes}) != len(nodes):
             raise ValueError("The swashplate, the rotor and the blades must be different nodes")
         plate, rotor, blades = nodes[0], nodes[1], nodes[2:]
         plateParent, rotorParent = plate.getParent(), rotor.getParent()
-        if (plateParent.getFullName() if plateParent else None) != (rotorParent.getFullName() if rotorParent else None):
+        if (plateParent.getName(full=True) if plateParent else None) != (rotorParent.getName(full=True) if rotorParent else None):
             raise ValueError("The swashplate and the rotor must have the same parent")
         pitchChannel = "rotate" + pitchAxis.upper()
         if connect:

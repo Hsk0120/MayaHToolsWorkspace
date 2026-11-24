@@ -229,7 +229,7 @@ class AimAxisConversionTest(unittest.TestCase):
     def test_restore_rejects_edited_connection(self):
         """変換後に別の入力へ付け替えられた接続を復元で壊さない。"""
         graph = self.cls.create(self.source, axes="x", mode="twist")
-        output = graph.container.getPlug("outputX").getFullName()
+        output = graph.container.getPlug("outputX").getName(full=True)
         self.cmds.disconnectAttr(output, self.driven + ".rotateX")
         other = self.cmds.createNode("animCurveTA")
         self.cmds.connectAttr(other + ".output", self.driven + ".rotateX")
@@ -275,7 +275,7 @@ class AimAxisConversionTest(unittest.TestCase):
                     self.assertAlmostEqual(self.cmds.getAttr(self.driven + ".rotate" + axis), value, places=5)
                 for axis in "XY":
                     plug = graph.container.getPlug('output' + axis).getConnections(input=True)
-                    self.assertTrue(self.cmds.isConnected(plug.getFullName(), self.driven + ".rotate" + axis))
+                    self.assertTrue(self.cmds.isConnected(plug.getName(full=True), self.driven + ".rotate" + axis))
                 graph.restore()
                 self.assertEqual(set(self.cmds.ls()), baseline)
 

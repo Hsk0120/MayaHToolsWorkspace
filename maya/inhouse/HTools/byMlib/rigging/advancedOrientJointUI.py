@@ -238,7 +238,7 @@ def _compute_parent_joint(joint_name):
     parent = _compute_node(joint_name).getParent()
     if parent is None or not parent.isType("joint"):
         return []
-    return [parent.getFullName()]
+    return [parent.getName(full=True)]
 
 
 def _compute_primary_world_vector(joint_name, return_debug=False, child_index=0):

@@ -91,7 +91,7 @@ def _buildSimple(rig, color):
     driver = cmds.createNode("joint", name="simpleRbfDriver_JNT", parent=rig["group"])
     cmds.setAttr(driver+".translate", 0, 0, 0)
     for reader, axis in zip(readers, "XY"):
-        _connect(reader.container.getFullName()+".weight", driver+".translate"+axis)
+        _connect(reader.container.getName(full=True)+".weight", driver+".translate"+axis)
     cmds.setAttr(driver+".visibility", False)
     solver = _node("UERBFSolverNode", "simplePoseSolver", mode=0, inputMode=0, distanceMethod=0, functionType=0,
                    normalizeMethod=1, automaticRadius=False, radius=RBF_RADIUS)
@@ -245,7 +245,7 @@ def main(record=True, inputs="mixed"):
                            "relative_output_degrees": actual-outward if outward is not None else None}
             lines[key] = ("BODY HIT {:.2f}cm".format(depth) if depth > 0 else "clear") \
                 + "  step {:.1f}".format(step) + ("  JUMP!" if frame <= flash[key] else "")
-        weights = [cmds.getAttr(r.container.getFullName()+".weight") for r in simple["readers"]]
+        weights = [cmds.getAttr(r.container.getName(full=True)+".weight") for r in simple["readers"]]
         result["simple"]["cone_weights"] = weights
         result["simple"]["offset_degrees"] = cmds.getAttr(outputs["simple"]+".rx")-requested
         rbf_weights = sum(cmds.getAttr(rbf_solver+".outputs[{}]".format(i)) for i in range(len(rbf_grid)))

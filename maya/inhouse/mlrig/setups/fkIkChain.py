@@ -57,7 +57,7 @@ class FkIkChain(TwistDistribution):
         for node in fkChain + ikChain:
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the chains")
-        names = [node.getFullName() for node in fkChain + ikChain]
+        names = [node.getName(full=True) for node in fkChain + ikChain]
         if len(set(names)) != len(names):
             raise ValueError("fkChain and ikChain must be different nodes")
         blend = float(blend)

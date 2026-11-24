@@ -98,9 +98,9 @@ class ForearmPronation(TwistLimit):
         for node in (ulna, ulnaTip, radius, radiusTip, hand):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the forearm inputs")
-        if ulna.getFullName() == hand.getFullName():
+        if ulna.getName(full=True) == hand.getName(full=True):
             raise ValueError("ulna and hand must be different nodes")
-        if radius.getFullName() == radiusTip.getFullName():
+        if radius.getName(full=True) == radiusTip.getName(full=True):
             raise ValueError("radius and radiusTip must be different nodes")
 
         def world(node):

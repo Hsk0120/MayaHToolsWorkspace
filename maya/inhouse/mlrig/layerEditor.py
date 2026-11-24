@@ -320,7 +320,7 @@ class LayerEditor(QtWidgets.QDialog):
         data = item.data(0, QtCore.Qt.UserRole) if item else None
         if not data:
             raise ValueError("モジュールまたはレイヤーを選択してください")
-        roots = [item.getFullName() for item in mlib.ls(data["root"], long=True)] or []
+        roots = [item.getName(full=True) for item in mlib.ls(data["root"], long=True)] or []
         if not roots:
             raise ValueError("モジュールが削除されています")
         return ModuleRegistry.get(roots[0]), data
@@ -731,9 +731,9 @@ class LayerEditor(QtWidgets.QDialog):
             return
         data = item.data(0, QtCore.Qt.UserRole)
         enabled = item.checkState(0) == QtCore.Qt.Checked
-        roots = [item.getFullName() for item in mlib.ls(data["root"], long=True)] or []
+        roots = [item.getName(full=True) for item in mlib.ls(data["root"], long=True)] or []
         if roots and data["role"].startswith("tweak:"):
-            group = mlib.Node([item.getFullName() for item in mlib.ls(data["target"], long=True)][0])
+            group = mlib.Node([item.getName(full=True) for item in mlib.ls(data["target"], long=True)][0])
             with undoTransaction("mlrig.Tweak.enabled"):
                 group.getPlug("enabled").set(enabled)
                 TweakLayer(ModuleRegistry.get(roots[0])).update()
@@ -827,10 +827,10 @@ class LayerEditor(QtWidgets.QDialog):
             selected = [
                 n
                 for n in (
-                    [item.getFullName() for item in mlib.ls(selection=True, type="joint", long=True)]
+                    [item.getName(full=True) for item in mlib.ls(selection=True, type="joint", long=True)]
                     or []
                 )
-                if n.startswith(rig.root.getFullName() + "|")
+                if n.startswith(rig.root.getName(full=True) + "|")
             ]
             layer = TweakLayer(rig)
             layer.add(
@@ -881,7 +881,7 @@ class LayerEditor(QtWidgets.QDialog):
     def select_node(self):
         """現在行の設定ノードをMayaで選択する。"""
         _, data = self.getCurrent()
-        names = [item.getFullName() for item in mlib.ls(data["target"], long=True)] or []
+        names = [item.getName(full=True) for item in mlib.ls(data["target"], long=True)] or []
         if names:
             mlib.select(names, replace=True)
 
@@ -896,7 +896,7 @@ class LayerEditor(QtWidgets.QDialog):
         """SDKの詳細行を選択して、標準グラフエディターでカーブを編集する。"""
         _, data = self.getCurrent()
         node = mlib.Node(
-            ([item.getFullName() for item in mlib.ls(data["target"], long=True)] or [""])[0]
+            ([item.getName(full=True) for item in mlib.ls(data["target"], long=True)] or [""])[0]
         )
         if not node.hasAttr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")

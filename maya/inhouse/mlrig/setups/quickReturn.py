@@ -111,7 +111,7 @@ class QuickReturn(TwistDistribution):
         nodes = [crank, lever] + ([mlib.Node(ram)] if ram is not None else [])
         if not all(isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the crank, the lever and the ram")
-        if len({node.getFullName() for node in nodes}) != len(nodes):
+        if len({node.getName(full=True) for node in nodes}) != len(nodes):
             raise ValueError("The crank, the lever and the ram must be different nodes")
         ram = nodes[2] if ram is not None else None
         rotateChannel, translateChannel = "rotate" + axis.upper(), "translate" + ramAxis.upper()

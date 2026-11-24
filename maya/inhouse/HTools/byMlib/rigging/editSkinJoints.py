@@ -42,7 +42,7 @@ def _sessionSkins(data):
         if len(found) != 1 or found[0].getType() != "skinCluster":
             raise RuntimeError("Cannot resolve the recorded skinCluster: " + record["name"])
         _writable(found[0].getPlug("envelope"))
-        result.append((found[0].getFullName(), record))
+        result.append((found[0].getName(full=True), record))
     return result
 
 
@@ -273,8 +273,8 @@ def freezeSelectedJoints():
     Returns:
         list[str]: フリーズしたジョイントの長名。
     """
-    nodes = sorted(set(mlib.ls(selection=True, long=True, type="joint")), key=lambda node: node.getFullName())
-    joints = [node.getFullName() for node in nodes]
+    nodes = sorted(set(mlib.ls(selection=True, long=True, type="joint")), key=lambda node: node.getName(full=True))
+    joints = [node.getName(full=True) for node in nodes]
     if not joints:
         raise RuntimeError("Select one or more joints to freeze.")
     matrices = {}
@@ -545,7 +545,7 @@ class _JointOrientPreserver:
         if not _owner() or not _owner().enabled:
             return
         for node in mlib.ls(selection=True, type="joint", long=True):
-            joint = node.getFullName()
+            joint = node.getName(full=True)
             self.cache[joint] = None
             for attr in self._attrs:
                 self.jobs.append(ScriptJob(
@@ -567,7 +567,7 @@ class _JointOrientPreserver:
             children = mlib.getNode(joint).getChildren(type="transform")
             self.cache[joint] = (
                 self.signature(joint),
-                {child.getFullName(): child.getPlug("worldMatrix")[0].get()
+                {child.getName(full=True): child.getPlug("worldMatrix")[0].get()
                  for child in children})
 
     def signature(self, joint):

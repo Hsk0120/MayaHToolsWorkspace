@@ -47,6 +47,6 @@ class ModuleRegistry:
                 "mlrigControlDefinition",
             )
             for attr in (
-                [item.getFullName() for item in mlib.ls("*." + marker, recursive=True)] or []
+                [item.getName(full=True) for item in mlib.ls("*." + marker, recursive=True)] or []
             )
         ]

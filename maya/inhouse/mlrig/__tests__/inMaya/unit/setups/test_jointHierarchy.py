@@ -20,7 +20,7 @@ class JointDeleteTest(unittest.TestCase):
         mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
         skin = cmds.skinCluster([root, child], mesh, name=self.ns + ":skin")[0]
         pose = mlib.getNode(skin).getBindPose()
-        cmds.rename(pose.getFullName(), self.ns + ":pose")
+        cmds.rename(pose.getName(full=True), self.ns + ":pose")
         weights = cmds.skinPercent(skin, mesh + '.vtx[0]', query=True, value=True)
         JointHierarchy.delete(child, skipConnected=True)
         self.assertTrue(cmds.objExists(child))
@@ -37,8 +37,8 @@ class JointDeleteTest(unittest.TestCase):
 
     def test_skip_connected_validation_and_inverse_scale_connection(self):
         root = mlib.getNode(self.getNode("safeRoot"))
-        child = mlib.getNode(self.getNode("safeChild", parent=root.getFullName()))
-        cmds.connectAttr(root.getFullName() + '.scale', child.getFullName() + '.inverseScale')
+        child = mlib.getNode(self.getNode("safeChild", parent=root.getName(full=True)))
+        cmds.connectAttr(root.getName(full=True) + '.scale', child.getName(full=True) + '.inverseScale')
         for node in (root, child):
             JointHierarchy.delete(node, skipConnected=True)
             self.assertTrue(node.isValid())
@@ -220,9 +220,9 @@ class JointHierarchyFastTest(unittest.TestCase):
         root = mlib.createNode("joint", name="root")
         middle = mlib.createNode("joint", parent=root, name="middle")
         other = mlib.createNode("joint", name="other")
-        skin = mlib.getNode(cmds.skinCluster([root.getFullName(), middle.getFullName(), other.getFullName()],
+        skin = mlib.getNode(cmds.skinCluster([root.getName(full=True), middle.getName(full=True), other.getName(full=True)],
                                            mesh, toSelectedBones=True)[0])
-        skin.setWeights([root.getFullName(), middle.getFullName(), other.getFullName()], [.2, .3, .5], broadcast=True)
+        skin.setWeights([root.getName(full=True), middle.getName(full=True), other.getName(full=True)], [.2, .3, .5], broadcast=True)
         return skin, root, middle, other
 
 
@@ -230,12 +230,12 @@ class JointHierarchyFastTest(unittest.TestCase):
         """祖先influenceへの移送後、Mayaの削除通知で接続を解除する。"""
         skin, root, middle, other = self.skin_fixture()
         JointHierarchy.delete(middle)
-        expected = list(skin.getWeights([root.getFullName(), other.getFullName()]))
+        expected = list(skin.getWeights([root.getName(full=True), other.getName(full=True)]))
         cmds.undo()
         middle = mlib.getNode("middle")
         with self.api_only():
             JointHierarchy.delete(middle, fast=True)
-        self.assertEqual(list(skin.getWeights([root.getFullName(), other.getFullName()])), expected)
+        self.assertEqual(list(skin.getWeights([root.getName(full=True), other.getName(full=True)])), expected)
         self.assertFalse(middle.isValid())
 
 
@@ -262,7 +262,7 @@ class JointHierarchyFastTest(unittest.TestCase):
         skin, root, middle, other = self.skin_fixture()
         child = mlib.createNode("transform", parent=middle)
         root.getPlug("translateX").connectTo(child.getPlug("translateX"))
-        names = [n.getFullName() for n in (root, middle, other)]
+        names = [n.getName(full=True) for n in (root, middle, other)]
         weights = list(skin.getWeights(names))
         with self.api_only(), self.assertRaises(RuntimeError):
             JointHierarchy.delete(middle, fast=True)

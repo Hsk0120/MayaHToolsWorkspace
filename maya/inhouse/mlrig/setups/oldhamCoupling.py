@@ -104,7 +104,7 @@ class OldhamCoupling(TwistDistribution):
         nodes = [mlib.Node(inputShaft), mlib.Node(outputShaft), mlib.Node(disc)]
         if not all(isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the shafts and the disc")
-        if len({node.getFullName() for node in nodes}) != len(nodes):
+        if len({node.getName(full=True) for node in nodes}) != len(nodes):
             raise ValueError("The shafts and the disc must be different nodes")
         inputShaft, outputShaft, disc = nodes
         perpendicular, vSign = _PERPENDICULAR[(axis, offsetAxis)]

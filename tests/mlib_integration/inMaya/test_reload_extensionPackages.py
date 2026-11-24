@@ -64,7 +64,7 @@ try:
         mesh = core.getNode(cmds.polyCube(constructionHistory=False)[0]).getShape()
         mesh.getVertices(0).setPosition((2, 3, 4))
         assert tuple(mesh.getVertices(0).getPosition()) == (2, 3, 4)
-        assert isinstance(core.core.object.Object(node.getFullName()), core.nodes.Node)
+        assert isinstance(core.core.object.Object(node.getName(full=True)), core.nodes.Node)
         assert not hasattr(core, "Object")
         assert not hasattr(core, "extensions")
         assert core.json is sys.modules[name + ".json"]  # json は通常のサブパッケージとして公開する。
@@ -75,7 +75,7 @@ try:
         assert sys.modules[name + "_posedriverconnect"] is not old_extension
         assert issubclass(core.nodes.Node._registry.lookup("UERBFSolverNode"), core.nodes.Node)
         assert core.core.extensions.status()[name + "_fixture_bad"]["state"] == "error"
-        assert isinstance(core.getNode(node.getFullName()), core.nodes.Node)
+        assert isinstance(core.getNode(node.getName(full=True)), core.nodes.Node)
     assert not any(key == "mlib" or key.startswith(("mlib.", "mlib_")) for key in sys.modules)
     print("RENAMED_PACKAGE_OK")
 finally:

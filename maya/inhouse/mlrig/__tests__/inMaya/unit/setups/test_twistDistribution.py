@@ -52,7 +52,7 @@ class TwistDistributionTest(unittest.TestCase):
         self.assertAlmostEqual(
             math.degrees(2 * math.atan2(quaternion.x, quaternion.w)), 30, places=4
         )
-        owned = cmds.container(graph.container.getFullName(), query=True, nodeList=True)
+        owned = cmds.container(graph.container.getName(full=True), query=True, nodeList=True)
         mlib.delete(graph.container)
         self.assertTrue(start.isValid() and end.isValid())
         self.assertFalse(any(cmds.objExists(n) for n in owned))

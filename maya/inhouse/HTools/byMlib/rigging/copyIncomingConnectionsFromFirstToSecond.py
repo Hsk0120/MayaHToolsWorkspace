@@ -39,12 +39,12 @@ def _connect_attr(source_plug, target_plug, force=False, target_label=None):
     Raises:
         RuntimeError: 接続先がロックされている、または同じ接続が既にある場合。
     """
-    target_label = target_label or target_plug.getFullName()
+    target_label = target_label or target_plug.getName(full=True)
     if target_plug.isLocked():
         raise RuntimeError('Attribute is locked: {}'.format(target_label))
     if target_plug.isConnected(source_plug, destination=False):
         raise RuntimeError(
-            'Already connected: {} -> {}'.format(source_plug.getFullName(), target_label)
+            'Already connected: {} -> {}'.format(source_plug.getName(full=True), target_label)
         )
     target_plug.connect(source_plug, force=force, unlock=False)
 
@@ -65,8 +65,8 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
 
     src = sel[0]
     dst = sel[1]
-    src_node = src.getFullName()
-    dst_node = dst.getFullName()
+    src_node = src.getName(full=True)
+    dst_node = dst.getName(full=True)
 
     copied = []
     skipped = []
@@ -101,7 +101,7 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
                     continue
 
                 _connect_attr(input_src, target, force=force, target_label=dst_plug)
-                copied.append((input_src.getFullName(), dst_plug))
+                copied.append((input_src.getName(full=True), dst_plug))
 
             except Exception as e:
                 errors.append((src_plug, str(e)))

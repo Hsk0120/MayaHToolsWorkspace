@@ -81,9 +81,9 @@ class ApiMethodsTest(unittest.TestCase):
         hidden = cmds.createNode("mesh", parent=name)
         cmds.setAttr(hidden + ".intermediateObject", True)
         h, c = Node(name), cy.Transform(name)
-        original = h.getFullName()
+        original = h.getName(full=True)
         self.assertEqual(h.getParent().getName(), c.parent().name())
-        self.assertEqual(h.getFullName(), original)
+        self.assertEqual(h.getName(full=True), original)
         self.assertEqual(h.getName(), c.partialPath())
         for shapes in (False, True):
             for intermediates in (False, True):
@@ -120,7 +120,7 @@ class ApiMethodsTest(unittest.TestCase):
         node = Node(cmds.createNode("network"))
         array = node.addAttr("values", at="double", multi=True)
         array[3].set(0)
-        self.assertEqual(array.getElement(3).getFullName(), node.getName() + ".values[3]")
+        self.assertEqual(array.getElement(3).getName(full=True), node.getName() + ".values[3]")
         ca = cy.Node(node.getName()).plug("values")
         # mlib は要素の Plug を返す。論理番号は getIndex() で取る。
         self.assertEqual(array.getNextAvailable().getIndex(), ca.nextAvailable())

@@ -134,7 +134,7 @@ class SwingLimitTest(unittest.TestCase):
             owner.getPlug("limit2").set(45)
             owner.getPlug("softness").set(0.6)
             self.check(owner, rest, axis, 25, 45, 0.6)
-            cmds.delete(owner.getFullName())
+            cmds.delete(owner.getName(full=True))
 
     def test_invalid_and_undo(self):
         """範囲外の引数を拒否し、生成を1回のUndoで戻せる。"""

@@ -277,7 +277,7 @@ class SpaceToolsTest(_Case):
         for actual, expected in zip(cmds.xform(ctrl, query=True, worldSpace=True, translation=True), before):
             self.assertAlmostEqual(actual, expected)
         pivot = spaceTools.createTempPivot([mlib.getNode(slave)], position=(0, 0, 0))
-        cmds.setAttr(pivot.getFullName() + ".rz", 90)
+        cmds.setAttr(pivot.getName(full=True) + ".rz", 90)
         moved = cmds.xform(slave, query=True, worldSpace=True, translation=True)
         self.assertEqual(spaceTools.clearTempPivots(), 1)
         for actual, expected in zip(cmds.xform(slave, query=True, worldSpace=True, translation=True), moved):

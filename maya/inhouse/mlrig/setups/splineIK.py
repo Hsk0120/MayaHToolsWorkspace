@@ -61,7 +61,7 @@ class SplineIK:
             raise ValueError("Use distinct controls")
         for node in controls + [parent]:
             if node.getType() != "transform" or any(
-                node.getFullName().startswith(j.getFullName() + "|") for j in joints
+                node.getName(full=True).startswith(j.getName(full=True) + "|") for j in joints
             ):
                 raise ValueError("Controls and parent must be transforms outside the IK chain")
         for i, joint in enumerate(joints):

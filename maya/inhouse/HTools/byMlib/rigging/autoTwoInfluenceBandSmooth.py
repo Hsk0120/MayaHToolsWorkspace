@@ -33,7 +33,7 @@ def _to_shape(mesh):
     if isinstance(node, mlib.Transform):
         for s in node.getShape(all=True):
             if s.getType() == 'mesh':
-                return s.getFullName()
+                return s.getName(full=True)
 
     raise RuntimeError(u'Mesh shape not found under: {}'.format(mesh))
 
@@ -112,7 +112,7 @@ def _get_selected_node_names():
         else:
             # コンポーネントは cmds.ls(long=True) と同じく、Shape の親の Transform で表す。
             node = item.shape.getParent()
-        names.append(node.getFullName())
+        names.append(node.getName(full=True))
     return names
 
 

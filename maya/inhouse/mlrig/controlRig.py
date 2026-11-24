@@ -115,7 +115,7 @@ class ControlRig:
         """
         from .tweakLayer import TweakLayer
 
-        return tuple(n.getFullName() for n in self.getMembers("deform")) + TweakLayer(self).getJoints()
+        return tuple(n.getName(full=True) for n in self.getMembers("deform")) + TweakLayer(self).getJoints()
 
     def lod(self):
         """LOD値を取得する。
@@ -197,7 +197,7 @@ class ControlRig:
                 jobs.stop()
                 del cls._jobs[key]
         for attr in [
-            item.getFullName() for item in mlib.ls("*.mlrigControlDefinition", recursive=True)
+            item.getName(full=True) for item in mlib.ls("*.mlrigControlDefinition", recursive=True)
         ] or []:
             rig = cls(attr.rsplit(".", 1)[0])
             key = rig.root.getUuid()
@@ -221,7 +221,7 @@ class ControlRig:
         Args:
             key (str): ルートUUID。
         """
-        names = [item.getFullName() for item in mlib.ls(key, long=True)] or []
+        names = [item.getName(full=True) for item in mlib.ls(key, long=True)] or []
         if names:
             rig = cls(names[0])
             active = rig.lod() == 1 and rig.layer_enabled(rig.kind())

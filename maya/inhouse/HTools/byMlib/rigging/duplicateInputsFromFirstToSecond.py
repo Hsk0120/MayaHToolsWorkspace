@@ -25,7 +25,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
         sel = mlib.ls(sl=True)
         if len(sel) < 2:
             raise RuntimeError("Select two nodes (first = source, second = destination).")
-        source, target = sel[0].getFullName(), sel[1].getFullName()
+        source, target = sel[0].getName(full=True), sel[1].getName(full=True)
     # 表示する名前は、元と同じく渡された名前(選択なら完全な名前)をそのまま使う。
     target_name = target
     source = mlib.getNode(source)
@@ -45,7 +45,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
     with undoChunk("duplicateInputsFromFirstToSecond"):
         for source_side, src_plug in pairs:
             # source 側の入力先属性名を target 側の同名属性へマッピングする。
-            attribute = source_side.getFullName().split(".", 1)[1]
+            attribute = source_side.getName(full=True).split(".", 1)[1]
             dst_name = target_name + "." + attribute  # target.attr
 
             try:
@@ -62,7 +62,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
                 connected += 1
             except Exception as e:
                 failed += 1
-                cmds.warning("Connection failed: {} -> {} ({})".format(src_plug.getFullName(), dst_name, e))
+                cmds.warning("Connection failed: {} -> {} ({})".format(src_plug.getName(full=True), dst_name, e))
 
     cmds.inViewMessage(
         amg=f"Inputs duplicated: connected <hl>{connected}</hl> / "

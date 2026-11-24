@@ -147,7 +147,7 @@ class BodyProportion(TwistDistribution):
                     plugs = [joint.getPlug(channel)] + [joint.getPlug(channel + axis) for axis in "XYZ"]
                     if any(plug.getConnections(input=True, skipConversionNodes=True) is not None for plug in plugs):
                         raise ValueError("The {} of the joint is already connected: {}".format(
-                            channel, joint.getFullName()))
+                            channel, joint.getName(full=True)))
 
         graph = cls(mlib.createContainer(name=name))
         owner = graph.container

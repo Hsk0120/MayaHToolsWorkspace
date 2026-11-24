@@ -39,7 +39,7 @@ class TweakLayer:
         Returns:
             tuple[str]: 完全名。
         """
-        return tuple((g.getPlug('joint').getConnections(input=True).getNode().getFullName() for g in self.groups().values()))
+        return tuple((g.getPlug('joint').getConnections(input=True).getNode().getName(full=True) for g in self.groups().values()))
 
     @undoTransaction("mlrig.TweakLayer.add")
     def add(self, identifier, joint):
@@ -56,7 +56,7 @@ class TweakLayer:
             raise ValueError("Use a unique tweak identifier")
         joint = mlib.Node(joint)
         root = self.rig.root
-        if joint.getType() != "joint" or not joint.getFullName().startswith(root.getFullName() + "|"):
+        if joint.getType() != "joint" or not joint.getName(full=True).startswith(root.getName(full=True) + "|"):
             raise ValueError("Select a joint inside the module")
         stem = root.getName() + "_tweak_" + identifier
         group = mlib.createNode("transform", name=stem + "_grp", parent=joint, skipSelect=True)
@@ -121,7 +121,7 @@ class TweakLayer:
                     rig.root.getPlug("mlrigLod" if rig.root.hasAttr("mlrigLod") else "lod"),
                 ):
                     jobs.add(
-                        plug.getFullName(),
+                        plug.getName(full=True),
                         attribute=plug,
                         callback=partial(cls._changed, rig.root.getUuid()),
                         killWithScene=True,
@@ -138,7 +138,7 @@ class TweakLayer:
         """
         from .moduleRegistry import ModuleRegistry
 
-        names = [item.getFullName() for item in mlib.ls(root_uuid, long=True)] or []
+        names = [item.getName(full=True) for item in mlib.ls(root_uuid, long=True)] or []
         if not names:
             return
         layer = cls(ModuleRegistry.get(names[0]))

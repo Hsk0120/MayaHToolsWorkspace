@@ -58,12 +58,12 @@ def get_max_influences_from_selection(verbose=True):
         shapes = _get_renderable_mesh_shapes(raw)
         if not shapes:
             if verbose:
-                cmds.warning(f"Mesh shape not found: {raw.getFullName()}")
+                cmds.warning(f"Mesh shape not found: {raw.getName(full=True)}")
             continue
 
         for shape in shapes:
             skins = _find_skin_clusters_from_shape(shape)
-            shape_name = shape.getFullName()
+            shape_name = shape.getName(full=True)
             if not skins:
                 if verbose:
                     cmds.warning(f"skinCluster not found: {shape_name}")

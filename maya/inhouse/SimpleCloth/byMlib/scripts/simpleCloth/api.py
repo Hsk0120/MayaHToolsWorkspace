@@ -234,8 +234,8 @@ def addCollider(solverNode, kind="sphere", radius=3.0, height=6.0, attachTo=None
         if len(matches) != 1:
             raise ValueError("追従先Transformを1個指定してください")
         attachTo = matches[0]
-        output = _connected_node(solver_node, "outputMeshObject").getFullName()
-        attach_path = attachTo.getFullName()
+        output = _connected_node(solver_node, "outputMeshObject").getName(full=True)
+        attach_path = attachTo.getName(full=True)
         if attach_path == output or attach_path.startswith(output + "|"):
             raise ValueError("出力メッシュへの追従は循環するため使用できません")
     kinds = json.loads(solver_node.getPlug("colliderTypes").get())

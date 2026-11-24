@@ -34,10 +34,10 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         raise ValueError("mode must be fk or ik")
     if not all(math.isfinite(v) for v in (start, end, step)) or step <= 0 or end < start:
         raise ValueError("Invalid frame range")
-    sources = [mlib.Node(node).getFullName() for node in source_joints]
+    sources = [mlib.Node(node).getName(full=True) for node in source_joints]
     if len(sources) != 3 or len(set(sources)) != 3:
         raise ValueError("Expected three different source joints")
-    root = rig.root.getFullName()
+    root = rig.root.getName(full=True)
     for source in sources:
         if mlib.Node(source).getType() != "joint" or source.startswith(root + "|"):
             raise ValueError("Source must be an external joint")

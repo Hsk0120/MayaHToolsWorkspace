@@ -78,7 +78,7 @@ class AutoClavicle(SwingTwist):
         clavicle = mlib.Node(clavicle)
         upperarm = mlib.Node(upperarm)
         parent = upperarm.getParent() if upperarm.getType() == "joint" else None
-        if clavicle.getType() != "joint" or parent is None or parent.getFullName() != clavicle.getFullName():
+        if clavicle.getType() != "joint" or parent is None or parent.getName(full=True) != clavicle.getName(full=True):
             raise ValueError("Expected a clavicle joint that is the direct parent of the upperarm joint")
         rest = Matrix(upperarm.getPlug("matrix").get()) * Matrix(upperarm.getPlug("offsetParentMatrix").get())
         rest_rotation = rest.quaternion.asMatrix()

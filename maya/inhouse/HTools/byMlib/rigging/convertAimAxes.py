@@ -210,7 +210,7 @@ class AimAxisConversionWindow:
                     lines.append("This is a corrected restore from an older version. Remove it with 'Restore Original Aim and Settings'.")
                 converted = [math.degrees(_value(owner, "output" + a)) for a in "XYZ"]
                 lines.append("Output XYZ (deg): {:.3f}, {:.3f}, {:.3f}".format(*converted))
-                lines.append("Owner node: " + owner.getFullName())
+                lines.append("Owner node: " + owner.getName(full=True))
                 lines.append("Layout: " + ("container" if owner.getType() == "container" else "direct connections (restore data on a network node)"))
                 valid = _value(owner, "valid") > 0.5
                 lines.append("Diagnosis: " + ("valid" if valid else "check needed (ambiguous range, singularity or Rotate Order change)"))
@@ -230,7 +230,7 @@ class AimAxisConversionWindow:
         Returns:
             str: aimConstraintの完全DAGパス。
         """
-        return self.constraint.getFullName()
+        return self.constraint.getName(full=True)
 
     def _syncDirection(self, *_):
         """軸選択を変えた際、方式2で使える未選択軸を初期設定にする。

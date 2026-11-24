@@ -157,7 +157,7 @@ def buildScene():
     cmds.setFocus(panel)
     cmds.select(clear=True)
     values, names = _hud("bodyProportion", 8)
-    joints = [joint.getFullName() for joint in sample.setup.getJoints()]
+    joints = [joint.getName(full=True) for joint in sample.setup.getJoints()]
     scene = {"owner": sample.container, "joints": joints, "links": links["figure"]}
     return panel, scene, values, names
 

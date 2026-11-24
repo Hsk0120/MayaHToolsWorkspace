@@ -126,7 +126,7 @@ class BoxCollision(TwistDistribution):
         for node in (target, box):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the box")
-        if target.getFullName() == box.getFullName():
+        if target.getName(full=True) == box.getName(full=True):
             raise ValueError("target and box must be different nodes")
 
         graph = cls(mlib.createContainer(name=name))

@@ -115,7 +115,7 @@ class CapsuleCollision(SphereCollision):
         for node in nodes:
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target, the start and the end")
-        if len({node.getFullName() for node in nodes}) != 3:
+        if len({node.getName(full=True) for node in nodes}) != 3:
             raise ValueError("target, start and end must be different nodes")
         target, start, end = nodes
 

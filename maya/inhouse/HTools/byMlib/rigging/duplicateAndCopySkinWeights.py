@@ -219,8 +219,8 @@ def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
     if not shape_map:
         return
 
-    src_mesh = mlib.getNode(src_mesh).getFullName()
-    dup_mesh = mlib.getNode(dup_mesh).getFullName()
+    src_mesh = mlib.getNode(src_mesh).getName(full=True)
+    dup_mesh = mlib.getNode(dup_mesh).getName(full=True)
     warned_missing = set()
 
     for src_shape, dup_shape in shape_map.items():
@@ -247,7 +247,7 @@ def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
                 continue
 
             # 形状全体ならそのノード、フェースならフェース1つずつ。どちらも完全なパスで比べる。
-            members = [member.getFullName() for member in sg.getMembers()]
+            members = [member.getName(full=True) for member in sg.getMembers()]
             remapped_members = []
             for member in members:
                 if not member_belongs_to_source(member, src_shape, src_mesh):
@@ -318,7 +318,7 @@ def get_selected_mesh_transforms():
 
         shapes = mesh.getShape(all=True) if isinstance(mesh, mlib.Transform) else []
         if not shapes or shapes[0].getType() != 'mesh':
-            cmds.warning(u'Skip: {} is not a mesh.'.format(mesh.getFullName()))
+            cmds.warning(u'Skip: {} is not a mesh.'.format(mesh.getName(full=True)))
             continue
 
         if mesh in meshes:
@@ -358,13 +358,13 @@ def _duplicate_and_copy_skin_weights(meshes, prefix):
 
         src_skin = get_skin_cluster(mesh)
         if not src_skin:
-            cmds.warning(u'Skip: {} is not skinned.'.format(mesh.getFullName()))
+            cmds.warning(u'Skip: {} is not skinned.'.format(mesh.getName(full=True)))
             continue
 
         # 元 skinCluster から influence を取得
         influences = _get_influence_names(src_skin)
         if not influences:
-            cmds.warning(u'Skip: could not get the influences of {}.'.format(mesh.getFullName()))
+            cmds.warning(u'Skip: could not get the influences of {}.'.format(mesh.getName(full=True)))
             continue
 
         # 複製名は接頭辞付きで生成する。

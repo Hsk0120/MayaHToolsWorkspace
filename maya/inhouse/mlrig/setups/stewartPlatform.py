@@ -117,7 +117,7 @@ class StewartPlatform(TwistDistribution):
         nodes = [node for group in resolved.values() for node in group]
         if not all(isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the anchors, the cylinders and the rods")
-        if len({node.getFullName() for node in nodes}) != len(nodes):
+        if len({node.getName(full=True) for node in nodes}) != len(nodes):
             raise ValueError("The anchors, the cylinders and the rods must be different nodes")
         bases, tops = resolved["baseAnchors"], resolved["platformAnchors"]
         barrels, pistons = resolved.get("cylinders"), resolved.get("rods")
@@ -126,7 +126,7 @@ class StewartPlatform(TwistDistribution):
         if pistons is not None:
             for barrel, piston in zip(barrels, pistons):
                 parent = piston.getParent()
-                if parent is None or parent.getFullName() != barrel.getFullName():
+                if parent is None or parent.getName(full=True) != barrel.getName(full=True):
                     raise ValueError("Each rod must be a child of its cylinder: " + str(piston))
         slideChannel = "translate" + aimAxis.upper()
         if connect:

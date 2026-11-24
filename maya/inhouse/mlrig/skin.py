@@ -18,7 +18,7 @@ def bind_mesh(rig, mesh, helpers=True):
         str: 作成したskinCluster。
     """
     joints = rig.getJoints() if helpers else rig.getJoints()[:3]
-    return mlib.bindSkin(joints, mesh, maximumInfluences=4).getFullName()
+    return mlib.bindSkin(joints, mesh, maximumInfluences=4).getName(full=True)
 
 
 @undoChunk("mlrig.create_skin_lod")
@@ -42,8 +42,8 @@ def create_skin_lod(rig, source, proxy, source_skin):
         raise TypeError("Expected a skinCluster")
     if not mlib.SkinCluster(source_skin).deforms(source):
         raise ValueError("source_skin does not deform source")
-    if [item.getFullName() for item in mlib.ls(source, long=True)] == [
-        item.getFullName() for item in mlib.ls(proxy, long=True)
+    if [item.getName(full=True) for item in mlib.ls(source, long=True)] == [
+        item.getName(full=True) for item in mlib.ls(proxy, long=True)
     ]:
         raise ValueError("Source and proxy must be different")
     target_skin = bind_mesh(rig, proxy, helpers=False)

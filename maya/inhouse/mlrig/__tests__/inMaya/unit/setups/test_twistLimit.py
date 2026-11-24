@@ -127,7 +127,7 @@ class TwistLimitTest(unittest.TestCase):
             owner.getPlug("maximum").set(10)
             owner.getPlug("softness").set(0.7)
             self.check(owner, rest, axis, -90, 10, 0.7)
-            cmds.delete(owner.getFullName())
+            cmds.delete(owner.getName(full=True))
 
     def test_invalid_and_undo(self):
         """範囲外の引数を拒否し、生成を1回のUndoで戻せる。"""

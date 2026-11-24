@@ -33,9 +33,9 @@ def _connect_attr(src_attr, dst_attr):
         RuntimeError: 接続先がロックされている、または既に同じ接続がある場合。
     """
     if dst_attr.isLocked():
-        raise RuntimeError(f"Attribute is locked: {dst_attr.getFullName()}")
+        raise RuntimeError(f"Attribute is locked: {dst_attr.getName(full=True)}")
     if dst_attr.isConnected(src_attr, destination=False):
-        raise RuntimeError(f"Already connected: {src_attr.getFullName()} -> {dst_attr.getFullName()}")
+        raise RuntimeError(f"Already connected: {src_attr.getName(full=True)} -> {dst_attr.getName(full=True)}")
     dst_attr.connect(src_attr, force=True, unlock=False)
 
 def _incoming_plugs(dest_plug):
@@ -83,7 +83,7 @@ def _list_keyable_scalar_plugs(node):
     Returns:
         list[tuple[str, mlib.Plug]]: 複製対象プラグの名前(``<ノードの完全な名前>.<アトリビュート>``)と Plug。名前順。
     """
-    node_name = node.getFullName()
+    node_name = node.getName(full=True)
     plugs = {}
     for plug in node.getPlugs(keyable=True):
         # compound（translate 等）は子属性に展開して処理する。
@@ -185,7 +185,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
                         n = parent
             except Exception:
                 if verbose:
-                    cmds.warning(f"Skip: could not resolve node -> {n.getFullName()}")
+                    cmds.warning(f"Skip: could not resolve node -> {n.getName(full=True)}")
                 continue
 
             rewired = 0
@@ -236,7 +236,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
                         pass
 
             results.append({
-                "node": n.getFullName(),
+                "node": n.getName(full=True),
                 "rewired": rewired,
                 "skipped": skipped,
                 "old_deleted": old_deleted

@@ -80,7 +80,7 @@ class SphereCollision(TwistDistribution):
         for node in (target, sphere):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the sphere")
-        if target.getFullName() == sphere.getFullName():
+        if target.getName(full=True) == sphere.getName(full=True):
             raise ValueError("target and sphere must be different nodes")
 
         graph = cls(mlib.createContainer(name=name))

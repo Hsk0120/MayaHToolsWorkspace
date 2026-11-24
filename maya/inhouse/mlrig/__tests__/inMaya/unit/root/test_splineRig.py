@@ -43,7 +43,7 @@ class SplineTest(unittest.TestCase):
                     self.same(self.position(joint), [i * 1.5 if a == axis else 0 for a in "xyz"])
                 self.assertIsInstance(ModuleRegistry.get(rig.root), SplineRig)
                 self.assertIn(
-                    rig.root.getFullName().lstrip("|"),
+                    rig.root.getName(full=True).lstrip("|"),
                     [n.lstrip("|") for n in ModuleRegistry.roots()],
                 )
 
@@ -112,7 +112,7 @@ class SplineTest(unittest.TestCase):
         """キー付きカーブのフレーム再評価とIKからFKへの姿勢保持を確認する。"""
         rig = build_spline()
         for time, value in ((1, 0), (10, 3), (20, -2)):
-            cmds.setKeyframe(rig.controls()[1].getFullName(), attribute="tx", time=time, value=value)
+            cmds.setKeyframe(rig.controls()[1].getName(full=True), attribute="tx", time=time, value=value)
         expected = {}
         for time in (1, 10, 20):
             cmds.currentTime(time)

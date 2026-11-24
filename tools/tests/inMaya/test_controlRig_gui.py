@@ -105,7 +105,7 @@ def main(output_dir=None, finished=None):
         cmds.redo()
         yield
         check(not finger.layer_enabled("finger"), "Finger Redo")
-        cmds.setAttr(finger.root.getFullName() + ".enabled", True)
+        cmds.setAttr(finger.root.getName(full=True) + ".enabled", True)
         for _ in range(20):
             yield
             if finger.getMembers('targets')[0].getPlug('rx').getConnections(input=True) is not None:
@@ -192,14 +192,14 @@ def main(output_dir=None, finished=None):
         cmds.file(str(output / "controls.ma"), open=True, force=True, executeScriptNodes=False)
         yield
         finger = ModuleRegistry.get("uiHand")
-        cmds.setAttr(finger.root.getFullName() + ".enabled", False)
+        cmds.setAttr(finger.root.getName(full=True) + ".enabled", False)
         for _ in range(20):
             yield
             if finger.getMembers('targets')[0].getPlug('rx').getConnections(input=True) is None:
                 break
         check(finger.getMembers('targets')[0].getPlug('rx').getConnections(input=True) is None, 'Reload restores finger watcher')
         group = next(iter(TweakLayer(finger).groups().values()))
-        cmds.setAttr(group.getFullName() + ".enabled", False)
+        cmds.setAttr(group.getName(full=True) + ".enabled", False)
         for _ in range(20):
             yield
             if group.getPlug('joint').getConnections(input=True).getNode().getPlug('offsetParentMatrix').getConnections(input=True) is None:

@@ -30,7 +30,7 @@ class SwingTwistTest(unittest.TestCase):
                     self.assertAlmostEqual(
                         graph.container.getPlug("swing" + component).get(), 0, places=4
                     )
-            cmds.delete(graph.container.getFullName())
+            cmds.delete(graph.container.getName(full=True))
         cmds.setAttr(self.joint + ".rotate", 0, 0, 0)
         graph = SwingTwist.create(self.joint)
         cmds.setAttr(self.joint + ".rz", 50)
@@ -54,7 +54,7 @@ class SwingTwistTest(unittest.TestCase):
         value = graph.container.getPlug("twist").get()
         cmds.currentUnit(angle="deg")
         self.assertAlmostEqual(graph.container.getPlug("twist").get(), value, places=5)
-        cmds.delete(graph.container.getFullName())
+        cmds.delete(graph.container.getName(full=True))
         cmds.setAttr(self.joint + ".jointOrient", 0, 0, 0)
         cmds.setAttr(self.joint + ".rotate", 0, 0, 0)
         graph = SwingTwist.create(self.joint)

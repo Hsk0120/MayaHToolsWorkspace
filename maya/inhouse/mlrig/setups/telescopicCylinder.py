@@ -95,7 +95,7 @@ class TelescopicCylinder(TwistDistribution):
         for node in (base, tip):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the base and the tip")
-        if base.getFullName() == tip.getFullName():
+        if base.getName(full=True) == tip.getName(full=True):
             raise ValueError("base and tip must be different nodes")
         if closedLength is None:
             start = Vector(Matrix(base.getPlug("worldMatrix")[0].get()).translate)

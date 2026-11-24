@@ -109,7 +109,7 @@ def _states(rig):
         "foot": ik
         and detail
         and rig.layer_enabled("foot")
-        and mlib.Node(rig.root.getFullName()).hasAttr("footMatrix"),
+        and mlib.Node(rig.root.getName(full=True)).hasAttr("footMatrix"),
     }
     if rig.root.hasAttr("targetSpace"):
         states["space"] = True
@@ -172,7 +172,7 @@ def attach(rig):
         return rig._member("channelModule")
     from .limb import _lock_group
 
-    root = rig.root.getFullName()
+    root = rig.root.getName(full=True)
     stem = rig.getNodeName("moduleSet").removesuffix("_set")
     group_name = (
         "modules_grp"
@@ -185,8 +185,8 @@ def attach(rig):
     nodes = []
     group_node = mlib.createNode("transform", name=group_name, parent=root, skipSelect=True)
     group_node.reorder(front=True)
-    group = group_node.getFullName()
-    module = mlib.createNode("transform", name=stem, parent=group, skipSelect=True).getFullName()
+    group = group_node.getName(full=True)
+    module = mlib.createNode("transform", name=stem, parent=group, skipSelect=True).getName(full=True)
     nodes.extend((group, module))
     rig._bind("channelModule", module)
     mlib.Node(module).addAttr(longName="mlrigChannelRoot", attributeType="message")
@@ -195,7 +195,7 @@ def attach(rig):
     _attribute(module, "lod", "enum", rig.lod(), "Low:Full")
     _attribute(module, "matchOnSwitch", default=True)
     for layer, name in zip(LAYERS, names[2:]):
-        node = mlib.createNode("transform", name=name, parent=module, skipSelect=True).getFullName()
+        node = mlib.createNode("transform", name=name, parent=module, skipSelect=True).getName(full=True)
         nodes.append(node)
         rig._bind("channel_" + layer, node)
         if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
@@ -277,7 +277,7 @@ def _changed(root_uuid):
     global _busy
     if _busy:
         return
-    roots = [item.getFullName() for item in mlib.ls(root_uuid, long=True)] or []
+    roots = [item.getName(full=True) for item in mlib.ls(root_uuid, long=True)] or []
     if not roots:
         return
     _busy = True
@@ -301,7 +301,7 @@ def refresh_jobs():
         if not mlib.ls(key) or not jobs.exists():
             jobs.stop()
             del _jobs[key]
-    for plug in [item.getFullName() for item in mlib.ls("*.mlrigChannelRoot", recursive=True)] or []:
+    for plug in [item.getName(full=True) for item in mlib.ls("*.mlrigChannelRoot", recursive=True)] or []:
         module = plug.rsplit(".", 1)[0]
         source = mlib.getPlug(plug).getConnections(input=True)
         if source is None:

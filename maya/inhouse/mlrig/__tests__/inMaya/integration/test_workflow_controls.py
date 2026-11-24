@@ -77,7 +77,7 @@ class ControlsTest(unittest.TestCase):
             control = layer.add("local1", rig.getJoints()[0])
             control.getPlug("ty").set(2)
             joint = mlib.getNode(layer.getJoints()[0])
-            self.assertIn(joint.getFullName(), rig.getJoints())
+            self.assertIn(joint.getName(full=True), rig.getJoints())
             self.assertAlmostEqual(joint.getPlug("offsetParentMatrix").get()[13], 2)
             rig.set_lod(0)
             self.assertIsNone(joint.getPlug('offsetParentMatrix').getConnections(input=True))
@@ -134,7 +134,7 @@ class ControlsTest(unittest.TestCase):
             if kind is FingerRig:
                 rig.group("layer").getPlug("curl").set(45)
                 self.assertAlmostEqual(
-                    cmds.getAttr(rig.getMembers("targets")[0].getFullName() + ".rz"),
+                    cmds.getAttr(rig.getMembers("targets")[0].getName(full=True) + ".rz"),
                     math.pi / 4,
                     places=5,
                 )

@@ -147,7 +147,7 @@ class Ribbon(TwistDistribution):
         added = [node for node in mlib.ls(type="unitConversion") if node.getUuid() not in conversions]
         if added:
             owner.addMembers(*added)
-        graph.group = group.getFullName()
+        graph.group = group.getName(full=True)
         return graph
 
     @property
@@ -160,7 +160,7 @@ class Ribbon(TwistDistribution):
         value = getattr(self, "_group", None)
         if value is None:
             found = mlib.ls(self.container.getName() + "_grp")
-            value = found[0].getFullName() if found else None
+            value = found[0].getName(full=True) if found else None
         return value
 
     @group.setter

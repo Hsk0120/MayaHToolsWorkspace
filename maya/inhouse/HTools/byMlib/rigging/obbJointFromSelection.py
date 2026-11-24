@@ -32,7 +32,7 @@ def _selected_mesh_transforms():
 		# shape から親 Transform を復元して結果へ積む。
 		transform = node.getParent()
 		if transform is not None:
-			key = transform.getFullName()
+			key = transform.getName(full=True)
 			if key not in seen:
 				seen.add(key)
 				mesh_transforms.append(transform)
@@ -160,7 +160,7 @@ def create_obb_joint_and_bind_from_selection(
 
 				_bind_mesh_to_single_joint(mesh_transform, joint)
 				created_joints.append(joint.getName())
-				bound_meshes.append(mesh_transform.getFullName())
+				bound_meshes.append(mesh_transform.getName(full=True))
 
 				# デバッグ用途が不要なら中間コリジョンは掃除する。
 				if delete_collision and mlib.objExists(collision):

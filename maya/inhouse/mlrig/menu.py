@@ -66,12 +66,12 @@ class Menu:
         """
         from .moduleRegistry import ModuleRegistry
 
-        selected = [item.getFullName() for item in mlib.ls(selection=True, long=True)] or []
+        selected = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)] or []
         if not selected:
             raise ValueError("mlrigのモジュールまたは配下のノードを選択してください")
         for root in ModuleRegistry.roots():
             rig = ModuleRegistry.get(root)
-            path = rig.root.getFullName()
+            path = rig.root.getName(full=True)
             if selected[0] == path or selected[0].startswith(path + "|"):
                 return rig, selected[0]
         raise ValueError("選択ノードはmlrigモジュールに所属していません")

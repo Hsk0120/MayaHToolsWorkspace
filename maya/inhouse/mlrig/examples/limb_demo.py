@@ -59,7 +59,7 @@ def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True)
         mesh.makeIdentity(apply=True, translate=True)
         mesh.setParent(rig._member("moduleGeometry"))
     # デモの公開戻り値は従来通り名前。構築中は型付き参照で扱う。
-    high, proxy = high.getFullName(), proxy.getFullName()
+    high, proxy = high.getName(full=True), proxy.getName(full=True)
     high_skin = bind_mesh(rig, high)
     proxy_skin = create_skin_lod(rig, high, proxy, high_skin)
     rig._layer_members("moduleSet", [high, proxy, high_skin, proxy_skin])

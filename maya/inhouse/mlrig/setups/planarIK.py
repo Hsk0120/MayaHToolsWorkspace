@@ -76,7 +76,7 @@ class PlanarIK:
         normal = planeNormal(root, mid, end)
         if normal is None:
             raise ValueError("The chain is straight. Bend the knee slightly before creating the IK.")
-        owner = mlib.createContainer(name).getFullName()
+        owner = mlib.createContainer(name).getName(full=True)
         positions = [worldPosition(node) for node in (root, mid, end)]
         parent = mlib.Node(root).getParent()
         drivers = []
@@ -87,7 +87,7 @@ class PlanarIK:
             target = drivers[-1] if drivers else parent
             if target is not None:
                 joint.setParent(target)
-            drivers.append(joint.getFullName())
+            drivers.append(joint.getName(full=True))
         # 骨の向きをローカルX、平面の法線をローカルZにする(足首は膝と同じ向き)。
         for index, joint in enumerate(drivers):
             aim = positions[min(index + 1, 2)] - positions[min(index, 1)]
@@ -99,7 +99,7 @@ class PlanarIK:
         handle, effector, pole = createRotatePlaneHandle(drivers[0], drivers[2], name, poleDistance)
         group, (handle, pole) = groupUnderWorld(name + "_GRP", handle, pole)
         constraints = [mlib.Node(joint).addConstraint(driver, type="orient", maintainOffset=True,
-                                                         name="{}_{}OrientConstraint".format(name, label)).getFullName()
+                                                         name="{}_{}OrientConstraint".format(name, label)).getName(full=True)
                        for driver, joint, label in zip(drivers[:2], (root, mid), ("root", "mid"))]
         mlib.Node(drivers[0]).getPlug("visibility").set(showDrivers)
         mlib.Container(owner).addMembers(group, handle, pole, *(drivers + constraints))
@@ -108,4 +108,4 @@ class PlanarIK:
 
 def _isAncestor(ancestor, node):
     """``ancestor`` が ``node`` の祖先か(同じノードは含まない)。"""
-    return mlib.Node(node).getFullName().startswith(mlib.Node(ancestor).getFullName() + "|")
+    return mlib.Node(node).getName(full=True).startswith(mlib.Node(ancestor).getName(full=True) + "|")

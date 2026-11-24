@@ -119,7 +119,7 @@ class SkirtLegOffset(TwistDistribution):
             if skirtAxis is None:
                 children = [child for child in skirt.getChildren() if isinstance(child, mlib.Transform)]
                 if not children:
-                    raise ValueError("The skirt has no child to give its direction: " + skirt.getFullName())
+                    raise ValueError("The skirt has no child to give its direction: " + skirt.getName(full=True))
                 tip = Matrix(children[0].getPlug("worldMatrix")[0].get()) * to_parent
                 direction = Vector(tip.translate) - position
             else:
@@ -127,12 +127,12 @@ class SkirtLegOffset(TwistDistribution):
                 local = Vector(*[sign * float(axis == skirtAxis[-1]) for axis in ("x", "y", "z")])
                 direction = local * rest
             if direction.length() < 1e-6:
-                raise ValueError("The direction of the skirt is not defined: " + skirt.getFullName())
+                raise ValueError("The direction of the skirt is not defined: " + skirt.getName(full=True))
             direction = direction.normal()
             hinge = direction ^ position
             if hinge.length() < 1e-6 * max(position.length(), 1.0) or position.length() < 1e-6:
                 raise ValueError("The skirt must be away from the parent and not point straight out from it: "
-                                 + skirt.getFullName())
+                                 + skirt.getName(full=True))
             hinge = hinge.normal()
             outward = (hinge ^ direction).normal()
             frames.append((rest, position, hinge, direction, outward))
@@ -141,11 +141,11 @@ class SkirtLegOffset(TwistDistribution):
                 above = skirt.getParent()
                 if above is None or above != parent:
                     raise ValueError("connect requires the skirts to be direct children of the parent: "
-                                     + skirt.getFullName())
+                                     + skirt.getName(full=True))
                 plug = skirt.getPlug("offsetParentMatrix")
                 if plug.getConnections(input=True, skipConversionNodes=True) is not None or not Matrix(plug.get()).isEquivalent(Matrix(), 1e-9):
                     raise ValueError("The offsetParentMatrix of the skirt must be identity and unconnected: "
-                                     + skirt.getFullName())
+                                     + skirt.getName(full=True))
 
         graph = cls(mlib.createContainer(name=name))
         owner = graph.container

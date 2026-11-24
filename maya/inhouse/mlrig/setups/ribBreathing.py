@@ -94,7 +94,7 @@ class RibBreathing(ForearmPronation):
         for node in [spine] + [item for rib in nodes for item in rib] + ([] if sternum is None else [sternum]):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the spine, ribs and sternum")
-        if any(item.getFullName() == spine.getFullName() for rib in nodes for item in rib):
+        if any(item.getName(full=True) == spine.getName(full=True) for rib in nodes for item in rib):
             raise ValueError("A rib point must not be the spine node")
         indices = list(range(len(nodes))) if sternalRibs is None else list(sternalRibs)
         if sternum is not None and (not indices or any(not 0 <= index < len(nodes) for index in indices)):

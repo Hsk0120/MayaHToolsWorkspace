@@ -23,7 +23,7 @@ class RigFoundationsTest(unittest.TestCase):
     def test_container_and_scalar_graph(self):
         """演算評価、動的ラッパー、改名と所有削除を確認する。"""
         owner = mlib.createContainer("owned")
-        self.assertIsInstance(mlib.getNode(owner.getFullName()), mlib.Container)
+        self.assertIsInstance(mlib.getNode(owner.getName(full=True)), mlib.Container)
         source = mlib.createNode("transform", name="external")
         source.addAttr(longName="value", attributeType="double", defaultValue=3)
         graph = ScalarGraph(owner)
@@ -121,7 +121,7 @@ class RigFoundationsTest(unittest.TestCase):
         skin.copyWeightsTo(copied)
         self.assertAlmostEqual(
             cmds.skinPercent(
-                copied.getFullName(), target + ".vtx[0]", query=True, transform=joint.getFullName()
+                copied.getName(full=True), target + ".vtx[0]", query=True, transform=joint.getName(full=True)
             ),
             1,
         )
@@ -135,15 +135,15 @@ class RigFoundationsTest(unittest.TestCase):
 
         node = mlib.createNode("transform", name="rawUnits")
         node.addAttr(longName="marker", attributeType="message")
-        cmds.setAttr(node.getFullName() + ".tx", 200)
-        cmds.setAttr(node.getFullName() + ".rz", 90)
-        rotation = mlib.getPlug(node.getFullName() + ".rz")
+        cmds.setAttr(node.getName(full=True) + ".tx", 200)
+        cmds.setAttr(node.getName(full=True) + ".rz", 90)
+        rotation = mlib.getPlug(node.getName(full=True) + ".rz")
         self.assertIsInstance(rotation, mlib.Plug)
         self.assertAlmostEqual(rotation.get(uiUnits=True), 90)
         self.assertAlmostEqual(rotation.get(), 90)
         self.assertAlmostEqual(rotation.get(unit="rad"), math.pi / 2)
         cmds.currentUnit(linear="m", angle="rad")
-        translation = mlib.getPlug(node.getFullName() + ".tx")
+        translation = mlib.getPlug(node.getName(full=True) + ".tx")
         self.assertAlmostEqual(translation.get(uiUnits=True), 2)
         self.assertAlmostEqual(translation.get(), 200)
         self.assertAlmostEqual(rotation.get(uiUnits=True), math.pi / 2)
@@ -152,7 +152,7 @@ class RigFoundationsTest(unittest.TestCase):
         )
         self.assertEqual([n.getUuid() for n in mlib.ls(node.getUuid(), long=True)], [node.getUuid()])
         self.assertTrue(node.getPlug("tx").isSettable())
-        cmds.setAttr(node.getFullName() + ".tx", lock=True)
+        cmds.setAttr(node.getName(full=True) + ".tx", lock=True)
         self.assertFalse(node.getPlug("tx").isSettable())
 
     def test_maya_command_boundary_in_mlrig(self):
@@ -249,7 +249,7 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertEqual(mlib.getPlug(marker).get(uiUnits=True), 2)
         self.assertIsInstance(mlib.getPlug(mesh.getPlug("translate")).get(), mlib.Vector)
         self.assertIsInstance(mlib.getPlug(mesh.getPlug("worldMatrix[0]")).get(), mlib.Matrix)
-        owner = mlib.getNode(cmds.sets(mesh.getFullName(), name="typedSet"))
+        owner = mlib.getNode(cmds.sets(mesh.getName(full=True), name="typedSet"))
         self.assertIsInstance(owner, mlib.ObjectSet)
         self.assertEqual(owner.getMembers()[0].getUuid(), mesh.getUuid())
         target = mlib.createNode("transform", name="typedTarget")
@@ -291,7 +291,7 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertAlmostEqual(history.getPlug("radius").get(), 2.5)
         curve = mlib.getNode(cmds.curve(d=1, p=[(0, 0, 0), (2, 0, 0)], n="typedCurve"))
         self.assertIsInstance(curve, mlib.Transform)
-        name = curve.getFullName()
+        name = curve.getName(full=True)
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
         cmds.redo()

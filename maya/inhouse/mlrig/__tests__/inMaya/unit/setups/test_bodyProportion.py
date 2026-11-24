@@ -150,7 +150,7 @@ class BodyProportionTest(unittest.TestCase):
             self.assertFalse(cmds.listConnections(joint + ".translate", source=True, destination=False))
             _close(self, cmds.getAttr(joint + ".translate")[0], self.rest[joint][0])
         # 骨の番号は定義に最初に現れた順(肘・手首・肩)。
-        order = [joint.getFullName() for joint in graph.getJoints()]
+        order = [joint.getName(full=True) for joint in graph.getJoints()]
         self.assertEqual(order, [self.joints[1], self.joints[2], self.joints[0]])
         expected = self._expected({"shoulderWidth": 1.0})[self.joints[0]]
         _close(self, cmds.getAttr(owner + ".translate2")[0], expected[0])

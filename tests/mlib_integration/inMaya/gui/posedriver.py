@@ -84,12 +84,12 @@ def main(output_dir=None, finished=None):
             loaded_path = cmds.pluginInfo('MayaUERBFPlugin', query=True, path=True)
             check(Path(loaded_path).resolve() == native_binary.resolve(), 'Expected PoseDriverConnect binary loaded')
             solver = mlib.createNode('UERBFSolverNode', name='mlibExtensionGuiSolver')
-            created.append(solver.getFullName())
+            created.append(solver.getName(full=True))
             blender = mlib.createNode('UEPoseBlenderNode', name='mlibExtensionGuiBlender')
-            created.append(blender.getFullName())
+            created.append(blender.getName(full=True))
             check(type(solver).__module__.startswith('mlib_posedriverconnect.'), 'Solver uses extension wrapper')
             check(type(blender).__module__.startswith('mlib_posedriverconnect.'), 'Blender uses extension wrapper')
-            cmds.select(solver.getFullName())
+            cmds.select(solver.getName(full=True))
             check(type(mlib.ls(selection=True)[0]) is type(solver), 'mlib.ls(selection=True) dispatches extension')
             before_radius = solver.radius()
             solver.setRadius(before_radius + 10)
@@ -99,7 +99,7 @@ def main(output_dir=None, finished=None):
             cmds.redo()
             check(abs(solver.radius() - before_radius - 10) < 1e-6, 'Redo restores edit')
             result['radius'] = {'before': before_radius, 'after_redo': solver.radius()}
-            name = solver.getFullName()
+            name = solver.getName(full=True)
             mlib.reload()
             solver = mlib.getNode(name)
             check(isinstance(solver, mlib.Node) and hasattr(solver, 'radius'), 'Reload restores extension registration')
@@ -107,7 +107,7 @@ def main(output_dir=None, finished=None):
         else:
             result['skipped'].append('Matching external plugin binary is not installed; node tests skipped')
             node = mlib.createNode('transform', name='mlibExtensionFallback')
-            created.append(node.getFullName())
+            created.append(node.getName(full=True))
             check(node.isValid(), 'Core mlib remains usable')
         result['status'] = 'passed'
     except Exception:

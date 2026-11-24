@@ -28,11 +28,11 @@ class SecondaryTest(unittest.TestCase):
         self.rig = build_skirt(chain_count=4)
         self.source = self.rig.driver_chains()[0][0]
         for time, value in ((1, 0), (8, 60), (24, 60)):
-            cmds.setKeyframe(self.source.getFullName(), attribute="rx", time=time, value=value)
+            cmds.setKeyframe(self.source.getName(full=True), attribute="rx", time=time, value=value)
 
     def matrix(self, node):
         """現在ワールド行列を取得する。"""
-        return cmds.xform(node.getFullName(), query=True, worldSpace=True, matrix=True)
+        return cmds.xform(node.getName(full=True), query=True, worldSpace=True, matrix=True)
 
     def same(self, a, b):
         """行列を誤差付きで比較する。"""
@@ -42,7 +42,7 @@ class SecondaryTest(unittest.TestCase):
     def test_bake_lod_and_reproducibility(self):
         """元キー保持、ベイク再現性、逆順評価、停止を確認する。"""
         before = cmds.keyframe(
-            self.source.getFullName(), attribute="rx", query=True, valueChange=True
+            self.source.getName(full=True), attribute="rx", query=True, valueChange=True
         )
         cmds.currentTime(5)
         group = self.rig.bake_spring(start=1, end=24)
@@ -70,7 +70,7 @@ class SecondaryTest(unittest.TestCase):
         self.same(self.matrix(target), poses[8])
         self.assertEqual(
             before,
-            cmds.keyframe(self.source.getFullName(), attribute="rx", query=True, valueChange=True),
+            cmds.keyframe(self.source.getName(full=True), attribute="rx", query=True, valueChange=True),
         )
         self.rig.set_lod(0)
         self.assertIsNone(layer._members(group, 'blends')[0].getPlug('inRotateX2').getConnections(input=True))

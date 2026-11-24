@@ -50,12 +50,12 @@ class RootDirectionLimitTest(unittest.TestCase):
         Returns:
             MMatrix: 現在の出力行列。
         """
-        matrix = om.MMatrix(cmds.getAttr(graph.output.getFullName() + ".worldMatrix[0]"))
+        matrix = om.MMatrix(cmds.getAttr(graph.output.getName(full=True) + ".worldMatrix[0]"))
         source = om.MMatrix(cmds.getAttr(self.source + ".worldMatrix[0]"))
         self.assertTrue(all(math.isfinite(v) for v in matrix))
         self.assertLess((om.MVector(*tuple(matrix)[12:15]) - om.MVector(*tuple(source)[12:15])).length(), 2e-4)
         reference = om.MMatrix(cmds.getAttr(self.guides[0] + ".worldMatrix[0]"))
-        n = om.MVector(*cmds.getAttr(graph.container.getFullName() + ".outward")[0])
+        n = om.MVector(*cmds.getAttr(graph.container.getName(full=True) + ".outward")[0])
         n = (n * reference).normal()
         axis = "xyz".index(aim[-1])
         direction = om.MVector(*tuple(matrix)[axis * 4:axis * 4 + 3]).normal()
@@ -80,7 +80,7 @@ class RootDirectionLimitTest(unittest.TestCase):
     def test_body_bend_moves_reference(self):
         """腹・胸が動くと方向が更新され、常にcone条件を満たす。"""
         graph = self.build()
-        before = cmds.getAttr(graph.container.getFullName() + ".outward")[0]
+        before = cmds.getAttr(graph.container.getName(full=True) + ".outward")[0]
         cmds.setAttr(self.source + ".ry", 180)
         for bend in range(-80, 81, 4):
             cmds.setAttr(self.guides[1] + ".translate", 1, 5, bend / 30)
@@ -88,7 +88,7 @@ class RootDirectionLimitTest(unittest.TestCase):
             cmds.setAttr(self.guides[2] + ".translate", 2, 8, bend / 10)
             cmds.setAttr(self.guides[2] + ".rx", bend)
             self.assertState(graph)
-        after = cmds.getAttr(graph.container.getFullName() + ".outward")[0]
+        after = cmds.getAttr(graph.container.getName(full=True) + ".outward")[0]
         self.assertGreater(sum((a - b) ** 2 for a, b in zip(before, after)), 1e-3)
 
     def test_safe_direction_is_kept(self):
@@ -178,7 +178,7 @@ class RootDirectionLimitTest(unittest.TestCase):
         cmds.select(self.source)
         before = set(cmds.ls())
         graph = self.build()
-        owner, output = graph.container.getFullName(), graph.output.getFullName()
+        owner, output = graph.container.getName(full=True), graph.output.getName(full=True)
         created = set(cmds.ls()) - before
         members = set(cmds.container(owner, query=True, nodeList=True))
         metadata = {node for node in created if cmds.nodeType(node) == "hyperLayout"}

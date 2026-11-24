@@ -77,16 +77,16 @@ class DrivenLayer:
             or driven.isLocked()
         ):
             raise ValueError("Driven must be an unlocked, unconnected numeric scalar")
-        upstream = {item.getFullName() for item in joint.getHistory()}
-        upstream.add(joint.getFullName())
+        upstream = {item.getName(full=True) for item in joint.getHistory()}
+        upstream.add(joint.getName(full=True))
         cursor = joint.getParent()
         while cursor is not None:
-            upstream.add(cursor.getFullName())
+            upstream.add(cursor.getName(full=True))
             cursor = cursor.getParent()
         # IK内部の暗黙依存を含む部位の主制御を駆動先にしない。
         upstream.update(self.rig.controls().values())
         upstream.update(self.rig.getJoints()[:3])
-        if driven.getNode().getFullName() in upstream:
+        if driven.getNode().getName(full=True) in upstream:
             raise ValueError("Driven target must not feed the source joint or its controls")
         before = set([item.getName() for item in mlib.ls()])
         stem = self.rig.getNodeName("drivenSet").removesuffix("_set") + "_" + identifier
@@ -108,7 +108,7 @@ class DrivenLayer:
         owner.addAttr(longName="restValue", attributeType=kind).set(rest_value)
         for attr, value in (
             ("drivenId", identifier),
-            ("drivenAttribute", driven.getFullName().split(".", 1)[1]),
+            ("drivenAttribute", driven.getName(full=True).split(".", 1)[1]),
             ("component", component),
         ):
             owner.addAttr(longName=attr, dataType="string").set(value)
@@ -122,7 +122,7 @@ class DrivenLayer:
         root = self.rig.root
         owned = [owner]
         if not root.hasAttr("drivenSet"):
-            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("drivenSet"), skipSelect=True).getFullName()
+            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("drivenSet"), skipSelect=True).getName(full=True)
             self.rig._bind("drivenSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             owned.append(mlib.Node(selection))
@@ -130,7 +130,7 @@ class DrivenLayer:
         root.getPlug("drivenGraphs").appendMessage(owner)
         for node in owned:
             root.getPlug("mlrigOwned").appendMessage(node)
-        self.rig._layer_members("drivenSet", [owner.getFullName()])
+        self.rig._layer_members("drivenSet", [owner.getName(full=True)])
         self.update()
         from .channel_controls import sync_display
 

@@ -210,7 +210,7 @@ class AimAxisConversion:
             if (source.isLocked() or source.isFromReferencedFile() or plug.isLocked()
                     or plug.getConnections(input=True) is not None
                     or (parent is not None and (parent.isLocked() or parent.getConnections(input=True) is not None))):
-                raise ValueError("元Aimの設定に入力またはロックがあるため復元できません: " + plug.getFullName())
+                raise ValueError("元Aimの設定に入力またはロックがあるため復元できません: " + plug.getName(full=True))
             updates.append((plug, value))
         touched = set(data["axes"]) | set(data["original"])
         for axis in touched:
@@ -220,7 +220,7 @@ class AimAxisConversion:
                 expected = expected.getConnections(input=True)
             if (dest.isLocked() or target.getPlug("rotate").isLocked() or target.isLocked()
                     or target.isFromReferencedFile() or dest.getConnections(input=True) != expected):
-                raise ValueError("変換後の接続・ロックが変更されています。復元対象: " + dest.getFullName())
+                raise ValueError("変換後の接続・ロックが変更されています。復元対象: " + dest.getName(full=True))
         for axis in data["axes"]:
             target.getPlug("rotate" + axis.upper()).disconnectAll(destination=False)
         for plug, value in updates:
@@ -257,7 +257,7 @@ class AimAxisConversion:
         for plug in [source.getPlug(attr) for attr in attrs] + source.getWeightPlugs():
             parent = plug.getParent() if plug.isCompound(child=True) else None
             if plug.getConnections(input=True) is None and (parent is None or parent.getConnections(input=True) is None):
-                settings[plug.getFullName().split(".", 1)[1]] = plug.get(unit="rad")
+                settings[plug.getName(full=True).split(".", 1)[1]] = plug.get(unit="rad")
         return settings
 
     @staticmethod
@@ -287,9 +287,9 @@ class AimAxisConversion:
             if compound or incoming == own:
                 original[axis] = "constraintRotate" + axis.upper()
             elif axis in axes and incoming is not None:
-                raise ValueError("別の入力接続は置換しません: " + dest.getFullName())
+                raise ValueError("別の入力接続は置換しません: " + dest.getName(full=True))
             if (axis in axes or axis in original) and (dest.isLocked() or target.getPlug("rotate").isLocked()):
-                raise ValueError("回転がロックされています: " + dest.getFullName())
+                raise ValueError("回転がロックされています: " + dest.getName(full=True))
         return target, original, compound
 
     def _node(self, kind, role):

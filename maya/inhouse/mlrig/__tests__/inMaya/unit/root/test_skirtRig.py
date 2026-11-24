@@ -135,18 +135,18 @@ class SkirtTest(unittest.TestCase):
             driver = rig.driver_chains()[2][0]
             follower = rig.chains()[2][0]
             position = cmds.xform(
-                follower.getFullName(), query=True, worldSpace=True, translation=True
+                follower.getName(full=True), query=True, worldSpace=True, translation=True
             )
             for value, expected in zip(position, (0, 0, 2)):
                 self.assertAlmostEqual(value, expected, places=4)
             driver.getPlug("rotateX").set(0.5, unit="rad")
-            self.assertAlmostEqual(cmds.getAttr(follower.getFullName() + ".rotateX"), 0.5, places=4)
+            self.assertAlmostEqual(cmds.getAttr(follower.getName(full=True) + ".rotateX"), 0.5, places=4)
             matrices = []
             for mode in ("off", "serial", "parallel"):
                 cmds.evaluationManager(mode=mode)
                 cmds.currentTime(cmds.currentTime(query=True) + 1)
                 matrices.append(
-                    cmds.xform(follower.getFullName(), query=True, worldSpace=True, matrix=True)
+                    cmds.xform(follower.getName(full=True), query=True, worldSpace=True, matrix=True)
                 )
             self.assertMatrix(matrices[0], matrices[1])
             self.assertMatrix(matrices[0], matrices[2])

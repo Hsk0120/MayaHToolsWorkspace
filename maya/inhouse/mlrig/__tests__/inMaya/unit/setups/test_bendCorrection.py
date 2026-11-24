@@ -66,7 +66,7 @@ class BendCorrectionTest(unittest.TestCase):
         graph.container.getPlug("innerPush").set(-10)
         self.assertAlmostEqual(graph.container.getPlug("inner").get(), 40, places=4)
         created = set(cmds.ls()) - before
-        cmds.delete(graph.container.getFullName())
+        cmds.delete(graph.container.getName(full=True))
         self.assertFalse(created.intersection(cmds.ls()))
 
     def test_bad_parent_does_not_edit_scene(self):

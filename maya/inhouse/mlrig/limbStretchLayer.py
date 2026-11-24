@@ -62,12 +62,12 @@ class LimbStretchLayer:
             group = mlib.Node(rig._member("channel_stretch"))
         else:
             parent = (
-                rig._member("channelModule") if root.hasAttr("channelModule") else root.getFullName()
+                rig._member("channelModule") if root.hasAttr("channelModule") else root.getName(full=True)
             )
             group = mlib.createNode(
                 "transform", name=root.getName() + "_stretch_layer", parent=parent, skipSelect=True
             )
-            rig._bind("channel_stretch", group.getFullName())
+            rig._bind("channel_stretch", group.getName(full=True))
             group.addAttr(longName="enabled", attributeType="bool", defaultValue=True)
             group.addAttr(longName="active", attributeType="bool", defaultValue=False)
             group.setAttrFlags(["enabled", "active"], channelBox=True)
@@ -76,7 +76,7 @@ class LimbStretchLayer:
         group.setAttrFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
         group.addAttr(longName="graph", attributeType="message")
         owner.getPlug("message").connectTo(group.getPlug("graph"))
-        rig._bind("stretchGroup", group.getFullName())
+        rig._bind("stretchGroup", group.getName(full=True))
         if not root.hasAttr("mlrigEnabled_stretch"):
             root.addAttr(
                 longName="mlrigEnabled_stretch", attributeType="bool", defaultValue=True

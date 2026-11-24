@@ -57,7 +57,7 @@ def main(output_dir=None, finished=None):
         rig, _ = editor.getCurrent()
         source = rig.driver_chains()[0][0]
         for time, value in ((1, 0), (8, 60), (24, 60)):
-            cmds.setKeyframe(source.getFullName(), attribute="rx", time=time, value=value)
+            cmds.setKeyframe(source.getName(full=True), attribute="rx", time=time, value=value)
         cmds.currentTime(8)
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("spring"))
         check(editor.addButton.isEnabled(), "Spring sample available")
@@ -90,7 +90,7 @@ def main(output_dir=None, finished=None):
         source.getPlug("rz").set(60)
         yield
         check(abs(graph.getPlug("outputs[0]").get() + 20) < 0.001, "Two-input pose combination")
-        cmds.setAttr(rig.root.getFullName() + ".mlrigEnabled_pose", False)
+        cmds.setAttr(rig.root.getName(full=True) + ".mlrigEnabled_pose", False)
         yield
         for _ in range(20):
             if SecondaryLayer._members(group, 'poses')[0].getPlug('inputRotateX').getConnections(input=True) is None:
@@ -116,7 +116,7 @@ def main(output_dir=None, finished=None):
         rig = SkirtRig("secondaryDemo")
         group = SecondaryLayer(rig).groups()[0]
         check(group.getPlug('baked').get() and group.getPlug('poseGraph').getConnections(input=True) is not None, 'Reload cache and pose data')
-        cmds.setAttr(rig.root.getFullName() + ".mlrigEnabled_spring", False)
+        cmds.setAttr(rig.root.getName(full=True) + ".mlrigEnabled_spring", False)
         yield
         check(SecondaryLayer._members(group, 'blends')[0].getPlug('inRotateX2').getConnections(input=True) is None, 'Reload watchers')
         rig.set_layer_enabled("spring", True)

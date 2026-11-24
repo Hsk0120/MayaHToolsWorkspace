@@ -70,11 +70,11 @@ class SampleBuilder:
         if kind == "stretch":
             group = rig.add_stretch()
             rig.set_layer_enabled("stretch", True)
-            return group.getFullName()
+            return group.getName(full=True)
         if kind == "spring":
             group = rig.bake_spring(0)
             rig.set_layer_enabled("spring", True)
-            return group.getFullName()
+            return group.getName(full=True)
         if kind == "pose":
             joint = rig.driver_chains()[0][0]
             size = len(rig.driver_chains()[0]) * 3
@@ -89,7 +89,7 @@ class SampleBuilder:
                 [60, 60],
             )
             rig.set_layer_enabled("pose", True)
-            return graph.container.getFullName()
+            return graph.container.getName(full=True)
         if kind in ("followTwist", "followSwing", "followHalf"):
             from .followLayer import FollowLayer
 
@@ -97,19 +97,19 @@ class SampleBuilder:
             mode = {"followTwist": "twist", "followSwing": "swing", "followHalf": "full"}[kind]
             rig.add_follow(identifier, mode=mode, axis=axis, ratio=ratio)
             rig.set_layer_enabled("follow", True)
-            return rig.follow_settings(identifier).getFullName()
+            return rig.follow_settings(identifier).getName(full=True)
         if kind == "twist":
             from .twistLayer import TwistLayer
 
             identifier = SampleBuilder.next_id(TwistLayer(rig).segments(), "upper")
             rig.add_twist(identifier, *rig.getJoints()[:2], count=count)
-            target = TwistLayer(rig).segments()[identifier].getFullName()
+            target = TwistLayer(rig).segments()[identifier].getName(full=True)
         elif kind == "bend":
             from .bendLayer import BendLayer
 
             identifier = SampleBuilder.next_id(BendLayer(rig).groups(), "bend")
             rig.add_bend(identifier)
-            target = rig.bend_settings(identifier).getFullName()
+            target = rig.bend_settings(identifier).getName(full=True)
         elif kind == "driven":
             from .drivenLayer import DrivenLayer
 
@@ -133,8 +133,8 @@ class SampleBuilder:
                 identifier, rig.getJoints()[1], bone.getPlug("translateY"), component, axis
             )
             rig.root.getPlug("mlrigOwned").appendMessage(group)
-            rig._layer_members("drivenSet", [group.getFullName()])
-            target = graph.getFullName()
+            rig._layer_members("drivenSet", [group.getName(full=True)])
+            target = graph.getName(full=True)
         elif kind == "foot":
             from .reverse_foot import add_reverse_foot
 

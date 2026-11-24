@@ -113,7 +113,7 @@ class ScapulaGlide(TwistDistribution):
         for node in (target, ribcage):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the ribcage")
-        if target.getFullName() == ribcage.getFullName():
+        if target.getName(full=True) == ribcage.getName(full=True):
             raise ValueError("target and ribcage must be different nodes")
         normal_axis = [float(axis == normalAxis) for axis in _AXES]
         up_axis = [float(axis == upAxis) for axis in _AXES]

@@ -119,7 +119,7 @@ def build():
     cylinder("forearm", elbow, (0, 1, 0), 4, 0.23, (0, -2, 0), arm_material)
     graph = RootDirectionLimit.create(elbow, guides, name="tailRootAvoidance", angle=45)
     # 変更する出力は根元1骨の向きだけ。末端のローカル位置/回転は固定する。
-    root_joint = cmds.createNode("joint", name="tailRoot_joint", parent=graph.output.getFullName())
+    root_joint = cmds.createNode("joint", name="tailRoot_joint", parent=graph.output.getName(full=True))
     tip_joint = cmds.createNode("joint", name="tailTip_joint", parent=root_joint)
     cmds.setAttr(tip_joint + ".tx", 6)
     cylinder("correctedTail", root_joint, (1, 0, 0), 6, 0.16, (3, 0, 0), green)

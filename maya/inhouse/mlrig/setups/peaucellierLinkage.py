@@ -132,7 +132,7 @@ class PeaucellierLinkage(TwistDistribution):
         nodes = [mlib.Node(crank), mlib.Node(pen)] + [mlib.Node(arm) for arm in arms]
         if not all(isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the crank, the pen and the arms")
-        if len({node.getFullName() for node in nodes}) != len(nodes):
+        if len({node.getName(full=True) for node in nodes}) != len(nodes):
             raise ValueError("The crank, the pen and the arms must be different nodes")
         crank, pen = nodes[:2]
         remaining = iter(nodes[2:])

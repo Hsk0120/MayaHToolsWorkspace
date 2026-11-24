@@ -97,7 +97,7 @@ class ScotchYoke(TwistDistribution):
         nodes = [crank, yoke] + ([mlib.Node(block)] if block is not None else [])
         if not all(isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the crank, the yoke and the block")
-        if len({node.getFullName() for node in nodes}) != len(nodes):
+        if len({node.getName(full=True) for node in nodes}) != len(nodes):
             raise ValueError("The crank, the yoke and the block must be different nodes")
         block = nodes[2] if block is not None else None
         rotateChannel = "rotate" + axis.upper()

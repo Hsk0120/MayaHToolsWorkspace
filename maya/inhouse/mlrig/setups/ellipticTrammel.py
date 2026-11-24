@@ -102,7 +102,7 @@ class EllipticTrammel(TwistDistribution):
         nodes = [mlib.Node(crank), mlib.Node(sliderA), mlib.Node(sliderB)] + ([mlib.Node(rod)] if rod is not None else [])
         if not all(isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the crank, the sliders and the rod")
-        if len({node.getFullName() for node in nodes}) != len(nodes):
+        if len({node.getName(full=True) for node in nodes}) != len(nodes):
             raise ValueError("The crank, the sliders and the rod must be different nodes")
         crank, sliderA, sliderB = nodes[:3]
         rod = nodes[3] if rod is not None else None

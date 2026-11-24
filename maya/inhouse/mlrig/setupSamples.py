@@ -260,12 +260,12 @@ class SetupSamples:
         # 極ベクトルの操作子を肘の位置へ移す(同じ平面の上なので腕は動かない)。
         pole = mlib.Node(pole)
         pole.setParent(root)
-        pole = pole.getFullName()
+        pole = pole.getName(full=True)
         _set(pole, "translate", (4 * math.cos(bend), 8, -4 * math.sin(bend)))
         target = _locator(name + "_target", root, translate=(8 * math.cos(bend), 8, 0))
         handle = mlib.Node(handle)
         handle.setParent(target)
-        handle = handle.getFullName()
+        handle = handle.getName(full=True)
         _set(handle, "translate", (0, 0, 0))
         _set(handle, "visibility", False)
         setup = LimbPin.create(shoulder, elbow, wrist, pole, target, name=name, pin=1.0)
@@ -291,7 +291,7 @@ class SetupSamples:
         pole.setParent(root)
         setup = NoFlipPole.create(hip, control, mid=knee, name=name, distance=6.0)
         pole.getPlug("translate").set((0, 0, 0))
-        pole = pole.getFullName()
+        pole = pole.getName(full=True)
         _connect(str(setup.container) + ".matrix", pole + ".offsetParentMatrix")
         _color(pole)
         return setup, control
@@ -1932,7 +1932,7 @@ class SetupSamples:
 
 def _longName(node):
     """ノードのフルパス。"""
-    return mlib.Node(str(node)).getFullName()
+    return mlib.Node(str(node)).getName(full=True)
 
 
 def _set(node, attribute, value):
@@ -1948,7 +1948,7 @@ def _connect(source, destination):
 def _create(kind, name, parent, translate=(0, 0, 0), rotate=(0, 0, 0)):
     """parentの下(Noneならワールド)にtransform系のノードを作り、フルパスを返す。"""
     flags = {} if parent is None else {"parent": parent}
-    node = mlib.createNode(kind, name=name, skipSelect=True, **flags).getFullName()
+    node = mlib.createNode(kind, name=name, skipSelect=True, **flags).getName(full=True)
     _set(node, "translate", tuple(translate))
     _set(node, "rotate", tuple(rotate))
     return node

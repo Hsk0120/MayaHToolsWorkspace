@@ -98,7 +98,7 @@ class PoseEditor(QtWidgets.QDialog):
                 source = graph.container.getPlug('inputs')[i].getConnections(input=True)
                 if source is not None and source.getNode().getType() == "unitConversion":
                     source = source.getNode().getPlug('input').getConnections(input=True)
-                names.append(source.getFullName() if source is not None else "未接続")
+                names.append(source.getName(full=True) if source is not None else "未接続")
         else:
             node = self.rig.driver_chains()[self.index][0]
             names = [node.getName() + ".rotate" + axis for axis in "XZ"]

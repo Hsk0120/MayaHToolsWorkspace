@@ -164,14 +164,14 @@ class PlanetaryGear(TwistDistribution):
         every = list(nodes.values()) + planets
         if not all(isinstance(node, mlib.Transform) for node in every):
             raise ValueError("Expected transforms for the gears and the carrier")
-        if len({node.getFullName() for node in every}) != len(every):
+        if len({node.getName(full=True) for node in every}) != len(every):
             raise ValueError("The gears and the carrier must be different nodes")
         channel = "rotate" + axis.upper()
         targets = list(planets) + ([nodes[driven]] if driven in nodes else [])
         if connect:
             for target in targets:
                 if target.getPlug(channel).getConnections(input=True, skipConversionNodes=True) is not None:
-                    raise ValueError("The rotation is already connected: " + target.getFullName())
+                    raise ValueError("The rotation is already connected: " + target.getName(full=True))
 
         zs, zp = float(sunTeeth), float(planetTeeth)
         coefficients = _coefficients(zs, zp, driven)

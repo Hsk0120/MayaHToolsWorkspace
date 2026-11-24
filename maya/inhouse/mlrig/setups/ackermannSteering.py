@@ -92,7 +92,7 @@ class AckermannSteering(TwistDistribution):
         wheels = [mlib.Node(left), mlib.Node(right)]
         if any(not isinstance(wheel, mlib.Transform) for wheel in wheels):
             raise ValueError("Expected transforms for the wheels")
-        if wheels[0].getFullName() == wheels[1].getFullName():
+        if wheels[0].getName(full=True) == wheels[1].getName(full=True):
             raise ValueError("The left and right wheels must be different nodes")
         if trackWidth is None:
             points = [Matrix(wheel.getPlug("worldMatrix")[0].get()) for wheel in wheels]
@@ -107,7 +107,7 @@ class AckermannSteering(TwistDistribution):
         if connect:
             for wheel in wheels:
                 if wheel.getPlug(channel).getConnections(input=True, skipConversionNodes=True) is not None:
-                    raise ValueError("The rotation of the wheel is already connected: " + wheel.getFullName())
+                    raise ValueError("The rotation of the wheel is already connected: " + wheel.getName(full=True))
 
         graph = cls(mlib.createContainer(name=name))
         owner = graph.container

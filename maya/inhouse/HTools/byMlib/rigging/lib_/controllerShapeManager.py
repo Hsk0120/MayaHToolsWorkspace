@@ -214,9 +214,9 @@ def _curve(
         existing_curve_shapes = target_transform.getChildren(shapes=True, intermediates=True, type="nurbsCurve")
 
         if existing_curve_shapes:
-            ControlShape.replaceCurves(target_transform.getFullName(), points, knots, degree=degree, name=name)
+            ControlShape.replaceCurves(target_transform.getName(full=True), points, knots, degree=degree, name=name)
 
-            return target_transform.getFullName()
+            return target_transform.getName(full=True)
 
     # 点はシーンの長さの単位、mlib の作成関数は cm で受け取る。
     created = mlib.createCurve(

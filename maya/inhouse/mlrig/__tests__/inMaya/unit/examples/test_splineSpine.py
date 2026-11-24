@@ -101,7 +101,7 @@ class SplineSpineTest(unittest.TestCase):
         self.assertLess((_position(self.spine.deform[1]) - om.MVector(0, 110, 0)).length(), 1e-3)
         cmds.setAttr("{}.rotateZ".format(self.spine.fk[1]), 0)
         cmds.setAttr("{}.tangentHips".format(self.spine.cog), 0)
-        curve = self.spine.graph.member("curve").getFullName()
+        curve = self.spine.graph.member("curve").getName(full=True)
         cv = om.MVector(*cmds.pointPosition("{}.cv[1]".format(curve), world=True))
         self.assertLess((cv - _position(self.spine.hips)).length(), 1e-3)
 

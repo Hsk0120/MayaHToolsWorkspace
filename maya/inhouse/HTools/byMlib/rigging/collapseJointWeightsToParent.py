@@ -250,7 +250,7 @@ def lod_like_collapse_selected_joints(
 
             parent = _get_parent_joint(child)
             if not parent:
-                cmds.warning("Skipped because the parent joint was not found: %s" % child.getFullName())
+                cmds.warning("Skipped because the parent joint was not found: %s" % child.getName(full=True))
                 continue
 
             # child が入っている skinCluster を列挙
@@ -258,7 +258,7 @@ def lod_like_collapse_selected_joints(
             if not skinclusters:
                 # スキンに使われていないジョイントは、指定要件的には “削除だけ” でも良いはずだが
                 # 事故防止で警告してから削除
-                cmds.warning("skinCluster not found (the joint may not be used for skinning): %s" % child.getFullName())
+                cmds.warning("skinCluster not found (the joint may not be used for skinning): %s" % child.getName(full=True))
                 if reparent_children_to_parent:
                     _reparent_children(child, parent)
                 if delete_joint:
@@ -290,7 +290,7 @@ def lod_like_collapse_selected_joints(
                 try:
                     child.delete(removeInfluence=False)
                 except RuntimeError:
-                    cmds.warning("Failed to delete: %s" % child.getFullName())
+                    cmds.warning("Failed to delete: %s" % child.getName(full=True))
 
 
 # 実行例：

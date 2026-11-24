@@ -72,7 +72,7 @@ class LimbRig:
         source = self.root.getPlug(role).getConnections(input=True) if self.root.hasAttr(role) else None
         if source is None:
             raise RuntimeError("Missing rig member: " + role)
-        return source.getNode().getFullName()
+        return source.getNode().getName(full=True)
 
     def _bind(self, role, node):
         """生成物へのメッセージ参照を登録する。
@@ -81,7 +81,7 @@ class LimbRig:
             role (str): 未登録の参照識別子。
             node (str | Node): 参照するノード。
         """
-        root = self.root.getFullName()
+        root = self.root.getName(full=True)
         mlib.Node(root).addAttr(longName=role, attributeType="message")
         mlib.Node(node).getPlug("message").connectTo(root + "." + role)
 
@@ -152,7 +152,7 @@ class LimbRig:
             role (str): セットの参照識別子。
             nodes (Sequence[str]): 追加するノード名。
         """
-        if mlib.Node(self.root.getFullName()).hasAttr(role):
+        if mlib.Node(self.root.getName(full=True)).hasAttr(role):
             mlib.Node(self._member(role)).addMembers(*nodes)
 
     def _local_matrix(self, role):
@@ -167,7 +167,7 @@ class LimbRig:
         """
         member = "targetMatrix" if role == "target" else "fkMatrix" + role[2:]
         if role.startswith("fk") or role == "target":
-            if mlib.Node(self.root.getFullName()).hasAttr(member):
+            if mlib.Node(self.root.getName(full=True)).hasAttr(member):
                 return self._member(member) + ".matrixSum"
         return self._member(role) + ".matrix"
 
@@ -374,7 +374,7 @@ class LimbRig:
         """
         if backend not in ("standard", "bifrost", "cpp"):
             raise ValueError("Unknown backend: " + backend)
-        root = self.root.getFullName()
+        root = self.root.getName(full=True)
         if mlib.getPlug(root + ".mlrigBackend").get() == backend:
             return
         old = self._member("softGraph")
@@ -391,8 +391,8 @@ class LimbRig:
             parent = self._member("softSetup") if mlib.Node(root).hasAttr("softSetup") else root
             owner = mlib.Node(owner)
             owner.setParent(parent)
-            owner = owner.getFullName()
-            graph = reference.getFullName()
+            owner = owner.getName(full=True)
+            graph = reference.getName(full=True)
             mlib.getPlug(graph + ".visibility").set(False)
         source.connectTo(graph + ".distance")
         mlib.getPlug(self._member("target") + ".softness").connectTo(graph + ".softness")
@@ -450,7 +450,7 @@ class LimbRig:
             bool: 使用する設定ならTrue。実際の評価状態とは異なる。
         """
         attr = "mlrigEnabled_" + layer
-        root = self.root.getFullName()
+        root = self.root.getName(full=True)
         return bool(mlib.getPlug(root + "." + attr).get()) if mlib.Node(root).hasAttr(attr) else True
 
     @undoChunk("mlrig.LimbRig.set_layer_enabled")
@@ -463,7 +463,7 @@ class LimbRig:
         """
         if layer not in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             raise ValueError("Unknown optional layer: " + layer)
-        root = self.root.getFullName()
+        root = self.root.getName(full=True)
         attr = "mlrigEnabled_" + layer
         if not mlib.Node(root).hasAttr(attr):
             mlib.Node(root).addAttr(longName=attr, attributeType="bool", defaultValue=True)
@@ -488,7 +488,7 @@ class LimbRig:
         detailed = self.lod() == 1
         handle, graph = self._member("handle"), self._member("softGraph")
         scale = self._member("softScale")
-        root = self.root.getFullName()
+        root = self.root.getName(full=True)
         target = self._member("target")
         soft = detailed and self.layer_enabled("soft")
         foot = detailed and self.layer_enabled("foot") and mlib.Node(root).hasAttr("footMatrix")
@@ -660,7 +660,7 @@ def build_limb(definition=None, backend="standard"):
         from mlib_bifrost.common import Bifrost
 
         Bifrost.ensure_available()
-    saved_selection = [item.getFullName() for item in mlib.ls(selection=True, long=True)] or []
+    saved_selection = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)] or []
     created = []
 
     def create(kind, suffix, parent=None):
@@ -676,12 +676,12 @@ def build_limb(definition=None, backend="standard"):
             str: 生成したノードの完全名。
         """
         kwargs = {"parent": parent} if parent else {}
-        node = mlib.createNode(kind, name=names[suffix], skipSelect=True, **kwargs).getFullName()
+        node = mlib.createNode(kind, name=names[suffix], skipSelect=True, **kwargs).getName(full=True)
         created.append(node)
         return node
 
     try:
-        root = mlib.createNode("transform", name=definition.name, skipSelect=True).getFullName()
+        root = mlib.createNode("transform", name=definition.name, skipSelect=True).getName(full=True)
         created.append(root)
         for attr in ("mlrigDefinition", "mlrigMode", "mlrigBackend"):
             mlib.Node(root).addAttr(longName=attr, dataType="string")
@@ -713,7 +713,7 @@ def build_limb(definition=None, backend="standard"):
             _lock_group(node)
             rig._bind(role, node)
         for role in ("moduleSet", "fkSet", "ikSet", "softSet", "helperSet"):
-            node = mlib.createNode("objectSet", name=names[role], skipSelect=True).getFullName()
+            node = mlib.createNode("objectSet", name=names[role], skipSelect=True).getName(full=True)
             created.append(node)
             rig._bind(role, node)
             if role != "moduleSet":
@@ -778,7 +778,7 @@ def build_limb(definition=None, backend="standard"):
         created.extend((handle, effector))
         handle = mlib.Node(handle)
         handle.setParent(rig._member("ikSetup"))
-        handle = handle.getFullName()
+        handle = handle.getName(full=True)
         rig._bind("handle", handle)
         constraints = [
             mlib.Node(handle).addConstraint(
@@ -804,9 +804,9 @@ def build_limb(definition=None, backend="standard"):
             graph_ref = Node(graph)
             graph_parent = mlib.Node(graph_parent)
             graph_parent.setParent(rig._member("softSetup"))
-            graph_parent = graph_parent.getFullName()
+            graph_parent = graph_parent.getName(full=True)
             created[-1] = graph_parent
-            graph = graph_ref.getFullName()
+            graph = graph_ref.getName(full=True)
             mlib.getPlug(graph + ".visibility").set(False)
         rig._bind("softGraph", graph)
         rig._bind("softOwner", graph_parent)

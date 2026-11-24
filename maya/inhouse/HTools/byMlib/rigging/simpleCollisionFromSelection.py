@@ -446,7 +446,7 @@ def _selected_mesh_points_world():
 
 	def mesh_points(mesh):
 		"""メッシュのワールド座標を、メッシュごとに1回だけ取得する。"""
-		key = mesh.getFullName()
+		key = mesh.getName(full=True)
 		if key not in world_points:
 			world_points[key] = mesh.getPoints(ws=True)
 		return world_points[key]
@@ -460,7 +460,7 @@ def _selected_mesh_points_world():
 				previous = None
 				continue
 			# 頂点以外のコンポーネントは、同じ選択(同じ shape・種類の続き)ごとにメッシュ全体を1回使う。
-			key = (mesh.getFullName(), type(item))
+			key = (mesh.getName(full=True), type(item))
 			if key == previous:
 				continue
 			previous = key

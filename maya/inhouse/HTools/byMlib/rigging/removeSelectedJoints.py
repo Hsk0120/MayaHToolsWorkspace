@@ -217,7 +217,7 @@ def _delete_joints(joints):
                 transfers.append((skin, target))
         plans.append((joint, transfers))
     for joint, transfers in plans:
-        name = joint.getFullName()
+        name = joint.getName(full=True)
         stage = "transfer weights"
         try:
             for skin, target in transfers:

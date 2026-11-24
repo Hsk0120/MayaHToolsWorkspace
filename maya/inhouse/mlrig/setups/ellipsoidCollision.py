@@ -113,7 +113,7 @@ class EllipsoidCollision(SphereCollision):
         for node in (target, ellipsoid):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the ellipsoid")
-        if target.getFullName() == ellipsoid.getFullName():
+        if target.getName(full=True) == ellipsoid.getName(full=True):
             raise ValueError("target and ellipsoid must be different nodes")
 
         graph = cls(mlib.createContainer(name=name))

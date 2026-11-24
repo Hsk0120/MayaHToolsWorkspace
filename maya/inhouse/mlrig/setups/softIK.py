@@ -25,7 +25,7 @@ class SoftIK:
         """
         if not math.isfinite(length) or length <= 0:
             raise ValueError("length must be positive and finite")
-        owner = mlib.createContainer(name).getFullName()
+        owner = mlib.createContainer(name).getName(full=True)
         builder = ScalarGraph(owner)
         try:
             for attr, value in (("distance", 0.0), ("softness", 0.0), ("ratio", 1.0)):

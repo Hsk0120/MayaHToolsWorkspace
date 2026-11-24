@@ -46,7 +46,7 @@ class VirtualChain(TwistDistribution):
             nodes.append(node)
         if len(nodes) < 2:
             raise ValueError("controls must have two or more transforms")
-        paths = [node.getFullName() for node in nodes]
+        paths = [node.getName(full=True) for node in nodes]
         if len(set(paths)) != len(paths):
             raise ValueError("controls must be unique")
         for node, path in zip(nodes, paths):
@@ -57,7 +57,7 @@ class VirtualChain(TwistDistribution):
                     raise ValueError("controls must not be ancestors of each other: " + path)
         for node in nodes[1:]:
             if node.getPlug("offsetParentMatrix").getConnections(input=True) is not None:
-                raise ValueError("offsetParentMatrix is already connected: " + node.getFullName())
+                raise ValueError("offsetParentMatrix is already connected: " + node.getName(full=True))
         if mlib.objExists(name):
             raise ValueError("VirtualChain container already exists: " + name)
         graph = cls(mlib.createContainer(name=name))

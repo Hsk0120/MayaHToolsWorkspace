@@ -190,7 +190,7 @@ class SplineRig:
         """
         from .tweakLayer import TweakLayer
 
-        return tuple(n.getFullName() for n in self.getMembers("deform")) + TweakLayer(self).getJoints()
+        return tuple(n.getName(full=True) for n in self.getMembers("deform")) + TweakLayer(self).getJoints()
 
     def graph(self):
         """Spline IK計算グラフを取得する。
@@ -409,7 +409,7 @@ class SplineRig:
                 jobs.stop()
                 del cls._jobs[key]
         for attr in [
-            item.getFullName() for item in mlib.ls("*.mlrigSplineDefinition", recursive=True)
+            item.getName(full=True) for item in mlib.ls("*.mlrigSplineDefinition", recursive=True)
         ] or []:
             rig = cls(attr.rsplit(".", 1)[0])
             key = rig.root.getUuid()
@@ -436,7 +436,7 @@ class SplineRig:
         Args:
             key (str): ルートUUID。
         """
-        roots = [item.getFullName() for item in mlib.ls(key, long=True)] or []
+        roots = [item.getName(full=True) for item in mlib.ls(key, long=True)] or []
         if cls._busy or not roots:
             return
         cls._busy = True

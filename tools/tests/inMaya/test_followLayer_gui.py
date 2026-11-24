@@ -116,7 +116,7 @@ def main(output_dir=None, finished=None):
         check(not rig.layer_enabled("follow"), "Skirt follow checkbox")
         rig.set_layer_enabled("follow", True)
         yield
-        cmds.setAttr(rig.root.getFullName() + ".mlrigEnabled_follow", False)
+        cmds.setAttr(rig.root.getName(full=True) + ".mlrigEnabled_follow", False)
         yield
         check(mlib.getPlug(rig.follow_joints()[0] + '.offsetParentMatrix').getConnections(input=True) is None, 'Skirt Channel disabled')
         cmds.undo()
@@ -136,7 +136,7 @@ def main(output_dir=None, finished=None):
         yield
         rig = SkirtRig("skirtFollow")
         check(len(rig.follow_joints()) == 1, "Save reload keeps follow references")
-        cmds.setAttr(rig.root.getFullName() + ".mlrigEnabled_follow", False)
+        cmds.setAttr(rig.root.getName(full=True) + ".mlrigEnabled_follow", False)
         yield
         check(mlib.getPlug(rig.follow_joints()[0] + '.offsetParentMatrix').getConnections(input=True) is None, 'Save reload restores jobs')
         rig.set_layer_enabled("follow", True)

@@ -149,7 +149,7 @@ def createTwistJoints(root, end, count=3, name=DEFAULT_NAME, radius=None):
                 joint.getPlug(attr).set((0, 0, 0))
             # ワールド座標で置く。根本のスケールと segmentScaleCompensate は Maya が考慮する。
             joint.setTranslation(position, ws=True)
-            created.append(joint.getFullName())
+            created.append(joint.getName(full=True))
     return created
 
 

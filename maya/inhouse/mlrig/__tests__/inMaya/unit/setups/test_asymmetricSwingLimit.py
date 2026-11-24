@@ -145,7 +145,7 @@ class AsymmetricSwingLimitTest(unittest.TestCase):
         cmds.setAttr(self.joint + ".rotate", 75, 0, 0)
         self.assertAlmostEqual(owner.getPlug("swingAngle").get(), 0, places=3)
         self.assertMatrix(owner.getPlug("matrix").get(), self.local())
-        cmds.delete(owner.getFullName())
+        cmds.delete(owner.getName(full=True))
         for axis, rotation in (("y", (40, 0, 50)), ("z", (-35, 60, 0))):
             cmds.setAttr(self.joint + ".rotate", 0, 0, 0)
             owner = AsymmetricSwingLimit.create(self.joint, name="limit" + axis, axis=axis).container
@@ -157,7 +157,7 @@ class AsymmetricSwingLimitTest(unittest.TestCase):
                 owner.getPlug(attr).set(value)
             owner.getPlug("softness").set(0.6)
             self.check(owner, rest, axis, changed, 0.6)
-            cmds.delete(owner.getFullName())
+            cmds.delete(owner.getName(full=True))
 
     def test_invalid_and_undo(self):
         """範囲外の引数を拒否し、生成を1回のUndoで戻せる。"""

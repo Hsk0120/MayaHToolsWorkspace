@@ -94,8 +94,8 @@ class SpaceSwitch:
         """
         if not isinstance(target, mlib.Transform):
             raise ValueError("Space target must have a world matrix")
-        path = target.getFullName()
-        if path == self.buffer.getFullName() or path.startswith(self.buffer.getFullName() + "|"):
+        path = target.getName(full=True)
+        if path == self.buffer.getName(full=True) or path.startswith(self.buffer.getName(full=True) + "|"):
             raise ValueError("Space target cannot be the buffer or its descendant")
         pending, visited = [target], set()
         while pending:

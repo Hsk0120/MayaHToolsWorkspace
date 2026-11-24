@@ -73,7 +73,7 @@ def main(record=True):
         cmds.setAttr(node+".radius", 0.25)
     reader = ConeReader.create(arm, shoulder, name="armReader", coneAngle=60, size=4)
     cmds.setAttr(reader.cone+".rotate", 0, CONE_YAW, CONE_PITCH)
-    owner = reader.container.getFullName()
+    owner = reader.container.getName(full=True)
     cone_axis = [v for v in om.MVector(1, 0, 0).rotateBy(om.MEulerRotation(
         0, math.radians(CONE_YAW), math.radians(CONE_PITCH)))]
 

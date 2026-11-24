@@ -326,7 +326,7 @@ class DuplicateCameraTest(_Case):
         cmds.setAttr(camera + ".sx", lock=True)
         Time.setRange(1, 5)
         copy = timeline.duplicateCamera(camera)
-        name = copy.getFullName()
+        name = copy.getName(full=True)
         self.assertFalse(cmds.listRelatives(name, type="constraint"))
         for frame in (1, 3, 5):
             self.assertAlmostEqual(cmds.getAttr(name + ".tx", time=frame),

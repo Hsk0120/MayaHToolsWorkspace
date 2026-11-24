@@ -49,11 +49,11 @@ class SpaceLayer:
         Args:
             nodes (Sequence[Node]): 所有する生成物。外部参照先は含めない。
         """
-        root = self.rig.root.getFullName()
+        root = self.rig.root.getName(full=True)
         for node in nodes:
             mlib.Node(root).getPlug("mlrigOwned").appendMessage(node)
         members = [
-            node.getFullName() for node in nodes if node.getFullName() != self.rig._member("spaceSet")
+            node.getName(full=True) for node in nodes if node.getName(full=True) != self.rig._member("spaceSet")
         ]
         if members:
             self.rig._layer_members("spaceSet", members)
@@ -63,7 +63,7 @@ class SpaceLayer:
         """IK Local/World、Pole Local/World/Footの空間切替を追加する。"""
         if self.rig.root.hasAttr("targetSpace"):
             return
-        layer_set = mlib.createNode("objectSet", name=self.rig.getNodeName("spaceSet"), skipSelect=True).getFullName()
+        layer_set = mlib.createNode("objectSet", name=self.rig.getNodeName("spaceSet"), skipSelect=True).getName(full=True)
         self.rig._bind("spaceSet", layer_set)
         self.rig._layer_members("moduleSet", [layer_set])
         self._own([mlib.Node(layer_set)])
@@ -79,7 +79,7 @@ class SpaceLayer:
             switch.add("world")
             if role == "pole":
                 switch.add("foot", self.rig._member("target"))
-            self.rig._bind(role + "Space", buffer.getFullName())
+            self.rig._bind(role + "Space", buffer.getName(full=True))
             self._own(switch.getNodes())
             control = mlib.Node(self.rig._member(role))
             control.addAttr(
@@ -106,7 +106,7 @@ class SpaceLayer:
         """
         switch = self.switcher(control)
         if target is not None:
-            path = mlib.Node(target).getFullName()
+            path = mlib.Node(target).getName(full=True)
             # IKソルバーの内部依存は通常のDG入力列挙だけでは検出できない。
             # この部位の変形結果と計算用階層を、操作空間の入力には使わない。
             for role in ("moduleJoints", "moduleSetup"):

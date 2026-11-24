@@ -59,7 +59,7 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
         if handle_transform:
             cluster_handles.append(handle_transform)
         else:
-            cmds.warning(u"Skipped a node that is not a cluster: {0}".format(node.getFullName()))
+            cmds.warning(u"Skipped a node that is not a cluster: {0}".format(node.getName(full=True)))
 
     # 選択順を維持したまま重複ハンドルだけを除去する。
     cluster_handles = list(mlib.Nodes(cluster_handles))

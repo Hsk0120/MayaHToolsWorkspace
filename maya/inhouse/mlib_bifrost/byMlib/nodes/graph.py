@@ -61,7 +61,7 @@ class Graph:
         Returns:
             str: 現在のDG完全名を取得する。
         """
-        return self.node.getFullName()
+        return self.node.getName(full=True)
 
     def getParent(self):
         """所有するDAG親を取得する。
@@ -80,7 +80,7 @@ class Graph:
         core = coreModule()
 
         parent = self.getParent()
-        children = parent.getChildren(shapes=True, intermediates=True).getFullNames()
+        children = parent.getChildren(shapes=True, intermediates=True).getNames(full=True)
         if children != [self.getName()]:
             raise ValueError("Parent contains other children; delete the graph shape explicitly")
         core.delete(parent)

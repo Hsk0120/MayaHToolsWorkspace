@@ -139,7 +139,7 @@ class PlaneCollision(TwistDistribution):
         for node in (target, plane):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the plane")
-        if target.getFullName() == plane.getFullName():
+        if target.getName(full=True) == plane.getName(full=True):
             raise ValueError("target and plane must be different nodes")
 
         graph = cls(mlib.createContainer(name=name))

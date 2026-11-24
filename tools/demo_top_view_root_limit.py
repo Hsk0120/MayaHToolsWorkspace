@@ -76,7 +76,7 @@ def main():
     cmds.sets(marker, edit=True, forceElement=marker_group)
     graph = RootDirectionLimit.create(elbow, guides, name="topViewDirectionLimit", angle=45)
     _line("redOriginalDirection", [(0, 0, 0), (12, 0, 0)], (1, 0.12, 0.12), elbow, 5)
-    _line("greenCorrectedDirection", [(0, 0, 0), (12, 0, 0)], (0.1, 1, 0.1), graph.output.getFullName(), 5)
+    _line("greenCorrectedDirection", [(0, 0, 0), (12, 0, 0)], (0.1, 1, 0.1), graph.output.getName(full=True), 5)
     camera, camera_shape = cmds.camera(name="topViewCamera", orthographic=True)
     cmds.setAttr(camera + ".translate", 4, 30, 0)
     cmds.setAttr(camera + ".rotate", -90, 0, 0)
@@ -106,7 +106,7 @@ def main():
         cmds.setAttr(arm + ".ry", orbit)
         cmds.setAttr(elbow + ".ry", twist)
         source_matrix = cmds.xform(elbow, query=True, worldSpace=True, matrix=True)
-        output_matrix = cmds.xform(graph.output.getFullName(), query=True, worldSpace=True, matrix=True)
+        output_matrix = cmds.xform(graph.output.getName(full=True), query=True, worldSpace=True, matrix=True)
         raw = source_matrix[:3]
         safe = output_matrix[:3]
         root = source_matrix[12:15]

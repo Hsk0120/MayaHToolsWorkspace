@@ -75,7 +75,7 @@ class TripodJoint(TwistDistribution):
         for node in (housing, outerJoint):
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the housing and the outer joint")
-        if housing.getFullName() == outerJoint.getFullName():
+        if housing.getName(full=True) == outerJoint.getName(full=True):
             raise ValueError("housing and outerJoint must be different nodes")
         if length is None:
             start = Vector(Matrix(housing.getPlug("worldMatrix")[0].get()).translate)

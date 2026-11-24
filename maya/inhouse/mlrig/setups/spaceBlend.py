@@ -65,10 +65,10 @@ class SpaceBlend(TwistDistribution):
         for node in [follower] + spaces:
             if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the follower and the spaces")
-        names = [space.getFullName() for space in spaces]
+        names = [space.getName(full=True) for space in spaces]
         if len(set(names)) != len(names):
             raise ValueError("spaces must be different nodes")
-        if follower.getFullName() in names:
+        if follower.getName(full=True) in names:
             raise ValueError("follower must not be one of the spaces")
         if weights is None:
             weights = [1.0] + [0.0] * (len(spaces) - 1)

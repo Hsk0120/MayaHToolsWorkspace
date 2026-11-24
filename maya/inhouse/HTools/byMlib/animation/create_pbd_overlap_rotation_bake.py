@@ -162,7 +162,7 @@ def _bake_pbd_overlap_for_chain(
 	    substeps: 1フレームを分割する計算回数。
 	"""
 	if len(chain) < 2:
-		cmds.warning("{0}: skipped because it has no children.".format(chain[0].getFullName()))
+		cmds.warning("{0}: skipped because it has no children.".format(chain[0].getName(full=True)))
 		return 0
 
 	# root は入力アニメを維持し、子のみオーバーラップを焼き込む。

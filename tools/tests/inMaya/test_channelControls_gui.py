@@ -210,7 +210,7 @@ def main(output_dir=None, finished=None):
         check(rig.mode() == 'ik','Explicit switch without matching')
         editors = [cmds.outlinerPanel(panel,q=True,outlinerEditor=True)
                    for panel in cmds.getPanel(type='outlinerPanel')]
-        cmds.select(rig.root.getFullName())
+        cmds.select(rig.root.getName(full=True))
         yield
         for editor in editors:
             cmds.outlinerEditor(editor,e=True,expandAllSelectedItems=True)

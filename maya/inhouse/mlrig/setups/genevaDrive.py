@@ -93,11 +93,11 @@ class GenevaDrive(TwistDistribution):
         driver, wheel = mlib.Node(driver), mlib.Node(wheel)
         if not isinstance(driver, mlib.Transform) or not isinstance(wheel, mlib.Transform):
             raise ValueError("Expected transforms for the driver and the wheel")
-        if driver.getFullName() == wheel.getFullName():
+        if driver.getName(full=True) == wheel.getName(full=True):
             raise ValueError("The driver and the wheel must be different nodes")
         channel = "rotate" + axis.upper()
         if connect and wheel.getPlug(channel).getConnections(input=True, skipConversionNodes=True) is not None:
-            raise ValueError("The rotation of the wheel is already connected: " + wheel.getFullName())
+            raise ValueError("The rotation of the wheel is already connected: " + wheel.getName(full=True))
 
         ratio = math.sin(math.pi / slots)
         limit = math.pi / 2.0 - math.pi / slots

@@ -129,7 +129,7 @@ def main(record=True):
         samples.append((weights, target-step))
     driver = _node("composeMatrix", "coneDriver")
     for (label, _), axis in zip(CONES, "XYZ"):
-        _connect(readers[label].container.getFullName()+".weight", driver+".inputTranslate"+axis)
+        _connect(readers[label].container.getName(full=True)+".weight", driver+".inputTranslate"+axis)
     solver = _node("UERBFSolverNode", "conePoseSolver", mode=0, inputMode=0, distanceMethod=0, functionType=0,
                    normalizeMethod=1, automaticRadius=False, radius=RBF_RADIUS)
     _connect(driver+".outputMatrix", solver+".inputs[0]")
@@ -215,7 +215,7 @@ def main(record=True):
             result[key] = {"output_degrees": actual, "penetration_cm": depth, "step_degrees": step}
             lines[key] = ("BODY HIT {:.2f}cm".format(depth) if depth > 0 else "clear") \
                 + "  step {:.1f}".format(step) + ("  JUMP!" if frame <= flash[key] else "")
-        weights = [cmds.getAttr(readers[label].container.getFullName()+".weight") for label, _ in CONES]
+        weights = [cmds.getAttr(readers[label].container.getName(full=True)+".weight") for label, _ in CONES]
         offset = cmds.getAttr(outputs["cone"]+".rx")-requested
         result["cone"].update({"cone_weights": weights, "offset_degrees": offset})
         geo_weights = [cmds.getAttr(geo_solver+".outputs[{}]".format(i)) for i in range(len(geo_grid))]

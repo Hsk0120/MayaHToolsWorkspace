@@ -113,8 +113,8 @@ def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhy
     if forwardAxis not in ("X", "Y", "Z", "-X", "-Y", "-Z"):
         raise ValueError("Forward Axisが不正です")
     roots = [_joint(value) for value in roots]
-    root_paths = [root.getFullName() for root in roots]
-    excluded = {_joint(value).getFullName() for value in excluded}
+    root_paths = [root.getName(full=True) for root in roots]
+    excluded = {_joint(value).getName(full=True) for value in excluded}
     if len(set(root_paths)) != len(root_paths) or any(a.startswith(b + "|") for a in root_paths for b in root_paths if a != b):
         raise ValueError("Root Bonesには重複・親子を含めないでください")
     if excluded.intersection(root_paths):
@@ -130,17 +130,17 @@ def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhy
         index = len(bones)
         world = joint.getMatrix(ws=True)
         if abs(world.det4x4()) < 1.0e-9:
-            raise ValueError(f"ゼロスケールのジョイントは使用できません: {joint.getFullName()}")
+            raise ValueError(f"ゼロスケールのジョイントは使用できません: {joint.getName(full=True)}")
         if parent >= 0:
             parent_world = sources[parent].getMatrix(ws=True)
             length = (position(world) - position(parent_world)).length()
             if length <= 1.0e-7:
-                raise ValueError(f"長さ0のボーンは除外してください: {joint.getFullName()}")
+                raise ValueError(f"長さ0のボーンは除外してください: {joint.getName(full=True)}")
             distance += length
         bones.append({"parent": parent, "distance": distance, "root": root_index, "rate": 0.0})
         sources.append(joint)
         children = joint.getChildren(type="joint")
-        active = [child for child in children if child.getFullName() not in excluded]
+        active = [child for child in children if child.getName(full=True) not in excluded]
         for child in active:
             collect(child, index, distance, root_index)
         if not active and dummyLength > 0:
@@ -181,7 +181,7 @@ def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhy
                 node.getPlug(f"inputMatrix[{index}]").connect(source.getPlug("worldMatrix[0]"))
                 node.getPlug(f"sourceBones[{index}]").connect(source.getPlug("message"))
             parent = group if bone["parent"] < 0 else outputs[bone["parent"]]
-            leaf = source.getFullName().rsplit("|", 1)[-1].replace(":", "_") if source else "dummy"
+            leaf = source.getName(full=True).rsplit("|", 1)[-1].replace(":", "_") if source else "dummy"
             joint = mlib.createNode("joint", name=leaf + "_SP", parent=parent)
             joint.getPlug("segmentScaleCompensate").set(False)
             joint.getPlug("radius").set(0.5)
@@ -210,8 +210,8 @@ def addCollider(node, kind="sphere", attachTo=None, radius=5.0, height=10.0):
         if len(matches) != 1:
             raise ValueError("追従先を一意に指定してください")
         attachTo = matches[0]
-        attach_path = attachTo.getFullName()
-        outputs = [item.getFullName() for item in _connected_nodes(solver_node, "outputBones")]
+        attach_path = attachTo.getName(full=True)
+        outputs = [item.getName(full=True) for item in _connected_nodes(solver_node, "outputBones")]
         if any(attach_path == output or attach_path.startswith(output + "|") for output in outputs):
             raise ValueError("循環を避けるため、出力ジョイントへコライダーを追従させることはできません")
     types = json.loads(solver_node.getPlug("colliderTypes").get())
@@ -267,9 +267,9 @@ def addConstraint(node, first, second, compliance=0.0001):
     solver_node = _solver_node(node)
     if not math.isfinite(compliance) or compliance < 0:
         raise ValueError("Complianceは0以上の有限値です")
-    outputs = [item.getFullName() for item in _connected_nodes(solver_node, "outputBones")]
+    outputs = [item.getName(full=True) for item in _connected_nodes(solver_node, "outputBones")]
     first, second = _joint(first), _joint(second)
-    first_path, second_path = first.getFullName(), second.getFullName()
+    first_path, second_path = first.getName(full=True), second.getName(full=True)
     if first_path not in outputs or second_path not in outputs or first_path == second_path:
         raise ValueError("同じSolverの異なる出力ジョイントを2本指定してください")
     a, b = outputs.index(first_path), outputs.index(second_path)

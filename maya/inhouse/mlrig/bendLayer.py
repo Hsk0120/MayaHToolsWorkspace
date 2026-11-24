@@ -45,7 +45,7 @@ class BendLayer:
         """
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
-        return tuple((group.getPlug(role).getConnections(input=True).getNode().getFullName() for group in selected for role in ('half', 'inner', 'outer')))
+        return tuple((group.getPlug(role).getConnections(input=True).getNode().getName(full=True) for group in selected for role in ('half', 'inner', 'outer')))
 
     @undoTransaction("mlrig.BendLayer.add")
     def add(self, identifier, joint, bend_axis="z", push_axis="y"):
@@ -90,7 +90,7 @@ class BendLayer:
         root = self.rig.root
         owned = []
         if not root.hasAttr("bendSet"):
-            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("bendSet"), skipSelect=True).getFullName()
+            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("bendSet"), skipSelect=True).getName(full=True)
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             root.addAttr(longName="bendGroups", attributeType="message", multi=True)
@@ -140,7 +140,7 @@ class BendLayer:
         for node in owned:
             root.getPlug("mlrigOwned").appendMessage(node)
         self.rig._layer_members(
-            "bendSet", [group.getFullName(), owner.getFullName()] + [n.getFullName() for n in joints]
+            "bendSet", [group.getName(full=True), owner.getName(full=True)] + [n.getName(full=True) for n in joints]
         )
         from .limb import _lock_group
 
@@ -149,7 +149,7 @@ class BendLayer:
         from .channel_controls import sync_display
 
         sync_display(self.rig)
-        return tuple(n.getFullName() for n in joints)
+        return tuple(n.getName(full=True) for n in joints)
 
     def update(self):
         """無効時に出力を切断して基準姿勢へ戻し、親だけを継承する。"""

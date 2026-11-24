@@ -70,7 +70,7 @@ def _get_selected_face_and_curve():
     if curve_transform is None:
         cmds.error("No curve is selected.")
 
-    return faces[0].getFullName(), curve_transform.getFullName()
+    return faces[0].getName(full=True), curve_transform.getName(full=True)
 
 
 def extrude_selected_face_along_curve_even(divisions=3, curve_spans=20):

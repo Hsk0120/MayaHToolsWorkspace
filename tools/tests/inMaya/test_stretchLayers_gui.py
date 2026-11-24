@@ -66,7 +66,7 @@ def main(output_dir=None, finished=None):
         editor.select_node()
         settings = spline.root.getPlug('stretchGroup').getConnections(input=True).getNode()
         check(
-            cmds.ls(selection=True, long=True) == [settings.getFullName()],
+            cmds.ls(selection=True, long=True) == [settings.getName(full=True)],
             "Spline settings selection",
         )
         spline.controls()[-1].getPlug("ty").set(10)
@@ -106,7 +106,7 @@ def main(output_dir=None, finished=None):
             "Arm reaches stretched endpoint",
         )
         settings = limb.root.getPlug('stretchGroup').getConnections(input=True).getNode()
-        cmds.setAttr(settings.getFullName() + ".enabled", False)
+        cmds.setAttr(settings.getName(full=True) + ".enabled", False)
         for _ in range(20):
             yield
             if not limb.layer_enabled("stretch"):
@@ -134,7 +134,7 @@ def main(output_dir=None, finished=None):
         yield
         limb = LimbRig("stretchArm")
         settings = limb.root.getPlug('stretchGroup').getConnections(input=True).getNode()
-        cmds.setAttr(settings.getFullName() + ".enabled", False)
+        cmds.setAttr(settings.getName(full=True) + ".enabled", False)
         for _ in range(20):
             yield
             if not limb.layer_enabled("stretch"):

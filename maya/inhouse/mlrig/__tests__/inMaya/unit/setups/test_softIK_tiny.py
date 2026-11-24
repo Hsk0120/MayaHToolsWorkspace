@@ -70,7 +70,7 @@ class SoftIKTinyTest(unittest.TestCase):
                 cmds.currentUnit(linear=build_unit)
                 node = mlib.getNode(SoftIK.create("unitSoft", 10))
                 self.assertEqual(cmds.currentUnit(query=True, linear=True), build_unit)
-                members = {member.getFullName() for member in node.getMembers()}
+                members = {member.getName(full=True) for member in node.getMembers()}
                 conversions = set(cmds.ls(type="unitConversion") or [])
                 self.assertLessEqual(conversions, members)
                 for conversion in conversions:
@@ -86,7 +86,7 @@ class SoftIKTinyTest(unittest.TestCase):
     def test_creation_and_value_edit_undo_redo(self):
         """演算と変換の作成を一回でUndoし、Redo後の微小値編集も元へ戻す。"""
         node_name = SoftIK.create("undoSoft", 10)
-        members = [member.getFullName() for member in mlib.getNode(node_name).getMembers()]
+        members = [member.getName(full=True) for member in mlib.getNode(node_name).getMembers()]
         cmds.undo()
         self.assertFalse(cmds.objExists(node_name))
         self.assertFalse(any(cmds.objExists(member) for member in members))
@@ -110,9 +110,9 @@ class SoftIKTinyTest(unittest.TestCase):
         with mock.patch.object(cmds, "loadPlugin", side_effect=AssertionError("Plugin load")):
             node = mlib.getNode(SoftIK.create("noPluginSoft", 10))
             self.assertRatios(node, (0, 1e-8, 1e-6, 9.5, 12), (0, 1, 10))
-        self.assertEqual(cmds.nodeType(node.getFullName()), "container")
+        self.assertEqual(cmds.nodeType(node.getName(full=True)), "container")
         for attr in ("distance", "softness", "ratio"):
-            self.assertEqual(cmds.getAttr(node.getFullName() + "." + attr, type=True), "double")
+            self.assertEqual(cmds.getAttr(node.getName(full=True) + "." + attr, type=True), "double")
 
 
 if __name__ == "__main__":

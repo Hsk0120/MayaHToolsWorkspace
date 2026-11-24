@@ -130,7 +130,7 @@ def createRotatePlaneHandle(root, end, name, poleDistance=None):
     handleNode = mlib.createIkHandle(root, end, solver="ikRPsolver", name=name + "_ikHandle")
     effector = handleNode.getEffector()
     effector.rename(name + "_effector")
-    effector = effector.getFullName()
+    effector = effector.getName(full=True)
     # poleVector はikHandleの親の空間の向き(作った直後のikHandleはワールド直下なので、ワールドの向き)。
     parent = Matrix(handleNode.getPlug("parentMatrix")[0].get())
     direction = (Vector(*handleNode.getPlug("poleVector").get()) * parent).normal()
@@ -142,7 +142,7 @@ def createRotatePlaneHandle(root, end, name, poleDistance=None):
     # locatorはワールド直下なので、translateがそのままワールド位置になる。
     pole.getPlug("translate").set(tuple(mlib.common.units.convertDistance(value, toUnit="cm") for value in position))
     handleNode.addConstraint(pole, type="poleVector", name=name + "_poleVectorConstraint")
-    return handleNode.getFullName(), effector, pole.getFullName()
+    return handleNode.getName(full=True), effector, pole.getName(full=True)
 
 
 def groupUnderWorld(name, *nodes):
@@ -155,11 +155,11 @@ def groupUnderWorld(name, *nodes):
     Returns:
         tuple[str, list[str]]: (transformのフルパス, 子にしたノードのフルパス)。
     """
-    group = mlib.createNode("transform", name=name, skipSelect=True).getFullName()
+    group = mlib.createNode("transform", name=name, skipSelect=True).getName(full=True)
     children = [mlib.Node(node) for node in nodes]
     for child in children:
         child.setParent(group)
-    children = [child.getFullName() for child in children]
+    children = [child.getName(full=True) for child in children]
     return group, children
 
 
@@ -235,7 +235,7 @@ class HingeIK:
             if hinge is None:
                 raise ValueError("The chain is straight. Bend the knee slightly or pass the hinge axis.")
         hinge = Vector(*hinge).normal()
-        owner = mlib.createContainer(name).getFullName()
+        owner = mlib.createContainer(name).getName(full=True)
         setJointWorldOrientation(mid, orientationMatrix(worldPosition(mid), worldPosition(end) - worldPosition(mid),
                                                         hinge, axis))
         mid_joint = mlib.Node(mid)
@@ -250,10 +250,10 @@ class HingeIK:
 
 def _longName(node):
     """フルパス名を返す。"""
-    return mlib.Node(node).getFullName()
+    return mlib.Node(node).getName(full=True)
 
 
 def _parent(node):
     """親のフルパス名を返す(無ければNone)。"""
     parent = mlib.Node(node).getParent()
-    return None if parent is None else parent.getFullName()
+    return None if parent is None else parent.getName(full=True)

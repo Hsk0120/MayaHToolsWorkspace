@@ -122,11 +122,11 @@ class CamFollower(TwistDistribution):
         cam, follower = mlib.Node(cam), mlib.Node(follower)
         if not isinstance(cam, mlib.Transform) or not isinstance(follower, mlib.Transform):
             raise ValueError("Expected transforms for the cam and the follower")
-        if cam.getFullName() == follower.getFullName():
+        if cam.getName(full=True) == follower.getName(full=True):
             raise ValueError("The cam and the follower must be different nodes")
         rotateChannel, translateChannel = "rotate" + axis.upper(), "translate" + followerAxis.upper()
         if connect and follower.getPlug(translateChannel).getConnections(input=True, skipConversionNodes=True) is not None:
-            raise ValueError("The translation of the follower is already connected: " + follower.getFullName())
+            raise ValueError("The translation of the follower is already connected: " + follower.getName(full=True))
 
         upAngle, holdAngle, downAngle = (math.radians(value) for value in (riseAngle, dwellAngle, returnAngle))
         frequency, valueTerms, slopeTerms = LAWS[law]

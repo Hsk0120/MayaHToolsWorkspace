@@ -23,7 +23,7 @@ def transfer_uvchannel_to_map():
             mesh_shapes.extend(node.getChildren(shapes=True, intermediates=True, type='mesh'))
 
     # 重複 shape を排除して同一メッシュの二重処理を防ぐ。
-    mesh_shapes = list({mesh.getFullName(): mesh for mesh in mesh_shapes}.values())
+    mesh_shapes = list({mesh.getName(full=True): mesh for mesh in mesh_shapes}.values())
 
     if not mesh_shapes:
         cmds.warning(u'No mesh shape found in the selection.')
@@ -33,7 +33,7 @@ def transfer_uvchannel_to_map():
         uv_sets = mesh.getSetNames()
 
         if 'UVChannel_1' not in uv_sets:
-            cmds.warning(u'{}: skipped because UVChannel_1 does not exist.'.format(mesh.getFullName()))
+            cmds.warning(u'{}: skipped because UVChannel_1 does not exist.'.format(mesh.getName(full=True)))
             continue
 
         # map1 が存在しない場合は作成
@@ -54,10 +54,10 @@ def transfer_uvchannel_to_map():
             # UVChannel_1 を削除
             mesh.deleteSet('UVChannel_1')
 
-            print(u'Done: {} | UVChannel_1 -> map1 transferred, then deleted'.format(mesh.getFullName()))
+            print(u'Done: {} | UVChannel_1 -> map1 transferred, then deleted'.format(mesh.getName(full=True)))
 
         except Exception as e:
-            cmds.warning(u'{}: an error occurred - {}'.format(mesh.getFullName(), e))
+            cmds.warning(u'{}: an error occurred - {}'.format(mesh.getName(full=True), e))
 
 if __name__ == "__main__":
     transfer_uvchannel_to_map()

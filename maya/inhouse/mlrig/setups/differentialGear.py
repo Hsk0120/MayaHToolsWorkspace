@@ -111,12 +111,12 @@ class DifferentialGear(TwistDistribution):
         radial = [value - along * direction for value, direction in zip(relative, axle)]
         distance = math.sqrt(_dot(radial, radial))
         if distance < 1e-6:
-            raise ValueError("The spider must be off the axle: " + mlib.Node(spider).getFullName())
+            raise ValueError("The spider must be off the axle: " + mlib.Node(spider).getName(full=True))
         pin = _row(matrices[2], _AXES[spiderAxis])
         cosine = _dot(pin, radial) / (distance * math.sqrt(_dot(pin, pin)))
         if abs(cosine) < 0.5:
             raise ValueError("The spider axis must point along the cross pin (toward the axle): "
-                             + mlib.Node(spider).getFullName())
+                             + mlib.Node(spider).getName(full=True))
         sign = -math.copysign(1.0, offset) * math.copysign(1.0, cosine)
         return sign if sideIsLeft else -sign
 
@@ -179,7 +179,7 @@ class DifferentialGear(TwistDistribution):
         every = list(nodes.values()) + spiders
         if not all(isinstance(node, mlib.Transform) for node in every):
             raise ValueError("Expected transforms for the gears and the case")
-        if len({node.getFullName() for node in every}) != len(every):
+        if len({node.getName(full=True) for node in every}) != len(every):
             raise ValueError("The gears and the case must be different nodes")
         signs = []
         if spiders:
@@ -195,7 +195,7 @@ class DifferentialGear(TwistDistribution):
             targets += [(nodes[driven], channel)] if driven in nodes else []
             for target, attribute in targets:
                 if target.getPlug(attribute).getConnections(input=True, skipConversionNodes=True) is not None:
-                    raise ValueError("The rotation is already connected: " + target.getFullName())
+                    raise ValueError("The rotation is already connected: " + target.getName(full=True))
 
         zs, zp = float(sideTeeth), float(spiderTeeth)
         coefficients = _coefficients(driven)
