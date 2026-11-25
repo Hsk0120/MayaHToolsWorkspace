@@ -61,6 +61,7 @@ CHANGES = {
     "planetaryGear": (_set(".rotateZ", 90.0), "_carrier"),
     "differentialGear": (_set(".rotateX", 90.0), "_left"),
     "peaucellierLinkage": (_set(".rotateZ", 60.0), "_pen"),
+    "pantograph": (_add(".translateX", 1.0), "_pen"),
     "swashplate": (_set(".rotateZ", 6.0), "_blade0"),
     "stewartPlatform": (_add(".translateY", 1.0), "_rod0"),
     "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),

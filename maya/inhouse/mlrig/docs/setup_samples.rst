@@ -236,6 +236,9 @@
    * - PeaucellierLinkage - crank circle to exact straight line
      - クランクのjoint
      - ``rotateZ`` で回すと、クランクの先 P が固定点を通る円を描き、2本の腕が菱形を保つ向きへ開閉して、緑のペン(locator)が固定点から5.25cm離れた縦の直線の上だけを動く(腕5cm・菱形の辺2cm・クランク2cm)。約±82.8度を超えると菱形がつぶれる端で止まる。containerの ``qX`` は常に5.25、 ``qY`` はペンの移動、 ``excessAngle`` は端を超えた量。
+   * - Pantograph - pen copies the tracer at a fixed ratio
+     - なぞる点のlocator
+     - ``translateX`` ・ ``translateY`` で動かすと、緑のペン(locator)が固定点を中心に2倍の動きをし、固定点の腕(4cm)とその子の棒(4cm)がなぞる点へ届く向きへ曲がる。固定点から8cmより遠くへ動かすと、向きを保ったまま腕が伸びきった所で止まる。containerの ``qU`` ・ ``qV`` はペンの位置、 ``excess`` は届く範囲を超えた量、 ``armAngle`` ・ ``linkAngle`` は腕と棒の角度。
    * - Swashplate - tilted plate pitches rotor blades
      - 斜板のlocator
      - ``translateY`` で上げると3枚の緑のブレードが同じだけピッチし(コレクティブ)、 ``rotateX``・``rotateZ`` で傾けるとブレードごとにピッチが変わり、ローターの joint を ``rotateY`` で回すと1回転で1周期上下する(サイクリック。リンク半径2cm・ホーン1.5cm)。ピッチは±30度で止まる。containerの ``collective`` は軸の上の斜板の高さの変化、 ``bladePitch[i]`` はピッチ角、 ``linkExcess[i]`` は上限を超えた量。

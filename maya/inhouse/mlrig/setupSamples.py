@@ -117,6 +117,7 @@ class SetupSamples:
         ("planetaryGear", "PlanetaryGear - sun, planets and carrier"),
         ("differentialGear", "DifferentialGear - case drives left and right wheels"),
         ("peaucellierLinkage", "PeaucellierLinkage - crank circle to exact straight line"),
+        ("pantograph", "Pantograph - pen copies the tracer at a fixed ratio"),
         ("swashplate", "Swashplate - tilted plate pitches rotor blades"),
         ("stewartPlatform", "StewartPlatform - six legs follow a free platform"),
         ("uiSlider", "UiSlider - face panel slider"),
@@ -799,6 +800,25 @@ class SetupSamples:
         _set(armB, "rotateZ", -alpha)
         setup = PeaucellierLinkage.create(crank, pen, armA, armB, radius, arm, side, name=name, axis="z", penAxis="y")
         return setup, crank
+
+    @classmethod
+    def _pantograph(cls, name, root):
+        """固定点の腕(joint、長さ4)と、その子の棒(joint、長さ4)と、棒の先に置いたなぞる点(locator)と、固定点から2倍
+        離れたペン(緑のlocator)。なぞる点を ``translateX``・``translateY`` で動かすと、ペンが固定点を中心に2倍の動きを
+        し、腕と棒はなぞる点へ届く向きへ曲がる。固定点から8cmより遠くへ動かすと、向きを保ったまま腕が伸びきった所で
+        止まる。containerの ``qU``・``qV`` はペンの位置、 ``excess`` は届く範囲を超えた量。"""
+        from .setups import Pantograph
+
+        length, ratio = 4.0, 2.0
+        arm = _joint(name + "_arm", root, rotate=(0, 0, 90))
+        link = _joint(name + "_link", arm, translate=(length, 0, 0), rotate=(0, 0, -90))
+        _tip(link, name + "_linkEnd", (length, 0, 0))
+        tracer = _locator(name + "_tracer", root, translate=(length, length, 0))
+        pen = _locator(name + "_pen", root, translate=(ratio * length, ratio * length, 0))
+        _color(pen)
+        setup = Pantograph.create(tracer, pen, arm, link, length, length, ratio, name=name, plane="xy",
+                                  linkRelative=True)
+        return setup, tracer
 
     @classmethod
     def _swashplate(cls, name, root):
