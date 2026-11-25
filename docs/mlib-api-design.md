@@ -1349,7 +1349,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
   - ピボット(−3): `centerPivotsOnComponents(c)` → `centerPivot(c)`(`fast`・`check` も使える)、`getPivotTranslation`・`setPivotTranslation` → `getPivot(translation=True)`・`setPivot(v, translation=True)`
     (`translation=True` は `preserve`・`fast` と同時に指定できない。`getPivot(translation=True)` は Vector)。
   - 表示と非表示(DagNode −2、Nodes −2): `show()`・`hide()` → `setVisibility(True)`・`setVisibility(False)`。2026-10-26 の「両方残す」を改めた。
-  - 親とシェイプ(−2): `getParents(indirect)` → `getParent(instances=True, indirect=)`(Plug の `getParent(all=True)` は祖先、こちらはインスタンスの親なので、引数名を分けた)、
+  - 親とシェイプ(−2): `getParents(indirect)` → `getParent(instances=True, indirect=)`(Plug の `getParent(all=True)` は祖先、こちらはインスタンスの親なので、引数名を分けた)。2026-11-25に DagNode にも `getParent(all=True)`(祖先を近い順にすべて。Plug と同じ考え方)を足した(`getAllParents` の案内が `instances=True` を指していて、祖先を取れないように見えたため)、
     `Transform.getShapes(intermediates)` → `getShape(intermediates=, all=True)`(`DagNode.getShape(all=True)` は、Shape なら自身1つ、ほかは空の集まり)。
   - 名前(Node −1、Nodes −1、Plugs −1): `getNodeName(removeNamespace)` → `getName(node=True, removeNamespace=)`、`Nodes`・`Plugs` の `getFullNames()` → `getNames(full=True)`。
     単数の `getFullName` → `getName(full=True)` は、最後の段で一括して行う。
