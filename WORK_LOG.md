@@ -19,7 +19,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
-- Claude Code (2026-11-26〜): mlib の引数の統一と上書きの整理、全部の引数を網羅するテスト(ユーザー指示「mlibで検討したこと全て実装」)。決まりはローカルの docs/research/mlib-test-coverage/arg-study/decisions.md。mlib 本体・テストと、改名に合わせて利用側(mlrig・HTools・AnimBar・SkinWeightKit・SimpleCloth・SimplePhysics・FramePlayer・mlib_bifrost など)の呼び出しを直す。
 
 
 
@@ -206,6 +205,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-26): mlib の引数の統一と上書きの整理を実装し(同じ名前の引数は同じ働き・上書きで引数と意味を変えない・許可表と check_mlib_layout.py の L090〜L096)、利用側の呼び出しを直した。全部の引数を網羅するテスト(表から値・誤った入力・2つの引数の組を確かめる部品と、公開メソッド約720個の表)を足した。Maya 2022・2025・2027、run_rig_packages(963件中962件。残る1件は以前からの失敗)、AnimBar・SkinWeightKit・HTools の byMlib 版で確認。テストで見つかった docstring との食い違い(約150項目)はローカルの docs/research/mlib-test-coverage/findings4 にあり、表の known に入れてある(未修正)。
 - Claude Code (2026-11-26): 夜間タスクで mlrig に Pantograph(パンタグラフ。なぞる点の動きを固定点を中心に k 倍で写す平行四辺形リンク、届く範囲 |a - b|〜a + b で止めて excess を出力)を追加した。`mlrig/setups/pantograph.py`・テスト8件・文書 `docs/pantograph.rst`・サンプル・`tools/demo_pantograph.py`。標準ノードのみ。Maya 2027 の隔離mayapyで test_pantograph 8件OK、standard 76件OK、setups 819件中818件OK(失敗1件は、他ツールの未コミットの `mlrig/publishedChannels.py` に対するコマンド境界監査で、今回のコミットに含まれない)。Sphinx -W 成功。コミット・プッシュ(このコミット)。
 - Claude Code (2026-11-25): テストを厚くして見つかった mlib 本体の不具合を直した(ユーザー指示)。あわせて Joint で祖先を取れない件(ユーザー報告)に DagNode.getParent(all=True) を足し、getAllParents の案内を直した。主な修正: ジンバルの近くの getRotate、Joint の回転ピボットの位置、removeElement(shift=True)・compact の値の無い要素、ShadingEngine.assign の割り当てられない対象、DrivenKey の2つ目以降のドライバーの Undo、createReference の prompt の設定、preservedSkinShape の moveJointsMode、例外の型と docstring。mlrig が使う Transform._set_parent_fast の validate_only は残した。Maya 2022・2025・2027、run_rig_packages(955件)、AnimBar・SkinWeightKit、HTools の byMlib 版のテストで確認。
 - Claude Code (2026-11-25): mlib のテストを更に厚くした(ユーザー指示)。_tools/measure_mlib_coverage.py に片側の分岐と、公開メソッドごとの観点(boolの引数の両方の値・Raises の型・Undo・fast の Undo なし・cmds との突き合わせ)の記録を足し、ミューテーションテストの _tools/measure_mlib_mutations.py を足した。観点の抜けは約300件→約70件(残りは内部の補助・本体の不具合・突き合わせる相手が無いもの)、両側を通った分岐は97.1%→98.4%、行は99.2%(2022と2027を合わせた値)。数学型・Transform・Joint のランダムな入力の突き合わせ(約4700件)を足した。書き換え467個のうち生き残った72個は、42個をテストで気づくようにし、29個は同値か既存のテストで気づけるもの。Maya 2022・2025・2027 と run_rig_packages(955件)で確認。見つかった本体の不具合はローカルの docs/research/mlib-test-coverage/findings2・findings3。
