@@ -29,6 +29,8 @@ COMMANDS = (
     ("AnimBarJumpNextKey", "Jump to the next key", "from animBar.core import timeline; timeline.jumpToKey(1)"),
     ("AnimBarFrameKeys", "Set the playback range to the selected keys",
      "from animBar.core import timeline; timeline.frameSelectedKeys()"),
+    ("AnimBarRestorePoseClip", "Restore a pose clip to its recorded controls or the selected subset",
+     "from animBar.core import poseClip; poseClip.restoreShortcut()"),
     ("AnimBarToggleBar", "Show or hide the Anim Bar", "import animBar; animBar.toggle()"),
 )
 

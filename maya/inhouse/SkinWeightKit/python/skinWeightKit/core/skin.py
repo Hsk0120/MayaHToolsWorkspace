@@ -4,6 +4,7 @@ import mlib
 from mlib.common import Selection
 from mlib.decorator import preservedSkinShape, undoChunk
 
+from . import influences as influences_module
 from . import target as target_module
 
 #: バインドの方法の名前と、skinCluster の bindMethod の値。
@@ -282,3 +283,75 @@ class MoveJointsSession(object):
             bool: 始めて終えていなければTrue。
         """
         return self._context is not None
+
+def captureBindSettings(target):
+    """現在の方式、影響名・ロックとデフォーマー履歴の順序を比較用に読む。"""
+    cluster = target.requireSkin()
+    nodes = cluster.getInfluences()
+    locks = influences_module.lockedFlags(cluster, nodes)
+    return {
+        "mesh": target.mesh.getUuid(),
+        "skin": cluster.getUuid(),
+        "settings": getSettings(target),
+        "influences": {node.getUuid(): (node.getName(full=True), lock) for node, lock in zip(nodes, locks)},
+        "history": [(node.getUuid(), node.getName(node=True)) for node in target.mesh.getHistory(type="geometryFilter")],
+    }
+
+
+@undoChunk("skinWeightKitRestoreBindSettings")
+def restoreBindSettings(target, recorded):
+    """同じ構成のスキンで、記録した設定とロックを一度のUndoで復元する。"""
+    now = captureBindSettings(target)
+    if any(now[key] != recorded[key] for key in ("mesh", "skin")):
+        raise ValueError("Select the recorded mesh and skinCluster")
+    if now["influences"].keys() != recorded["influences"].keys():
+        raise ValueError("Restore the original influence membership first")
+    if [uid for uid, _ in now["history"]] != [uid for uid, _ in recorded["history"]]:
+        raise ValueError("Restore the original deformer order first")
+    cluster = target.requireSkin()
+    settings = {key: value for key, value in recorded["settings"].items() if now["settings"][key] != value}
+    attributes = set(settings)
+    if attributes.intersection(("maxInfluences", "maintainMaxInfluences")):
+        attributes.update(("maxInfluences", "maintainMaxInfluences"))
+    plugs = [cluster.getPlug(name) for name in attributes]
+    locks = []
+    for node in cluster.getInfluences():
+        uid = node.getUuid()
+        state = recorded["influences"][uid][1]
+        if now["influences"][uid][1] != state:
+            plugs.append(node.getPlug("lockInfluenceWeights"))
+            locks.append((node, state))
+    for plug in plugs:
+        if not plug.isSettable():
+            raise ValueError("Cannot restore " + str(plug))
+    if settings:
+        setSettings(target, **settings)
+    for node, state in locks:
+        influences_module.setLocked(cluster, [node], state)
+
+
+def compareBindSettings(target, recorded):
+    """同一スキンの基準との差を返す。改名後もUUIDでインフルエンスを対応させる。"""
+    now = captureBindSettings(target)
+    if (now["mesh"], now["skin"]) != (recorded["mesh"], recorded["skin"]):
+        raise ValueError("Select the mesh and skinCluster used for the recording")
+    changes = []
+    for name, old in recorded["settings"].items():
+        if old != now["settings"][name]:
+            changes.append("{}: {} → {}".format(name, old, now["settings"][name]))
+    for uid in sorted(recorded["influences"].keys() | now["influences"].keys()):
+        old = recorded["influences"].get(uid)
+        new = now["influences"].get(uid)
+        if old is None:
+            changes.append("Added influence: " + new[0])
+        elif new is None:
+            changes.append("Removed influence: " + old[0])
+        else:
+            if old[0] != new[0]:
+                changes.append("Influence path: {} → {}".format(old[0], new[0]))
+            if old[1] != new[1]:
+                changes.append("{} locked: {} → {}".format(new[0], old[1], new[1]))
+    if [uid for uid, _ in recorded["history"]] != [uid for uid, _ in now["history"]]:
+        changes.append("History: {} → {}".format(" / ".join(name for _, name in recorded["history"]),
+                                                " / ".join(name for _, name in now["history"])))
+    return changes

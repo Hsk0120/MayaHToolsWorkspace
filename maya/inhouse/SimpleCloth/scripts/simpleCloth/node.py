@@ -25,7 +25,7 @@ SCALARS = {
     "solverRate": (120.0, 1.0, 480.0),
 }
 INTEGERS = {"iterations": (8, 1, 100), "maxSteps": (4000, 1, 20000), "resetSerial": (0, 0, None)}
-OUTPUTS = ("outputMesh", "stretchError", "residualPenetration", "maxDistanceError")
+OUTPUTS = ("outputMesh", "stretchError", "residualPenetration", "maxDistanceError", "peakParticleSpeed", "pinnedVertexCount", "contactParticleCount")
 
 
 class SimpleClothNode(om.MPxNode):
@@ -41,6 +41,7 @@ class SimpleClothNode(om.MPxNode):
         super().__init__()
         self._signature = None
         self._cache = []
+        self._cache_origin = None
 
     @classmethod
     def creator(cls):
@@ -76,7 +77,7 @@ class SimpleClothNode(om.MPxNode):
             attribute = function.createPoint(name, name)
             function.default = default
             register(name, attribute)
-        for name, default in (("referenceData", "{}"), ("colliderTypes", "[]")):
+        for name, default in (("referenceData", "{}"), ("colliderTypes", "[]"), ("resumeState", "")):
             function = om.MFnTypedAttribute()
             register(name, function.create(name, name, om.MFnData.kString, om.MFnStringData().create(default)))
         function = om.MFnTypedAttribute()
@@ -101,7 +102,8 @@ class SimpleClothNode(om.MPxNode):
             register(name, attribute)
         for name in OUTPUTS[1:]:
             function = om.MFnNumericAttribute()
-            attribute = function.create(name, name, om.MFnNumericData.kDouble, 0)
+            kind = om.MFnNumericData.kInt if name in ("pinnedVertexCount", "contactParticleCount") else om.MFnNumericData.kDouble
+            attribute = function.create(name, name, kind, 0)
             function.storable = False
             function.writable = False
             register(name, attribute)
@@ -200,15 +202,38 @@ class SimpleClothNode(om.MPxNode):
         if steps > settings["maxSteps"]:
             raise ValueError("Simple Cloth: Max Stepsを超えました。開始フレームと範囲を見直してください")
         state = None
-        for index in range(steps + 1):
+        first = 0
+        encoded = data.inputValue(attrs["resumeState"]).asString()
+        saved = json.loads(encoded) if encoded else None
+        if (saved and time >= start and 0 <= saved["step"] <= steps and saved["signature"] == signature
+                and saved["solver"] == om.MFnDependencyNode(self.thisMObject()).uuid().asString()
+                and saved["fps"] == 1.0 / om.MTime(1, om.MTime.uiUnit()).asUnits(om.MTime.kSeconds)):
+            sample_time = start + saved["step"] * dt
+            _, _, _, key = self._sample(sample_time, reference, kinds)
+            if json.dumps(key) == saved["sample"]:
+                first = saved["step"]
+            else:
+                saved = None
+        else:
+            saved = None
+        origin = (first, encoded if saved else "")
+        if origin != self._cache_origin:
+            self._cache_origin = origin
+            self._cache = []
+        for index in range(first, steps + 1):
+            slot = index - first
             sample_time = min(time, start) if index == 0 else start + index * dt
             targets, normals, colliders, key = self._sample(sample_time, reference, kinds)
-            if index < len(self._cache) and self._cache[index][0] == key:
-                state = self._cache[index][1]
+            if slot < len(self._cache) and self._cache[slot][0] == key:
+                state = self._cache[slot][1]
             else:
-                del self._cache[index:]
-                state = (targets, [om.MVector() for _ in targets]) if index == 0 else solver.step(
-                    state, targets, normals, weights, constraints, colliders, settings, dt)
+                del self._cache[slot:]
+                if slot == 0 and saved:
+                    state = tuple([om.MVector(value) for value in array] for array in saved["state"])
+                elif index == 0:
+                    state = targets, [om.MVector() for _ in targets]
+                else:
+                    state = solver.step(state, targets, normals, weights, constraints, colliders, settings, dt)
                 self._cache.append((key, state))
         remainder = elapsed - steps * dt
         if remainder > 1.0e-7:
@@ -219,9 +244,14 @@ class SimpleClothNode(om.MPxNode):
         copied = om.MFnMesh().copy(mesh_object, output)
         om.MFnMesh(copied).setPoints(om.MPointArray([om.MPoint(point) for point in points]))
         data.outputValue(attrs["outputMesh"]).setMObject(output)
-        errors = solver.diagnostics(points, targets, weights, constraints, colliders, settings)
-        for name, value in zip(OUTPUTS[1:], errors):
+        errors = solver.contact_diagnostics(points, targets, weights, constraints, colliders, settings)
+        for name, value in zip(("stretchError", "residualPenetration", "maxDistanceError"), errors):
             data.outputValue(attrs[name]).setDouble(value)
+        data.outputValue(attrs["contactParticleCount"]).setInt(errors[3])
+        peak_speed = max((velocity.length() for velocity in state[1]), default=0.0)
+        data.outputValue(attrs["peakParticleSpeed"]).setDouble(peak_speed)
+        pinned = sum(weight * settings["maxDistance"] <= solver.PIN_DISTANCE for weight in weights)
+        data.outputValue(attrs["pinnedVertexCount"]).setInt(pinned)
         for name in OUTPUTS:
             data.setClean(attrs[name])
         return self

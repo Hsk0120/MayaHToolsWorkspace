@@ -103,6 +103,8 @@ Transformの移動チャンネルは通常のMaya表示単位です。
 - **Max Stretch Error**: 全辺の`abs(現在長 / 静止長 - 1)`の最大値。0.05は最大5%の誤差。
 - **Residual Penetration**: 外部コライダーの外へ出すのに必要な最大補正距離(cm)。固定頂点も含む。
 - **Max Distance Error**: 最大距離を超えた分(cm)。
+- **Peak Particle Speed (cm/s)** は現在の計算ステップの全頂点の最大速度です。Blend適用前の速度を使い、移動する入力に追従する固定頂点も含めます。
+- **Pinned Vertices** はMax Distanceとマップ値の積が固定判定の閾値 (1e-9 cm) 以下の頂点数です。
 
 出力Blendを下げた場合も表示結果で残差を測ります。入力との補間によって貫通が再発する場合があります。
 Backstop球同士・BackstopとMax Distanceの競合、セルフコリジョンの残差はこの診断に含みません。

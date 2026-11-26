@@ -406,6 +406,14 @@ def moveWeights(target, source, destination):
     Raises:
         ValueError: 元と先が同じ、またはどちらかがロックされている場合。
     """
+    skin, source_node, destination_node = _transferInfluences(target, source, destination)
+    vertices = target.editVertices()
+    skin.transferWeights([(source_node, destination_node)], vertices=vertices, add=True)
+    return len(vertices)
+
+
+def _transferInfluences(target, source, destination):
+    """移送元と移送先を解決し、両方のロックを検査する。"""
     skin = target.requireSkin()
     source_node = influences_module.find(skin, source)
     destination_node = influences_module.find(skin, destination)
@@ -414,9 +422,15 @@ def moveWeights(target, source, destination):
     for node in (source_node, destination_node):
         if influences_module.isLocked(skin, node):
             raise ValueError("{} is locked".format(node.getName(node=True)))
+    return skin, source_node, destination_node
+
+
+def previewMove(target, source, destination):
+    """移送で変わる頂点番号、移送量、移送先の元の値を頂点順に返す。"""
+    skin, source_node, destination_node = _transferInfluences(target, source, destination)
     vertices = target.editVertices()
-    skin.transferWeights([(source_node, destination_node)], vertices=vertices, add=True)
-    return len(vertices)
+    rows = readRows(skin, [source_node, destination_node], vertices)
+    return [(index, amount, before) for index, (amount, before) in zip(vertices, rows) if amount != 0]
 
 
 def copy(target):
@@ -459,6 +473,13 @@ def paste(target):
     Raises:
         ValueError: コピーが無い、または貼り付け先に無いインフルエンスがある場合。
     """
+    skin, influences, vertices, _, result = _pasteRows(target)
+    writeRows(skin, influences, vertices, result)
+    return len(vertices)
+
+
+def _pasteRows(target):
+    """貼付先の対応とロックを確認し、変更前後の行を用意する。"""
     if not hasCopy():
         raise ValueError("Copy weights first")
     skin, influences, locked, vertices = _context(target)
@@ -468,5 +489,12 @@ def paste(target):
         raise ValueError("Not influences of {}: {}".format(skin.getName(node=True), ", ".join(missing)))
     copied = [_clipboard["weights"].get(name, 0.0) for name in names]
     rows = readRows(skin, influences, vertices)
-    writeRows(skin, influences, vertices, [fitRow(copied, row, locked) for row in rows])
-    return len(vertices)
+    return skin, influences, vertices, rows, [fitRow(copied, row, locked) for row in rows]
+
+
+def previewPaste(target):
+    """貼り付けで変わる頂点番号、インフルエンス名、変更前後の値を返す。"""
+    _, influences, vertices, rows, result = _pasteRows(target)
+    names = [node.getName(node=True) for node in influences]
+    return [(vertex, name, old, new) for vertex, before, after in zip(vertices, rows, result)
+            for name, old, new in zip(names, before, after) if old != new]

@@ -4,7 +4,7 @@ import json
 
 from maya import cmds
 
-from . import api
+from . import api, checkpoint
 from .solver import PARAMETERS
 
 
@@ -17,6 +17,7 @@ LABELS = {
     "iterationsBefore": "Iterations Before Collision", "iterationsAfter": "Iterations After Collision",
     "collisionIterations": "Collision Iterations", "warmupSteps": "Warmup Steps", "maxSteps": "Max Steps",
     "startFrame": "Start Frame", "planarConstraint": "Planar Constraint", "gravity": "Gravity (cm/s2)",
+    "maxParticleSpeed": "Maximum Particle Speed (cm/s)", "fixedRootCount": "Fixed Roots", "contactParticleCount": "Contact Particles",
     "wind": "Wind Velocity (cm/s)", "residualPenetration": "Residual Penetration (cm)",
 }
 
@@ -44,7 +45,7 @@ class PhysicsWindow:
         for axis in ("X", "Y", "Z", "-X", "-Y", "-Z"):
             cmds.menuItem(label=axis)
         cmds.button(label="Create Simple Physics", height=32, command=lambda *_: self._run(self._create))
-        cmds.text(label="Root/Exclude/Dummyは作成時の設定。変更時は新規作成してください。", align="left")
+        cmds.text(label="Exclude BonesとDummyは作成時に指定します。", align="left")
         cmds.setParent(self.main)
         cmds.separator(height=8)
         self.selector = cmds.optionMenuGrp(label="Solver", changeCommand=lambda value: self._run(lambda: self._edit(value)))
@@ -73,6 +74,13 @@ class PhysicsWindow:
         excluded = [name.strip() for name in cmds.textFieldButtonGrp(self.excluded, query=True, text=True).split(";") if name.strip()]
         self.node = api.create(roots, excluded, cmds.floatFieldGrp(self.dummy, query=True, value1=True), cmds.optionMenuGrp(self.axis, query=True, value=True))
         self._refresh()
+
+    def _compare_strands(self):
+        """入力チェーンの最近接間隔・対応点の最大間隔・交差・ねじれを表示する。"""
+        closest, widest, crossings, twist = api.compareStrands(self.node)
+        cmds.confirmDialog(title="Input Strands", button=["OK"], message=(
+            f"Minimum segment distance: {closest:.6g} cm\nMaximum corresponding point distance: {widest:.6g} cm\n"
+            f"Segment pairs within 0.000001 cm: {crossings}\nMaximum adjacent X-axis twist: {twist:.6g} degrees"))
 
     def _refresh(self):
         """存在するSolverを再列挙し、選択対象があれば優先して表示する。"""
@@ -106,6 +114,13 @@ class PhysicsWindow:
             cmds.deleteUI(child)
         if not node or not cmds.objExists(node):
             return
+        self._section("Edit Joint Chains")
+        for label, operation in (("Add Selected Roots", api.addChains),
+                                 ("Exclude Selected Roots", api.setChainsExcluded),
+                                 ("Restore Selected Roots", lambda solver, roots: api.setChainsExcluded(solver, roots, False))):
+            cmds.button(label=label, command=lambda *_, action=operation: self._run(
+                lambda: action(node, cmds.ls(selection=True, long=True, type="joint") or [])))
+        cmds.button(label="Compare Input Strands", command=lambda *_: self._run(self._compare_strands))
         self._section("2  Physics Settings")
         self._attributes(("blend",) + PARAMETERS)
         cmds.text(label="Limit Angle = 0 は無制限。Radiusはボーン位置の接触半径。", align="left")
@@ -117,18 +132,22 @@ class PhysicsWindow:
         self._section("4  Forces / Simulation", True)
         self._attributes(("gravity", "wind", "planarConstraint", "startFrame", "targetFramerate", "warmupSteps", "teleportDistance", "maxSteps"))
         cmds.button(label="開始時刻を現在にしてリセット", command=lambda *_: self._run(self._reset))
+        cmds.button(label="Save Simulation State", command=lambda *_: self._run(lambda: self._checkpoint(False)))
+        cmds.button(label="Resume Simulation State", command=lambda *_: self._run(lambda: self._checkpoint(True)))
+        cmds.button(label="Compare Saved State", command=lambda *_: self._run(self._compare_state))
         self._section("5  Collision Limits")
         self.attach = cmds.checkBox(label="選択した入力ジョイントに追従させる", value=True)
         cmds.rowLayout(numberOfColumns=3, adjustableColumn=3)
         for kind in ("sphere", "capsule", "plane"):
             cmds.button(label="Add " + kind.title(), command=lambda *_, value=kind: self._run(lambda: self._collider(value)))
         cmds.setParent("..")
+        cmds.button(label="Capsules from Polyline (1 cm)", command=lambda *_: self._run(self._curve_capsules))
         self.collider_list = cmds.textScrollList(height=80, selectCommand=self._select_collider)
         for collider in api.connections(node, "colliderObjects"):
             cmds.textScrollList(self.collider_list, edit=True, append=collider)
         cmds.button(label="選択したコライダーを削除", command=lambda *_: self._run(self._remove_collider))
         cmds.text(label="ガイドを移動・回転し、Channel BoxのphysicsRadius/Heightを調整。", align="left")
-        self._attributes(("collisionIterations", "residualPenetration"))
+        self._attributes(("collisionIterations", "residualPenetration", "maxParticleSpeed", "fixedRootCount", "contactParticleCount"))
         cmds.text(label="Residual > 0 は残留貫通。固定点・角度制限・衝突の両立を確認。", align="left")
         self._section("6  Bone Constraints", True)
         self._attributes(("iterationsBefore", "iterationsAfter"))
@@ -150,6 +169,22 @@ class PhysicsWindow:
         cmds.button(label="Bake to New Joints", height=32, command=lambda *_: self._run(self._bake))
         cmds.button(label="このセットアップを削除（元の骨・ベイク結果は保持）", command=lambda *_: self._run(self._remove))
 
+    def _compare_state(self):
+        """保存フレームの全点の最大位置差・速度差を表示する。"""
+        paths = cmds.fileDialog2(fileMode=1, fileFilter="Simple Physics State (*.json)")
+        if paths:
+            result = checkpoint.compareState(self.node, paths[0])
+            cmds.confirmDialog(title="Compare Saved State", message=(
+                f"Maximum position difference: {result['maxPositionDifference']:.8g} cm\n"
+                f"Maximum velocity difference: {result['maxVelocityDifference']:.8g} cm/s"))
+
+    def _checkpoint(self, reading):
+        """選択したファイルへ計算状態を保存、または検証して読み込む。"""
+        paths = cmds.fileDialog2(fileMode=1 if reading else 0, fileFilter="Simple Physics State (*.json)")
+        if paths:
+            operation = checkpoint.loadState if reading else checkpoint.saveState
+            operation(self.node, paths[0])
+
     def _reset(self):
         """現在時刻をシミュレーションの開始時刻にする。"""
         cmds.setAttr(self.node + ".startFrame", cmds.currentTime(query=True))
@@ -166,6 +201,16 @@ class PhysicsWindow:
         selected = cmds.textScrollList(self.collider_list, query=True, selectItem=True) or []
         if selected:
             cmds.select(selected)
+
+    def _curve_capsules(self):
+        """選択した折れ線の現在形状に半径1cmのカプセルを配置する。"""
+        selected = cmds.ls(selection=True, long=True) or []
+        if len(selected) != 1:
+            raise ValueError("開いた1次カーブを1個選択してください")
+        with api._transaction("Select Curve Capsules"):
+            guides = api.addCurveCapsules(self.node, selected[0])
+            self._edit(self.node)
+            cmds.select(guides, replace=True)
 
     def _remove_collider(self):
         """選択されたガイドだけを取り除く。"""

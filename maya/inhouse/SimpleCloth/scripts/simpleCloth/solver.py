@@ -10,6 +10,9 @@ import math
 from maya.api import OpenMaya as om
 
 
+PIN_DISTANCE = 1.0e-9
+
+
 def build_constraints(points, triangles):
     """三角形の辺と隣接面の対向頂点から静止距離と近接除外を作る。"""
     edges = {}
@@ -90,7 +93,7 @@ def _limits(points, targets, normals, weights, settings):
     """Max Distance球・Backstop球・固定頂点を適用する。固定を最優先する。"""
     for index, target in enumerate(targets):
         limit = settings["maxDistance"] * weights[index]
-        if limit <= 1.0e-9:
+        if limit <= PIN_DISTANCE:
             points[index] = om.MVector(target)
             continue
         radius = settings["backstopRadius"]
@@ -114,7 +117,7 @@ def step(state, targets, normals, weights, constraints, colliders, settings, dt)
     acceleration = om.MVector(settings["gravity"]) + om.MVector(settings["wind"])
     points = [point + velocity * (decay * dt) + acceleration * (dt * dt)
               for point, velocity in zip(old_points, velocities)]
-    inverse_mass = [1.0 / settings["particleMass"] if weight * settings["maxDistance"] > 1.0e-9 else 0.0
+    inverse_mass = [1.0 / settings["particleMass"] if weight * settings["maxDistance"] > PIN_DISTANCE else 0.0
                     for weight in weights]
     drive = 1 - math.exp(-settings["animDrive"] * dt)
     for index, target in enumerate(targets):
@@ -146,11 +149,23 @@ def step(state, targets, normals, weights, constraints, colliders, settings, dt)
 
 
 def diagnostics(points, targets, weights, constraints, colliders, settings):
+    """伸び・めり込み・距離制限の残差を返す。"""
+    return contact_diagnostics(points, targets, weights, constraints, colliders, settings)[:3]
+
+
+def contact_diagnostics(points, targets, weights, constraints, colliders, settings):
     """収束残差を返す。固定とコリジョン等の競合を隠さない。"""
     stretch_error = max((abs((points[i] - points[j]).length() / length - 1)
                          for i, j, length in constraints[0]), default=0.0)
-    penetration = max(((project_collider(point, collider, settings["collisionThickness"]) - point).length()
-                       for point in points for collider in colliders), default=0.0)
+    # 最終出力上で、外部衝突面まで1e-5cm以内の点を重複なく数える。
+    tolerance = 1e-5
+    penetration = 0.0
+    contacts = 0
+    for point in points:
+        depth = max(((project_collider(point, collider, settings["collisionThickness"] + tolerance) - point).length()
+                     for collider in colliders), default=0.0)
+        contacts += depth > 1e-10
+        penetration = max(penetration, depth - tolerance)
     max_error = max(((point - target).length() - settings["maxDistance"] * weight
                      for point, target, weight in zip(points, targets, weights)), default=0.0)
-    return stretch_error, penetration, max(0.0, max_error)
+    return stretch_error, penetration, max(0.0, max_error), contacts

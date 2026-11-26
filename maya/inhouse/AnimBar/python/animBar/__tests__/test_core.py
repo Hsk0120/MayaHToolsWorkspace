@@ -124,6 +124,139 @@ class KeyTransformTest(_Case):
         self.assertNotAlmostEqual(self.middle(), before)
         self.assertTrue(cmds.objExists(other))
 
+    def test_noise_preview_units(self):
+        """表示単位を変えてもcmと度で予測し、Undo・Redo後も同じ値になる。"""
+        _keyed("turn", {"ry": [(5, 45)]})
+        cmds.selectKey("turn.ry", add=True, time=(5, 5))
+        cmds.currentUnit(linear="m", angle="rad")
+        amplitudes = {"cm": 2, "deg": 10}
+        rows = keyTransform.previewNoise(13, amplitudes)
+        self.assertEqual(rows, keyTransform.previewNoise(13, amplitudes))
+        self.assertEqual({row.unit for row in rows}, set(amplitudes))
+        for row in rows:
+            self.assertAlmostEqual(row.before, {"deg": 45, "cm": 4}[row.unit])
+            self.assertGreater(abs(row.after - row.before), 0)
+            self.assertLessEqual(abs(row.after - row.before), amplitudes[row.unit])
+        keyTransform.applyNoisePreview(rows)
+        for row in rows:
+            self.assertAlmostEqual(row.curve.getKeyValues()[row.index], row.after)
+        cmds.undo()
+        self.assertEqual(keyTransform.previewNoise(13, amplitudes), rows)
+        cmds.redo()
+        with self.assertRaises(ValueError):
+            keyTransform.applyNoisePreview(rows)
+
+    def test_power_times(self):
+        """負時刻、サブフレーム、衝突時の現状保持と保存再読込を確かめる。"""
+        original = [(-4, 3), (0, 7), (2, 8), (4, 9)]
+        node = _keyed("powerTime", {"tx": original})
+        plug = node + ".tx"
+        cmds.selectKey(plug, time=(-4, -4))
+        cmds.selectKey(plug, add=True, time=(2, 2))
+        with self.assertRaises(ValueError):
+            keyTransform.powerTimes(2)
+        self.assertEqual(_values(node, "tx"), original)
+        self.assertEqual(keyTransform.powerTimes(0.5), 2)
+        expected = [(-2, 3), (0, 7), (1.4142136054421768, 8), (4, 9)]
+        self.assertEqual(_values(node, "tx"), expected)
+        cmds.undo()
+        self.assertEqual(_values(node, "tx"), original)
+        cmds.redo()
+        self.assertEqual(_values(node, "tx"), expected)
+        with tempfile.TemporaryDirectory() as directory:
+            scene = os.path.join(directory, "powerTimes.ma")
+            cmds.file(rename=scene)
+            cmds.file(save=True, type="mayaAscii")
+            cmds.file(scene, open=True, force=True)
+            self.assertEqual(_values(node, "tx"), expected)
+            cmds.file(new=True, force=True)
+
+    def test_power_values(self):
+        """負値の平方根、飛び選択、Undo・Redoと保存再読込を確かめる。"""
+        original = [(1, -9), (3, 7), (5, 4), (8, 0)]
+        node = _keyed("power", {"tx": original})
+        plug = node + ".tx"
+        cmds.selectKey(plug, time=(1, 1))
+        cmds.selectKey(plug, add=True, time=(5, 8))
+        with self.assertRaises(ValueError):
+            keyTransform.powerValues(-1)
+        self.assertEqual(_values(node, "tx"), original)
+        self.assertEqual(keyTransform.powerValues(0.5), 2)
+        expected = [(1, -3), (3, 7), (5, 2), (8, 0)]
+        self.assertEqual(_values(node, "tx"), expected)
+        cmds.undo()
+        self.assertEqual(_values(node, "tx"), original)
+        cmds.redo()
+        with tempfile.TemporaryDirectory() as directory:
+            scene = os.path.join(directory, "power.ma")
+            cmds.file(rename=scene)
+            cmds.file(save=True, type="mayaAscii")
+            cmds.file(scene, open=True, force=True)
+            self.assertEqual(_values(node, "tx"), expected)
+            cmds.file(new=True, force=True)
+
+    def test_clamp_step_difference(self):
+        """不等間隔の飛び選択で差分を制限し、ステップ接線・Undo・再読込を確認する。"""
+        original = [(1, 20), (2, 30), (5, 29), (6, -10), (12, -25), (18, 40)]
+        expected = [(1, 20), (2, 23), (5, 26), (6, -10), (12, -13), (18, 40)]
+        node = _keyed("clampStep", {"tx": original})
+        plug = node + ".tx"
+        cmds.keyTangent(plug, outTangentType="step")
+        cmds.selectKey(plug, time=(1, 5))
+        cmds.selectKey(plug, add=True, time=(12, 12))
+        self.assertEqual(keyTransform.clampDifference(3), 3)
+        self.assertEqual(_values(node, "tx"), expected)
+        cmds.undo()
+        self.assertEqual(_values(node, "tx"), original)
+        cmds.redo()
+        with tempfile.TemporaryDirectory() as directory:
+            scene = os.path.join(directory, "clampStep.ma")
+            cmds.file(rename=scene)
+            cmds.file(save=True, type="mayaAscii")
+            cmds.file(scene, open=True, force=True)
+            self.assertEqual(_values(node, "tx"), expected)
+            self.assertEqual(cmds.keyTangent(plug, q=True, outTangentType=True), ["step"] * len(original))
+            self.assertEqual(cmds.getAttr(plug, time=4), 23)
+            cmds.file(new=True, force=True)
+
+    def test_smooth_sparse_keys(self):
+        """飛び飛びの選択を不等間隔で平滑化し、端点・非選択キー・Undoを確認する。"""
+        original = [(1, 0), (2, 8), (5, 4), (7, 12), (9, 0)]
+        node = _keyed("smooth", {"tx": original})
+        plug = node + ".tx"
+        cmds.selectKey(plug, time=(1, 2))
+        cmds.selectKey(plug, add=True, time=(7, 9))
+        self.assertEqual(keyTransform.smoothKeys(), 2)
+        expected = [(1, 0), (2, 4.5), (5, 4), (7, 7), (9, 0)]
+        self.assertEqual(_values(node, "tx"), expected)
+        cmds.undo()
+        self.assertEqual(_values(node, "tx"), original)
+        cmds.redo()
+        with tempfile.TemporaryDirectory() as directory:
+            scene = os.path.join(directory, "smooth.ma")
+            cmds.file(rename=scene)
+            cmds.file(save=True, type="mayaAscii")
+            cmds.file(scene, open=True, force=True)
+            self.assertEqual(_values(node, "tx"), expected)
+            cmds.file(new=True, force=True)
+
+    def test_value_range_and_time_reverse(self):
+        """平均中心の値の拡大と移動、Maya標準の時間反転を非等間隔の同じキーで比較する。"""
+        original = [(1, 0), (2, 1), (5, 2), (8, 20)]
+        node = _keyed("compare", {"tx": original})
+        plug = node + ".tx"
+        cmds.selectKey(plug, time=(1, 5))
+        keyTransform.applyKeyTransform("scaleFromAverage", 1)
+        keyTransform.nudgeValue(11)
+        self.assertEqual(_values(node, "tx"), [(1, 10), (2, 12), (5, 14), (8, 20)])
+        cmds.undo()
+        cmds.undo()
+        self.assertEqual(_values(node, "tx"), original)
+        cmds.scaleKey(plug, time=(1, 5), timePivot=3, timeScale=-1)
+        self.assertEqual(_values(node, "tx"), [(1, 2), (4, 1), (5, 0), (8, 20)])
+        cmds.undo()
+        self.assertEqual(_values(node, "tx"), original)
+
     def test_ease_and_nudge(self):
         """easeInOutは両端を保ち、nudgeValueは一定量を足す。"""
         node = _keyed("ease", {"tx": [(1, 0), (2, 2), (3, 4), (4, 6), (5, 8)]})

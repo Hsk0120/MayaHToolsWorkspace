@@ -2,7 +2,7 @@
 
 入力階層をMDGContextでサンプルし、変更された最初のステップ以降だけ再計算する。
 過去サンプルも毎回照合するため、アニメーション編集・逆方向の時刻指定を検出できる。
-キャッシュはノードインスタンスが所有し、シーン保存には入力と設定のみを記録する。
+キャッシュはノードインスタンスが所有し、明示的に読み込んだ再開状態はシーンにも保存する。
 """
 
 import json
@@ -36,6 +36,7 @@ class SimplePhysicsNode(om.MPxNode):
         super().__init__()
         self._signature = None
         self._cache = []
+        self._cache_origin = None
 
     @classmethod
     def creator(cls):
@@ -81,7 +82,7 @@ class SimplePhysicsNode(om.MPxNode):
             function.default = default
             cls._register(name, attribute)
             inputs.append(attribute)
-        for name, default in (("topology", "[]"), ("boneConstraints", "[]"), ("colliderTypes", "[]")):
+        for name, default in (("topology", "[]"), ("boneConstraints", "[]"), ("colliderTypes", "[]"), ("resumeState", "")):
             function = om.MFnTypedAttribute()
             attribute = function.create(name, name, om.MFnData.kString, om.MFnStringData().create(default))
             cls._register(name, attribute)
@@ -113,14 +114,16 @@ class SimplePhysicsNode(om.MPxNode):
             attribute = om.MRampAttribute.createCurveRamp(name + "Curve", name + "Curve")
             cls._register(name + "Curve", attribute)
             inputs.append(attribute)
-        function = om.MFnNumericAttribute()
-        attribute = function.create("residualPenetration", "residualPenetration", om.MFnNumericData.kDouble, 0)
-        function.writable = False
-        function.storable = False
-        cls._register("residualPenetration", attribute)
+        for name, kind in (("residualPenetration", om.MFnNumericData.kDouble), ("maxParticleSpeed", om.MFnNumericData.kDouble),
+                           ("fixedRootCount", om.MFnNumericData.kInt), ("contactParticleCount", om.MFnNumericData.kInt)):
+            function = om.MFnNumericAttribute()
+            attribute = function.create(name, name, kind, 0)
+            function.writable = False
+            function.storable = False
+            cls._register(name, attribute)
         for attribute in inputs:
-            cls.attributeAffects(attribute, cls.attributes["outputMatrix"])
-            cls.attributeAffects(attribute, cls.attributes["residualPenetration"])
+            for output in ("outputMatrix", "residualPenetration", "maxParticleSpeed", "fixedRootCount", "contactParticleCount"):
+                cls.attributeAffects(attribute, cls.attributes[output])
 
     def schedulingType(self):
         """時間サンプルとインスタンスキャッシュの同時更新を避ける。"""
@@ -168,7 +171,8 @@ class SimplePhysicsNode(om.MPxNode):
 
     def compute(self, plug, data):
         """要求時刻まで固定刻みで評価し、同じ時刻の要求で状態を進めない。"""
-        if plug.attribute() not in (self.attributes["outputMatrix"], self.attributes["residualPenetration"]):
+        if plug.attribute() not in (self.attributes["outputMatrix"], self.attributes["residualPenetration"],
+                                    self.attributes["maxParticleSpeed"], self.attributes["fixedRootCount"], self.attributes["contactParticleCount"]):
             return None
         attrs = self.attributes
         topology_text = data.inputValue(attrs["topology"]).asString()
@@ -187,6 +191,10 @@ class SimplePhysicsNode(om.MPxNode):
         for first, second, length, compliance in constraints:
             if not (0 <= first < len(parents) and 0 <= second < len(parents)) or first == second or length <= 0 or compliance < 0:
                 raise ValueError("Simple Physics: 不正な距離拘束です")
+        # 除外チェーンの点は入力に固定し、枝をまたぐ距離拘束は復帰時まで休止する。
+        active = [not bone.get("excluded", False) for bone in topology]
+        simulation_parents = [parent if enabled else -1 for parent, enabled in zip(parents, active)]
+        constraints = [pair for pair in constraints if active[pair[0]] and active[pair[1]]]
         collider_types = json.loads(data.inputValue(attrs["colliderTypes"]).asString())
         if any(kind not in (0, 1, 2) for kind in collider_types):
             raise ValueError("Simple Physics: 未対応のコライダーです")
@@ -218,37 +226,68 @@ class SimplePhysicsNode(om.MPxNode):
         poses = []
         state = None
         colliders = []
-        for index in range(steps + 1):
+        first = 0
+        encoded = data.inputValue(attrs["resumeState"]).asString()
+        saved = json.loads(encoded) if encoded else None
+        if (saved and time >= start and 0 <= saved["step"] <= steps and saved["signature"] == signature
+                and saved["solver"] == om.MFnDependencyNode(self.thisMObject()).uuid().asString()
+                and saved["fps"] == 1.0 / om.MTime(1, om.MTime.uiUnit()).asUnits(om.MTime.kSeconds)):
+            sample_time = start + saved["step"] * dt
+            context = om.MDGContext(om.MTime(sample_time, om.MTime.kSeconds))
+            _, _, key = self._sample(context, topology, collider_types)
+            if json.dumps(key) == saved["sample"]:
+                first = saved["step"]
+            else:
+                saved = None
+        else:
+            saved = None
+        origin = (first, encoded if saved else "")
+        if origin != self._cache_origin:
+            self._cache_origin = origin
+            self._cache = []
+        for index in range(first, steps + 1):
+            slot = index - first
             sample_time = min(time, start) if index == 0 else start + index * dt
             sample_poses, sample_colliders, key = self._sample(om.MDGContext(om.MTime(sample_time, om.MTime.kSeconds)), topology, collider_types)
-            if index < len(self._cache) and self._cache[index][0] == key:
-                state = self._cache[index][1]
+            if slot < len(self._cache) and self._cache[slot][0] == key:
+                state = self._cache[slot][1]
             else:
-                del self._cache[index:]
-                if index == 0:
+                del self._cache[slot:]
+                if slot == 0 and saved:
+                    state = tuple([om.MVector(value) for value in array] for array in saved["state"])
+                elif index == 0:
                     state = solver.initial_state(sample_poses)
                     for _ in range(options["warmupSteps"]):
-                        state = solver.step(state, sample_poses, sample_poses, parents, settings, sample_colliders, constraints, options, dt)
-                elif options["teleportDistance"] > 0 and any((solver.position(sample_poses[i]) - solver.position(poses[i])).length() > options["teleportDistance"] for i, parent in enumerate(parents) if parent < 0):
+                        state = solver.step(state, sample_poses, sample_poses, simulation_parents, settings, sample_colliders, constraints, options, dt)
+                elif options["teleportDistance"] > 0 and any((solver.position(sample_poses[i]) - solver.position(poses[i])).length() > options["teleportDistance"] for i, parent in enumerate(parents) if parent < 0 and active[i]):
                     state = solver.initial_state(sample_poses)
                 else:
-                    state = solver.step(state, poses, sample_poses, parents, settings, sample_colliders, constraints, options, dt)
+                    state = solver.step(state, poses, sample_poses, simulation_parents, settings, sample_colliders, constraints, options, dt)
                 self._cache.append((key, state))
             poses, colliders = sample_poses, sample_colliders
         remainder = elapsed - steps * dt
         if remainder > 1.0e-7:
             final_poses, colliders, _ = self._sample(om.MDGContext(om.MTime(time, om.MTime.kSeconds)), topology, collider_types)
-            state = solver.step(state, poses, final_poses, parents, settings, colliders, constraints, options, remainder)
+            state = solver.step(state, poses, final_poses, simulation_parents, settings, colliders, constraints, options, remainder)
             poses = final_poses
         matrices = solver.output_matrices(poses, state[0], parents, options["blend"])
         output = data.outputArrayValue(attrs["outputMatrix"])
         builder = output.builder()
         for index, matrix in enumerate(matrices):
+            if not active[index]:
+                parent = parents[index]
+                matrix = poses[index] if parent < 0 else poses[index] * poses[parent].inverse()
             builder.addElement(index).setMMatrix(matrix)
         output.set(builder)
         output.setAllClean()
-        residual = solver.penetration(state[0], [value["radius"] for value in settings], colliders, parents)
+        residual, contacts = solver.collision_diagnostics(state[0], [value["radius"] for value in settings], colliders, simulation_parents)
         data.outputValue(attrs["residualPenetration"]).setDouble(residual)
-        data.setClean(attrs["residualPenetration"])
+        data.outputValue(attrs["contactParticleCount"]).setInt(contacts)
+        step_seconds = remainder if remainder > 1.0e-7 else dt
+        speed = max(((now - previous).length() for now, previous, enabled in zip(*state, active) if enabled), default=0.0) / step_seconds
+        data.outputValue(attrs["maxParticleSpeed"]).setDouble(speed)
+        data.outputValue(attrs["fixedRootCount"]).setInt(sum(parent == -1 and enabled for parent, enabled in zip(parents, active)))
+        for name in ("residualPenetration", "maxParticleSpeed", "fixedRootCount", "contactParticleCount"):
+            data.setClean(attrs[name])
         data.setClean(plug)
         return self

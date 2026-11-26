@@ -2,6 +2,8 @@
 
 import math
 
+from maya import cmds
+from maya.api import OpenMaya as om2
 import mlib
 from mlib.decorator import undoTransaction
 from mlib.maths import Vector
@@ -21,6 +23,29 @@ class CameraAngleReader(TwistDistribution):
     重みと、真後ろへ近づくと後ろの重みへ移る重みを出す。重みの和は常に1で、カメラがどう動いても
     連続に変わる(真後ろで左右が入れ替わるところも、後ろの重みが1になるので跳ねない)。
     """
+
+    @undoTransaction("mlrig.CameraAngleReader.setCamera")
+    def setCamera(self, camera):
+        """補正の出力配線を維持して、頭から見た方向を求めるカメラ入力を切り替える。"""
+        owner = self.container.getName()
+        if not all(cmds.objExists(owner + "." + attr) for attr in WEIGHTS):
+            raise ValueError("カメラ方向補正のコンテナを指定してください")
+        members = cmds.container(owner, query=True, nodeList=True) or []
+        matrices = [node for node in members if cmds.nodeType(node) == "multMatrix"
+                    and cmds.connectionInfo(node + ".matrixIn[1]", sourceFromDestination=True).endswith(".worldInverseMatrix[0]")]
+        if len(matrices) != 1:
+            raise ValueError("カメラ入力を一意に特定できません")
+        relative = matrices[0]
+        node = mlib.getNode(camera)
+        if not isinstance(node, mlib.Transform) or om2.MSelectionList().add(node.getName(full=True)).getDagPath(0).isInstanced():
+            raise ValueError("単一のパスを持つカメラのトランスフォームを指定してください")
+        head = cmds.connectionInfo(relative + ".matrixIn[1]", sourceFromDestination=True).rsplit(".", 1)[0]
+        if node == mlib.getNode(head) or owner in (cmds.listHistory(node.getName(full=True), allConnections=True) or []):
+            raise ValueError("頭または補正出力に依存する対象は指定できません")
+        source = node.getName(full=True) + ".worldMatrix[0]"
+        dest = relative + ".matrixIn[0]"
+        if not cmds.isConnected(source, dest):
+            cmds.connectAttr(source, dest, force=True)
 
     @classmethod
     def weights(cls, yaw, pitch, yawRange=90.0, pitchRange=60.0, backFade=30.0):
@@ -136,6 +161,16 @@ class CameraAngleReader(TwistDistribution):
             location.getPlug("outputTranslate").connectTo(dot.getPlug("input1"))
             dot.getPlug("input2").set(list(vector))
             components[role] = dot.getPlug("outputX")
+
+        # カメラと頭が一致すると方向が定まらないため、このときだけ正面を使う。
+        distance = graph._node("distanceBetween", "cameraDistance")
+        location.getPlug("outputTranslate").connectTo(distance.getPlug("point1"))
+        front = graph._node("condition", "fallbackFront")
+        front.getPlug("operation").set(2)
+        distance.getPlug("distance").connectTo(front.getPlug("firstTerm"))
+        components["front"].connectTo(front.getPlug("colorIfTrueR"))
+        front.getPlug("colorIfFalseR").set(1)
+        components["front"] = front.getPlug("outColorR")
 
         # |yaw| = (f, l, 0) と (1, 0, 0) の間の角度、pitch = 90 - ((f, l, u) と (0, 0, 1) の間の角度)。
         horizontal = graph._node("angleBetween", "horizontal")

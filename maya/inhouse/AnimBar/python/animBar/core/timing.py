@@ -1,5 +1,7 @@
 """キーの時間の操作(前後へ動かす・間を空ける/詰める・キーをそろえる)と、値のリセット・全体への反映。"""
 
+import maya.cmds as cmds
+
 import mlib
 from mlib.common import Time
 from mlib.decorator import undoChunk
@@ -172,6 +174,44 @@ def resetValues(nodes=None, attributes=None, key=None):
     return count
 
 
+def inspectResetKeys():
+    """Graph Editorで選んだリセット対象のカーブ、入力値、接続先と既定値を返す。"""
+    rows = []
+    for curve, indices in keys.graphEditorKeys().items():
+        plug = keys.drivenPlug(curve)
+        if plug is None:
+            continue
+        path = plug.getNode().getName(full=True) + "." + plug.getAttributeName()
+        inputs = curve.getKeyframes(indices).getValues(time=True)
+        rows.append((curve.getName(), path, inputs, plug.getDefault(uiUnits=True)))
+    return rows
+
+
+def inspectResetDefaults(channelBoxOnly=False):
+    """選択ノードのスカラーの定義値(UI単位)と入力状態を照会する。"""
+    rows = []
+    for kind, path, source, locked in keys.inspectChannels(channelBoxOnly=channelBoxOnly):
+        plug = mlib.getPlug(path)
+        default = plug.getDefault(uiUnits=True)
+        rows.append((path, default, kind, source, locked))
+    return rows
+
+
+def inspectPublishedDefaults():
+    """公開ポートの宣言、既定値(UI単位)、実入力とロック状態を照合する。"""
+    ports, unavailable, channels = keys.inspectPublishedChannels()
+    rows = []
+    for path, roles in ports.items():
+        label = ", ".join(f"{role} ({kind})" for role, kind in roles)
+        if path not in channels:
+            unavailable[path] = label + ": Not a keyable scalar"
+            continue
+        kind, _, source, locked = channels[path]
+        default = mlib.getPlug(path).getDefault(uiUnits=True)
+        rows.append((path, default, kind, source, locked, label))
+    return rows, unavailable
+
+
 @undoChunk("animBarTransformAll")
 def transformAll(nodes=None):
     """現在時刻で変えた値の差を、そのアトリビュートの全キーへ足す(ポーズの変更をアニメーション全体へ反映)。
@@ -287,3 +327,43 @@ def finishTransformAll():
             curve.moveKey(index=indices, valueOffset=delta)
             count += 1
     return count
+
+def previewSteppedBake(step, phase=0, span=None):
+    """選択した1カーブの指定範囲を、2コマまたは3コマの位相で事前サンプリングする。"""
+    if step not in (2, 3) or phase not in range(step):
+        raise ValueError("Choose a 2 or 3 frame step and a phase within it.")
+    span = span or keys.timelineRange() or Time.getRange()
+    start, end = span
+    if start >= end or not float(start).is_integer() or not float(end).is_integer():
+        raise ValueError("Choose a range between two different whole frames.")
+    plugs = [plug for node in keys.selectedNodes() for plug in keys.animatedPlugs(node)]
+    if len(plugs) != 1:
+        raise ValueError("Select one animated channel for the stepped bake.")
+    curve = plugs[0].getAnimCurve()
+    if curve is None or not curve.isTimeInput():
+        raise ValueError("The channel must have one directly connected time curve.")
+    driver = cmds.connectionInfo(curve.getName() + ".input", sourceFromDestination=True)
+    if driver not in ("", "time1.outTime") or cmds.getAttr("time1.enableTimewarp"):
+        raise ValueError("A time-warped curve cannot be baked here.")
+    times = curve.getKeyInputs()
+    if not times or start < times[0] or end > times[-1]:
+        raise ValueError("The source keys must span the bake range.")
+    samples = sorted({start, end, *range(int(start) + phase, int(end), step)})
+    return curve, [(time, curve.evaluate(time)) for time in samples]
+
+
+@undoChunk("animBarSteppedBake")
+def applySteppedBake(curve, rows):
+    """確認したサンプルを1回のUndoで書き、範囲の最後のキーから先の接線を保つ。"""
+    start, end = rows[0][0], rows[-1][0]
+    times = curve.getKeyInputs()
+    for boundary in (start, end):
+        if boundary not in times:
+            cmds.setKeyframe(curve.getName(), time=boundary, insert=True)
+    for index, time in reversed(list(enumerate(curve.getKeyInputs()))):
+        if start < time < end:
+            curve.removeKey(index=index)
+    for time, value in rows[:-1]:
+        if time != start:
+            curve.setKey(time, value)
+        curve.setTangent(keys.keyIndexAt(curve, time), outTangentType="step")

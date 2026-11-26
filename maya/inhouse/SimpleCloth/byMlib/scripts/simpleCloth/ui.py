@@ -120,7 +120,8 @@ class ClothWindow:
         for attr, label in (("startFrame", "Start Frame"), ("solverRate", "Solver Rate (Hz)"),
                             ("iterations", "Iterations"), ("maxSteps", "Max Steps"),
                             ("stretchError", "Max Stretch Error (ratio)"), ("residualPenetration", "Residual Penetration (cm)"),
-                            ("maxDistanceError", "Max Distance Error (cm)")):
+                            ("maxDistanceError", "Max Distance Error (cm)"), ("peakParticleSpeed", "Peak Particle Speed (cm/s)"),
+                            ("pinnedVertexCount", "Pinned Vertices"), ("contactParticleCount", "Contact Particles")):
             self._attr(attr, label)
         cmds.button(label="リセットして開始フレームへ", command=lambda *_: self._call(api.reset, self.solver))
         self._section("6  Preset / Bake / Remove", collapsed=True)

@@ -75,19 +75,8 @@ def connections(node, attribute):
     return result
 
 
-def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhysics"):
-    """選択した根元から入力接続と独立した出力ジョイント階層を作る。
-
-    Args:
-        roots: ルートジョイント名の列。
-        excluded: 除外するジョイント名。子孫も除外する。
-        dummyLength: 末端の仮想ボーン長。cm、0で無効。
-        forwardAxis: 仮想ボーン方向。X/Y/Z/-X/-Y/-Z。
-        name: セットアップの名前。
-
-    Returns:
-        str: 設定を保持する計算ノード名。
-    """
+def _collect_chains(roots, excluded, dummyLength, forwardAxis):
+    """入力階層を検証し、親子順のボーン定義と入力パスを返す。"""
     if isinstance(roots, str) or not roots:
         raise ValueError("rootsには1個以上のジョイント名の列を指定してください")
     if not math.isfinite(dummyLength) or dummyLength < 0:
@@ -136,13 +125,53 @@ def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhy
     maximum = {index: max(bone["distance"] for bone in bones if bone["root"] == index) for index in range(len(roots))}
     for bone in bones:
         bone["rate"] = bone["distance"] / max(maximum[bone["root"]], 1.0e-7)
+    return bones, sources
+
+
+def _connect_chains(node, group, bones, sources, offset):
+    """既存の論理番号を保ち、指定位置から出力階層を追加する。"""
+    outputs = []
+    for index, (bone, source) in enumerate(zip(bones, sources), start=offset):
+        if source:
+            cmds.connectAttr(source + ".worldMatrix[0]", f"{node}.inputMatrix[{index}]")
+            cmds.connectAttr(source + ".message", f"{node}.sourceBones[{index}]")
+        parent = group if bone["parent"] < 0 else outputs[bone["parent"] - offset]
+        leaf = source.rsplit("|", 1)[-1].replace(":", "_") if source else "dummy"
+        joint = cmds.createNode("joint", name=leaf + "_SP", parent=parent)
+        joint = cmds.ls(joint, long=True)[0]
+        cmds.setAttr(joint + ".segmentScaleCompensate", False)
+        cmds.setAttr(joint + ".radius", 0.5)
+        cmds.setAttr(joint + ".overrideEnabled", True)
+        cmds.setAttr(joint + ".overrideColor", 14)
+        cmds.connectAttr(f"{node}.outputMatrix[{index}]", joint + ".offsetParentMatrix")
+        for attribute in ("translate", "rotate", "scale", "shear", "jointOrient", "rotateAxis"):
+            cmds.setAttr(joint + "." + attribute, lock=True)
+        cmds.connectAttr(joint + ".message", f"{node}.outputBones[{index}]")
+        outputs.append(joint)
+
+
+def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhysics"):
+    """選択した根元から入力接続と独立した出力ジョイント階層を作る。
+
+    Args:
+        roots: ルートジョイント名の列。
+        excluded: 除外するジョイント名。子孫も除外する。
+        dummyLength: 末端の仮想ボーン長。cm、0で無効。
+        forwardAxis: 仮想ボーン方向。X/Y/Z/-X/-Y/-Z。
+        name: セットアップの名前。
+
+    Returns:
+        str: 設定を保持する計算ノード名。
+    """
+    excluded = tuple(excluded)
+    bones, sources = _collect_chains(roots, excluded, dummyLength, forwardAxis)
     loadPlugin()
     with _transaction("Simple Physics: Create"):
         node = cmds.createNode(SimplePhysicsNode.TYPE_NAME, name=name + "_solver")
         cmds.setAttr(node + ".topology", json.dumps(bones), type="string")
         cmds.addAttr(node, longName="setupInfo", dataType="string")
         cmds.setAttr(node + ".setupInfo", json.dumps({"dummyLength": dummyLength, "forwardAxis": forwardAxis,
-                                                     "excluded": sorted(excluded)}), type="string")
+                                                     "excluded": sorted({_joint(value) for value in excluded})}), type="string")
         for attribute in ("sourceBones", "outputBones", "colliderObjects", "ownedObjects"):
             _message_array(node, attribute)
         cmds.connectAttr("time1.outTime", node + ".time")
@@ -158,26 +187,163 @@ def create(roots, excluded=(), dummyLength=0.0, forwardAxis="X", name="simplePhy
         for attribute in ("translate", "rotate", "scale", "shear"):
             cmds.setAttr(group + "." + attribute, lock=True)
         cmds.connectAttr(group + ".message", node + ".ownedObjects[0]")
-        outputs = []
-        for index, (bone, source) in enumerate(zip(bones, sources)):
-            if source:
-                cmds.connectAttr(source + ".worldMatrix[0]", f"{node}.inputMatrix[{index}]")
-                cmds.connectAttr(source + ".message", f"{node}.sourceBones[{index}]")
-            parent = group if bone["parent"] < 0 else outputs[bone["parent"]]
-            leaf = source.rsplit("|", 1)[-1].replace(":", "_") if source else "dummy"
-            joint = cmds.createNode("joint", name=leaf + "_SP", parent=parent)
-            joint = cmds.ls(joint, long=True)[0]
-            cmds.setAttr(joint + ".segmentScaleCompensate", False)
-            cmds.setAttr(joint + ".radius", 0.5)
-            cmds.setAttr(joint + ".overrideEnabled", True)
-            cmds.setAttr(joint + ".overrideColor", 14)
-            cmds.connectAttr(f"{node}.outputMatrix[{index}]", joint + ".offsetParentMatrix")
-            for attribute in ("translate", "rotate", "scale", "shear", "jointOrient", "rotateAxis"):
-                cmds.setAttr(joint + "." + attribute, lock=True)
-            cmds.connectAttr(joint + ".message", f"{node}.outputBones[{index}]")
-            outputs.append(joint)
+        _connect_chains(node, group, bones, sources, 0)
         cmds.select(node)
     return node
+
+
+def addChains(node, roots):
+    """Solverの設定を使って独立した入力チェーンを末尾へ追加する。"""
+    _solver(node)
+    info = json.loads(cmds.getAttr(node + ".setupInfo"))
+    old = json.loads(cmds.getAttr(node + ".topology"))
+    excluded = [joint for joint in info["excluded"] if cmds.objExists(joint)]
+    bones, sources = _collect_chains(roots, excluded, info["dummyLength"], info["forwardAxis"])
+    existing = cmds.ls(connections(node, "sourceBones") + connections(node, "outputBones"), long=True) or []
+    for source in filter(None, sources):
+        if any(source == path or source.startswith(path + "|") or path.startswith(source + "|") for path in existing):
+            raise ValueError("既存の入力・出力と独立したチェーンを指定してください")
+    offset = len(old)
+    root_offset = max(bone["root"] for bone in old) + 1
+    for bone in bones:
+        bone["root"] += root_offset
+        if bone["parent"] >= 0:
+            bone["parent"] += offset
+    group = connections(node, "ownedObjects")[0]
+    with _transaction("Simple Physics: Add Chains"):
+        _connect_chains(node, group, bones, sources, offset)
+        cmds.setAttr(node + ".topology", json.dumps(old + bones), type="string")
+        cmds.setAttr(node + ".resumeState", "", type="string")
+
+
+def setChainsExcluded(node, roots, excluded=True):
+    """指定した根元のチェーンを計算から除外・復帰し、出力接続を保持する。"""
+    _solver(node)
+    if isinstance(roots, str) or not roots:
+        raise ValueError("入力ルートジョイントの列を指定してください")
+    if not isinstance(excluded, bool):
+        raise TypeError("excludedはboolで指定してください")
+    selected = {_joint(name) for name in roots}
+    topology = json.loads(cmds.getAttr(node + ".topology"))
+    targets = set()
+    for index, bone in enumerate(topology):
+        if bone["parent"] == -1:
+            source = cmds.connectionInfo(f"{node}.inputMatrix[{index}]", sourceFromDestination=True)
+            if source and _joint(source.rsplit(".", 1)[0]) in selected:
+                targets.add(bone["root"])
+    if len(targets) != len(selected):
+        raise ValueError("このSolverの入力ルートを指定してください")
+    changed = False
+    for bone in topology:
+        if bone["root"] in targets and bool(bone.get("excluded")) != excluded:
+            if excluded:
+                bone["excluded"] = True
+            else:
+                del bone["excluded"]
+            changed = True
+    if changed:
+        with _transaction("Simple Physics: Edit Active Chains"):
+            cmds.setAttr(node + ".topology", json.dumps(topology), type="string")
+            cmds.setAttr(node + ".resumeState", "", type="string")
+
+
+def _segment_gap(a, b, c, d):
+    """2つの有限線分の最近接距離をcmで返す。"""
+    u, v, w = b - a, d - c, a - c
+    uu, vv, uv = u * u, v * v, u * v
+    if min(uu, vv) <= 1e-14:
+        raise ValueError("長さ0の区間は比較できません")
+    def endpoint(point, origin, direction, square_length):
+        fraction = max(0.0, min(1.0, ((point - origin) * direction) / square_length))
+        return (point - origin - direction * fraction).length()
+    gaps = [endpoint(a, c, v, vv), endpoint(b, c, v, vv), endpoint(c, a, u, uu), endpoint(d, a, u, uu)]
+    denominator = (u ^ v).length() ** 2
+    if denominator > 1e-28 * uu * vv:
+        uw, vw = u * w, v * w
+        first = (uv * vw - vv * uw) / denominator
+        second = (uu * vw - uv * uw) / denominator
+        if 0 <= first <= 1 and 0 <= second <= 1:
+            gaps.append((w + u * first - v * second).length())
+    return min(gaps)
+
+
+def compareStrands(node):
+    """分岐のない入力列の間隔・交差区間数・各列内の最大ねじれ角を現在姿勢で測る。"""
+    _solver(node)
+    topology = json.loads(cmds.getAttr(node + ".topology"))
+    strands = {}
+    max_twist = 0.0
+    for index, bone in enumerate(topology):
+        if bone.get("excluded") or "dummyOffset" in bone:
+            continue
+        strand = strands.setdefault(bone["root"], [])
+        if strand and bone["parent"] != strand[-1][0]:
+            raise ValueError("分岐のない入力チェーンを使用してください")
+        matrix = om.MMatrix(cmds.getAttr(f"{node}.inputMatrix[{index}]"))
+        rotation = om.MTransformationMatrix(matrix).rotation(asQuaternion=True)
+        x_axis, y_axis = om.MVector(1, 0, 0).rotateBy(rotation), om.MVector(0, 1, 0).rotateBy(rotation)
+        if strand:
+            _, previous, prior_x, prior_y = strand[-1]
+            if (position(matrix) - previous).length() <= 1e-7:
+                raise ValueError("長さ0の区間は比較できません")
+            if prior_x * x_axis < -1 + 1e-12:
+                raise ValueError("隣接するX軸が正反対のため、ねじれを一意に測れません")
+            transported = prior_y.rotateBy(prior_x.rotateTo(x_axis))
+            max_twist = max(max_twist, math.degrees(transported.angle(y_axis)))
+        strand.append((index, position(matrix), x_axis, y_axis))
+    chains = list(strands.values())
+    if len(chains) < 2 or len({len(chain) for chain in chains}) != 1 or len(chains[0]) < 2:
+        raise ValueError("2点以上で同じ点数のチェーンを2列以上使用してください")
+    closest, widest, crossings = math.inf, 0.0, 0
+    for chain_index, first in enumerate(chains):
+        for second in chains[chain_index + 1:]:
+            widest = max(widest, max((a[1] - b[1]).length() for a, b in zip(first, second)))
+            for a, b in zip(first, first[1:]):
+                for c, d in zip(second, second[1:]):
+                    gap = _segment_gap(a[1], b[1], c[1], d[1])
+                    closest = min(closest, gap)
+                    crossings += gap <= 1e-6
+    return closest, widest, crossings, max_twist
+
+
+def addCurveCapsules(node, curve, radius=1.0):
+    """開いた1次カーブの現在の形から、各辺に独立したカプセルを作る。半径はcm。"""
+    _solver(node)
+    if type(radius) not in (int, float) or not math.isfinite(radius) or radius <= 0:
+        raise ValueError("Radiusには0より大きい有限値を指定してください")
+    if not isinstance(curve, str) or not curve or any(char in curve for char in ('.', '*', '?', '[', ']')):
+        raise ValueError("カーブのオブジェクト名を指定してください")
+    matches = cmds.ls(curve, long=True) or []
+    if len(matches) != 1:
+        raise ValueError("開いた1次カーブを1個指定してください")
+    shape = matches[0]
+    if cmds.nodeType(shape) == "transform":
+        shapes = cmds.listRelatives(shape, shapes=True, noIntermediate=True, fullPath=True) or []
+        shape = shapes[0] if len(shapes) == 1 else None
+    if not shape or cmds.nodeType(shape) != "nurbsCurve":
+        raise ValueError("開いた1次カーブを1個指定してください")
+    selection = om.MSelectionList()
+    selection.add(shape)
+    function = om.MFnNurbsCurve(selection.getDagPath(0))
+    if function.degree != 1 or function.form != om.MFnNurbsCurve.kOpen:
+        raise ValueError("開いた1次カーブを指定してください")
+    points = list(function.cvPositions(om.MSpace.kWorld))
+    segments = []
+    for first, second in zip(points, points[1:]):
+        edge = second - first
+        if edge.length() < 1e-7:
+            raise ValueError("長さ0の辺にはカプセルを作れません")
+        center = first + edge * 0.5
+        rotation = om.MVector.kYaxisVector.rotateTo(edge.normal()).asEulerRotation()
+        segments.append((edge.length(), tuple(om.MDistance(v).asUnits(om.MDistance.uiUnit()) for v in (center.x, center.y, center.z)),
+                         tuple(om.MAngle(v).asUnits(om.MAngle.uiUnit()) for v in rotation)))
+    guides = []
+    with _transaction("Simple Physics: Curve Capsules"):
+        for length, center, rotation in segments:
+            guide = addCollider(node, "capsule", radius=radius, height=length)
+            cmds.xform(guide, worldSpace=True, translation=center, rotation=rotation)
+            guides.append(guide)
+    return guides
 
 
 def addCollider(node, kind="sphere", attachTo=None, radius=5.0, height=10.0):

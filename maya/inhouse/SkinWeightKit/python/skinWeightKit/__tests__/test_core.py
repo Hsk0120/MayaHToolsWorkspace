@@ -368,6 +368,53 @@ class FitColumnTest(unittest.TestCase):
 class MoveTest(_Case):
     """インフルエンス間の移動。"""
 
+    def test_move_preserves_locked_column_and_vertex_scope(self):
+        found = self.select_vertices(20, 21)
+        thumb, torso, locked = self.joints
+        for index, amount in ((19, 0.3), (20, 0.25), (21, 0)):
+            cmds.skinPercent(self.skin, f"{self.geo}.vtx[{index}]", transformValue=[
+                (thumb, amount), (torso, 0.75 - amount), (locked, 0.25)])
+        influences.setLocked(found.skin, [mlib.getNode(locked)], True)
+        before = [_weights(self.skin, i) for i in (19, 20, 21)]
+        self.assertEqual(weights.previewMove(found, thumb, torso), [(20, 0.25, 0.5)])
+        weights.moveWeights(found, thumb, torso)
+        after = [_weights(self.skin, i) for i in (19, 20, 21)]
+        self.assertEqual(after[::2], before[::2])
+        self.assertEqual(after[1], {thumb: 0.0, torso: 0.75, locked: 0.25})
+        cmds.undo()
+        self.assertEqual(before, [_weights(self.skin, i) for i in (19, 20, 21)])
+        with self.assertRaises(ValueError):
+            weights.previewMove(found, thumb, locked)
+
+    def test_preview_matches_move_and_undo(self):
+        found = self.select_vertices(20, 21)
+        source, destination = self.joints[:2]
+        original = {index: _weights(self.skin, index) for index in (19, 20, 21)}
+        changes = weights.previewMove(found, source, destination)
+        self.assertTrue(changes)
+        self.assertEqual(original, {index: _weights(self.skin, index) for index in original})
+        weights.moveWeights(found, source, destination)
+        for index, amount, before in changes:
+            self.assertAlmostEqual(_weights(self.skin, index)[destination], before + amount)
+        self.assertEqual(_weights(self.skin, 19), original[19])
+        cmds.undo()
+        self.assertEqual(original, {index: _weights(self.skin, index) for index in original})
+
+    def test_preview_paste_matches_written_columns(self):
+        weights.copy(self.select_vertices(0))
+        found = self.select_vertices(30, 31)
+        original = {index: _weights(self.skin, index) for index in (29, 30, 31)}
+        changes = weights.previewPaste(found)
+        self.assertTrue(changes)
+        self.assertEqual(original, {index: _weights(self.skin, index) for index in original})
+        weights.paste(found)
+        for index, name, before, after in changes:
+            self.assertAlmostEqual(original[index][name], before)
+            self.assertAlmostEqual(_weights(self.skin, index)[name], after)
+        self.assertEqual(_weights(self.skin, 29), original[29])
+        cmds.undo()
+        self.assertEqual(original, {index: _weights(self.skin, index) for index in original})
+
     def test_move_weights_between_influences(self):
         found = self.select_vertices(20, 21)
         before = _weights(self.skin, 20)
@@ -620,6 +667,85 @@ class ShellTest(_Case):
 
 class TransferTest(_Case):
     """位置を含む書き出しと、番号・位置での読込み。"""
+
+    def test_cage_leak_between_nearby_shells(self):
+        """低密度ケージと近い2枚の高密度面で、別の面への変形と境界差を検出する。"""
+        cage = cmds.polyPlane(subdivisionsX=1, subdivisionsY=1)[0]
+        upper = cmds.polyPlane(subdivisionsX=4, subdivisionsY=4)[0]
+        lower = cmds.duplicate(upper)[0]
+        cmds.move(0, -0.02, 0, lower)
+        direct = cmds.polyUnite(upper, lower, constructionHistory=False)[0]
+        wrapped = cmds.duplicate(direct)[0]
+        cmds.select(clear=True)
+        moving = cmds.joint(name="upperInfluence")
+        cmds.select(clear=True)
+        fixed = cmds.joint(name="lowerInfluence")
+        cmds.skinCluster(moving, cage, toSelectedBones=True)
+        skin = cmds.skinCluster(moving, fixed, direct, toSelectedBones=True)[0]
+        cmds.skinPercent(skin, direct + ".vtx[0:24]", transformValue=[(moving, 1.0), (fixed, 0.0)])
+        cmds.skinPercent(skin, direct + ".vtx[25:49]", transformValue=[(moving, 0.0), (fixed, 1.0)])
+        wrap = cmds.deformer(wrapped, type="proximityWrap")[0]
+        shape = cmds.listRelatives(cage, shapes=True, noIntermediate=True, fullPath=True)[0]
+        cmds.proximityWrap(wrap, edit=True, addDrivers=[shape])
+        cmds.select(direct, wrapped)
+        pair = target.selectedMeshPair()
+        self.assertEqual(transfer.compareCageOutput(*pair), [])
+        cmds.move(0, 1, 0, moving, relative=True)
+        rows = transfer.compareCageOutput(*pair, tolerance=0.01)
+        # 参照は上面だけが動く。近接した下面の境界16点・内部9点に漏れが生じる。
+        self.assertEqual([index for index, _, _ in rows], list(range(25, 50)))
+        self.assertEqual(sum(boundary for _, _, boundary in rows), 16)
+        self.assertTrue(all(abs(distance - 1.0) < 0.01 for _, distance, _ in rows))
+
+    def test_bind_mesh_comparison(self):
+        first = cmds.polyPlane(subdivisionsX=1, subdivisionsY=1)[0]
+        second = cmds.duplicate(first)[0]
+        cmds.move(4, 0, 0, second, relative=True)
+        cmds.move(2, 0, 0, second + ".vtx[3]", relative=True, objectSpace=True)
+        cmds.select(first, second)
+        pair = target.selectedMeshPair()
+        result = transfer.compareBindMeshes(*pair)
+        self.assertEqual(result["local"], (3, 2.0))
+        self.assertEqual(result["world"], (3, 6.0))
+        cmds.polyTriangulate(second)
+        with self.assertRaisesRegex(ValueError, "Topology differs"):
+            transfer.compareBindMeshes(*pair)
+
+    def test_boundary_pose_and_distances(self):
+        source = self.select_vertices(20)
+        other = cmds.duplicate(self.geo)[0]
+        other_skin = cmds.skinCluster(self.joints, other, toSelectedBones=True)[0]
+        cmds.select(other)
+        destination = target.require()
+        cmds.rotate(0, 0, 30, self.joints[1], relative=True)
+        sample = transfer.BoundarySample(source.mesh, destination.mesh, [(20, 20), (21, 21)])
+        cmds.skinPercent(other_skin, other + ".vtx[20]", transformValue=[(self.joints[2], 1)], zeroRemainingInfluences=True)
+        changed, same = sample.compare()
+        self.assertGreater(changed[3], changed[2] + 0.01)
+        self.assertAlmostEqual(same[2], same[3], places=6)
+        cmds.rotate(0, 0, 10, self.joints[1], relative=True)
+        with self.assertRaises(ValueError):
+            sample.compare()
+        cmds.undo()
+        self.assertEqual(sample.compare()[0], changed)
+        cmds.currentTime(2)
+        with self.assertRaises(ValueError):
+            sample.compare()
+
+    def test_source_matches_distance_limit(self):
+        source = self.select_vertices(0)
+        other = cmds.duplicate(self.geo)[0]
+        cmds.skinCluster(self.joints, other, toSelectedBones=True)
+        cmds.move(100, 0, 0, f"{other}.vtx[1]", relative=True, worldSpace=True)
+        cmds.select(f"{other}.vtx[0:1]")
+        destination = target.require()
+        for method in transfer.METHODS:
+            rows = transfer.previewCorrespondence(source, destination, method, 0.001)
+            self.assertEqual([row[0] for row in rows], [0, 1])
+            self.assertEqual(rows[0][1], 0)
+            self.assertAlmostEqual(rows[0][2], 0.0, places=5)
+            self.assertIsNone(rows[1][1])
+            self.assertGreater(rows[1][2], 90)
 
     def export(self):
         """円柱のウェイトを書き出し、パスを返す。"""
@@ -904,6 +1030,87 @@ class MoreToolsTest(_Case):
                          cmds.polyEvaluate(self.geo, vertex=True))
         with self.assertRaises(ValueError):
             influences.verticesInRange(found, self.joints[0], 0.8, 0.2)
+
+    def test_posed_mesh_changes(self):
+        cmds.setAttr(self.joints[0] + ".rotateZ", 15)
+        cmds.setAttr(self.joints[1] + ".rotateX", 25)
+        for i in (20, 21):
+            weights.setValue(self.select_vertices(i), self.joints[1], 0.25)
+        selected = self.select_vertices(20)
+        sample = transfer.DeformationSample(selected)
+        for i in (20, 21):
+            weights.setValue(self.select_vertices(i), self.joints[1], 1)
+        changes = sample.compare(selected.mesh)
+        self.assertEqual([(i, outside) for i, _, outside in changes], [(20, False), (21, True)])
+        cmds.setAttr(self.joints[1] + ".rotateX", 30)
+        with self.assertRaisesRegex(ValueError, "pose"):
+            sample.compare(selected.mesh)
+
+    def test_bind_settings_differences(self):
+        selected = self.select_vertices(20)
+        baseline = skin.captureBindSettings(selected)
+        renamed = cmds.rename(self.joints[2], "renamedTip")
+        cmds.setAttr(renamed + ".liw", True)
+        skin.setSettings(selected, skinningMethod="dualQuaternion")
+        cmds.cluster(self.geo, name="addedDeformer")
+        changes = skin.compareBindSettings(selected, baseline)
+        self.assertEqual(len(changes), 4)
+        for text in ("Influence path:", "locked: False → True", "classicLinear → dualQuaternion", "History:"):
+            self.assertTrue(any(text in change for change in changes), changes)
+        for _ in range(4):
+            cmds.undo()
+        self.assertEqual(skin.compareBindSettings(selected, baseline), [])
+
+    def test_bind_settings_history_order(self):
+        selected = self.select_vertices(20)
+        deformer = cmds.cluster(self.geo, after=True)[0]
+        recorded = skin.captureBindSettings(selected)
+        cmds.reorderDeformers(self.skin, deformer, self.geo)
+        changed = skin.captureBindSettings(selected)
+        self.assertEqual(len(skin.compareBindSettings(selected, recorded)), 1)
+        with self.assertRaisesRegex(ValueError, "deformer order"):
+            skin.restoreBindSettings(selected, recorded)
+        self.assertEqual(skin.captureBindSettings(selected), changed)
+        cmds.undo()
+        self.assertEqual(skin.compareBindSettings(selected, recorded), [])
+
+    def test_restore_bind_settings(self):
+        selected = self.select_vertices(20)
+        baseline = skin.captureBindSettings(selected)
+        skin.setSettings(selected, skinningMethod="dualQuaternion")
+        cmds.setAttr(self.joints[2] + ".liw", True)
+        changed = skin.captureBindSettings(selected)
+        cmds.setAttr(self.joints[2] + ".liw", lock=True)
+        with self.assertRaises(ValueError):
+            skin.restoreBindSettings(selected, baseline)
+        self.assertEqual(skin.captureBindSettings(selected), changed)
+        cmds.setAttr(self.joints[2] + ".liw", lock=False)
+        skin.restoreBindSettings(selected, baseline)
+        self.assertEqual(skin.compareBindSettings(selected, baseline), [])
+        cmds.undo()
+        self.assertEqual(skin.captureBindSettings(selected), changed)
+
+    def test_cluster_from_influence(self):
+        for index, value in ((20, 0.25), (21, 0.75)):
+            weights.setValue(self.select_vertices(index), self.joints[1], value)
+        cmds.rotate(0, 0, 15, self.joints[0], relative=True)
+        cmds.rotate(20, 0, 0, self.joints[1], relative=True)
+        selected = self.select_vertices(20, 21)
+        components = [f"{self.geo}.vtx[{i}]" for i in (19, 20, 21, 22)]
+        before = [cmds.pointPosition(v, world=True) for v in components]
+        skin_rows = [_weights(self.skin, i) for i in (19, 20, 21, 22)]
+        cluster, handle = deformers.clusterFromInfluence(selected, self.joints[1])
+        cmds.move(2, 0, 0, handle, relative=True, worldSpace=True)
+        for component, point, weight in zip(components, before, (0, 0.25, 0.75, 0)):
+            actual = cmds.pointPosition(component, world=True)
+            for a, b in zip(actual, (point[0] + 2 * weight, point[1], point[2])):
+                self.assertAlmostEqual(a, b, places=5, msg=component)
+        self.assertEqual(skin_rows, [_weights(self.skin, i) for i in (19, 20, 21, 22)])
+        cmds.undo()
+        cmds.undo()
+        self.assertFalse(cmds.objExists(cluster))
+        self.assertFalse(cmds.objExists(handle))
+        self.assertEqual(before, [cmds.pointPosition(v, world=True) for v in components])
 
     def test_deformer_weights_to_influence(self):
         cluster = cmds.cluster("{}.vtx[0:30]".format(self.geo), name="swkCluster")[0]

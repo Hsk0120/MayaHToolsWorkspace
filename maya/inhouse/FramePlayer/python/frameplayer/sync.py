@@ -102,6 +102,11 @@ def _is_hex(text, min_length, max_length):
     return min_length <= len(text) <= max_length and all(c in "0123456789abcdef" for c in text)
 
 
+def player_frame(maya_frame, multiplier, offset):
+    """同期設定に従ってMayaの時刻をプレイヤーのフレーム番号に変換する。"""
+    return int(round(maya_frame * multiplier)) + offset
+
+
 def _to_frame(text):
     """フレーム番号の文字列を整数にする(範囲外・数でなければNone)。
 
@@ -289,7 +294,7 @@ class FramePlayerSync(object):
         Returns:
             int: FramePlayerのフレーム番号。
         """
-        return int(round(maya_frame * self.multiplier)) + self.offset
+        return player_frame(maya_frame, self.multiplier, self.offset)
 
     def to_maya(self, player_frame):
         """FramePlayerのフレーム番号をMayaの番号にする。

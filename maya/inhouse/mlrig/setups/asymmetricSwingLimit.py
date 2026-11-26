@@ -2,6 +2,7 @@
 
 import math
 
+from maya import cmds
 from mlib.decorator import undoTransaction
 
 from mlrig.setups.swingLimit import SwingLimit
@@ -16,6 +17,25 @@ class AsymmetricSwingLimit(SwingLimit):
 
     #: 限界角のアトリビュート名。(limit1の+側, limit1の-側, limit2の+側, limit2の-側)。
     LIMIT_ATTRIBUTES = ("limit1Positive", "limit1Negative", "limit2Positive", "limit2Negative")
+
+    @classmethod
+    @undoTransaction("mlrig.AsymmetricSwingLimit.eye")
+    def createEyeOutput(cls):
+        """選択した+Z正面の眼球入力骨に対して、同じ親空間の制限済み出力を作る。"""
+        selected = cmds.ls(selection=True, long=True, type="joint") or []
+        if len(selected) != 1:
+            raise ValueError("視線入力のジョイントを1つ選択してください")
+        joint = selected[0]
+        parent = cmds.listRelatives(joint, parent=True, fullPath=True) or []
+        if not parent:
+            raise ValueError("親を持つ視線入力ジョイントを選択してください")
+        name = joint.rsplit("|", 1)[-1].replace(":", "_")
+        graph = cls.create(joint, name=name + "_eyeLimit", axis="z", limit1Positive=40, limit1Negative=40,
+                           limit2Positive=30, limit2Negative=25, softness=0.15)
+        output = cmds.createNode("transform", name=name + "_limited", parent=parent[0], skipSelect=True)
+        cmds.connectAttr(graph.container.getName() + ".matrix", output + ".offsetParentMatrix")
+        cmds.select(graph.container.getName(), replace=True)
+        return output
 
     @classmethod
     def quadrantLimits(cls, limit1Positive, limit1Negative, limit2Positive, limit2Negative,

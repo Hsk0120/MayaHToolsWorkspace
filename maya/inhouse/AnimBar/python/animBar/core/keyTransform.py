@@ -21,6 +21,9 @@
 
 import math
 import random
+from collections import namedtuple
+
+import maya.api.OpenMaya as om2
 
 from mlib.common import Time
 from mlib.decorator import undoChunk
@@ -229,6 +232,55 @@ class KeySession:
         return None
 
 
+NoiseEdit = namedtuple("NoiseEdit", "curve index time before after unit")
+
+
+def previewNoise(seed, amplitudes):
+    """既存キーの位置と単位別の振幅から、書き込み前の変更一覧を作る。
+
+    Args:
+        seed (int): 乱数シード。
+        amplitudes (dict): deg・cm・frame・unitlessごとの最大変化量。省略した種類は対象外。
+
+    Returns:
+        list[NoiseEdit]: カーブ名、キー番号の順に並べた変更内容。
+    """
+    for amplitude in amplitudes.values():
+        if not math.isfinite(amplitude) or amplitude < 0:
+            raise ValueError("Amplitude must be finite and non-negative")
+    units = {"A": "deg", "L": "cm", "T": "frame", "U": "unitless"}
+    rng = random.Random(seed)
+    rows = []
+    for target in sorted(keys.targets(), key=lambda item: item.curve.getName()):
+        curve = target.curve
+        unit = units[curve.getType()[-1]]
+        if not amplitudes.get(unit):
+            continue
+        times, values = curve.getKeyInputs(), curve.getKeyValues()
+        for index in sorted(target.indices):
+            delta = rng.uniform(-1, 1) * amplitudes[unit]
+            after = values[index] + delta
+            if not math.isfinite(after):
+                raise ValueError("Noise result must be finite")
+            rows.append(NoiseEdit(curve, index, times[index], values[index], after, unit))
+    return rows
+
+
+@undoChunk("animBarApplyNoisePreview")
+def applyNoisePreview(rows):
+    """プレビュー時と時刻・値が一致することを確認し、まとめて適用する。"""
+    snapshots = {}
+    for row in rows:
+        if row.curve not in snapshots:
+            snapshots[row.curve] = row.curve.getKeyInputs(), row.curve.getKeyValues()
+        times, values = snapshots[row.curve]
+        if row.index >= len(times) or times[row.index] != row.time or values[row.index] != row.before:
+            raise ValueError("Target keys changed after preview")
+    for row in rows:
+        keys.setKeyValue(row.curve, row.index, row.after)
+    return len(rows)
+
+
 @undoChunk("animBarKeyTransform")
 def applyKeyTransform(mode, amount, seed=0):
     """1回でキーの変形を行う(スライダーを使わない操作やスクリプト用)。
@@ -262,3 +314,132 @@ def nudgeValue(delta):
             keys.setKeyValue(target.curve, index, keys.keyValue(target.curve, index) + delta)
             count += 1
     return count
+
+
+@undoChunk("animBarClampDifference")
+def clampDifference(limit):
+    """選択キーの値を、直前キーとの差が指定量以内に収まるように調整する。
+
+    Args:
+        limit (float): 隣接キー間で許容する値の差の絶対値。
+
+    Returns:
+        int: 値が変わったキー数。
+    """
+    if not math.isfinite(limit) or limit < 0:
+        raise ValueError("limit must be finite and nonnegative")
+    changes = []
+    for target in keys.targets():
+        values = list(target.curve.getKeyValues())
+        for index in sorted(target.indices):
+            if not index:
+                continue
+            previous = values[index - 1]
+            adjusted = max(previous - limit, min(previous + limit, values[index]))
+            if adjusted != values[index]:
+                changes.append((target.curve, index, adjusted))
+                values[index] = adjusted
+    for curve, index, value in changes:
+        keys.setKeyValue(curve, index, value)
+    return len(changes)
+
+
+@undoChunk("animBarPowerValues")
+def powerValues(exponent):
+    """対象キーの絶対値を累乗し、元の符号を付けて書き戻す。
+
+    Args:
+        exponent (float): 有限の指数。0の負乗は指定できない。
+
+    Returns:
+        int: 値が変わったキー数。
+    """
+    if not math.isfinite(exponent):
+        raise ValueError("Exponent must be finite")
+    changes = []
+    for target in keys.targets():
+        values = target.curve.getKeyValues()
+        for index in target.indices:
+            value = values[index]
+            if value == 0 and exponent < 0:
+                raise ValueError("Cannot raise a zero key value to a negative power")
+            try:
+                magnitude = math.pow(abs(value), exponent)
+            except OverflowError as error:
+                raise ValueError("Powered key value exceeds the finite range") from error
+            result = -magnitude if value < 0 else magnitude
+            if not math.isfinite(result):
+                raise ValueError("Powered key value must be finite")
+            if result != value:
+                changes.append((target.curve, index, result))
+    for curve, index, value in changes:
+        keys.setKeyValue(curve, index, value)
+    return len(changes)
+
+
+@undoChunk("animBarPowerTimes")
+def powerTimes(exponent):
+    """選択キーのフレーム番号を符号付きで累乗し、最寄りのMaya tickへ丸める。
+
+    Args:
+        exponent (float): 有限の指数。
+
+    Returns:
+        int: 時刻が変わったキー数。
+
+    Raises:
+        ValueError: 時刻を表せない場合や、キーが重なるか順序が変わる場合。
+    """
+    if not math.isfinite(exponent):
+        raise ValueError("Exponent must be finite")
+    ticks_per_frame = om2.MTime(1, om2.MTime.uiUnit()).asUnits(om2.MTime.kSeconds) * om2.MTime.ticksPerSecond()
+    moves = []
+    for target in keys.targets():
+        if not target.curve.isTimeInput():
+            raise ValueError("Power key times requires time-input curves")
+        frames = target.curve.getKeyInputs()
+        ticks = [round(frame * ticks_per_frame) for frame in frames]
+        destinations = ticks.copy()
+        for index in target.indices:
+            frame = frames[index]
+            if frame == 0 and exponent < 0:
+                raise ValueError("Cannot raise frame zero to a negative power")
+            try:
+                powered = math.copysign(math.pow(abs(frame), exponent), frame)
+                destination = round(powered * ticks_per_frame)
+            except (ValueError, OverflowError) as error:
+                raise ValueError("Powered key time exceeds the supported range") from error
+            if abs(destination) >= 2 ** 53:
+                raise ValueError("Powered key time exceeds exact tick precision")
+            destinations[index] = destination
+        if any(left >= right for left, right in zip(destinations, destinations[1:])):
+            raise ValueError("Powered key times would overlap or cross another key")
+        # 左へは先頭から、右へは末尾から移して、移動途中も隣のキーを越えないようにする。
+        offsets = [end - start for start, end in zip(ticks, destinations)]
+        moves.extend((target.curve, i, d) for i, d in enumerate(offsets) if d < 0)
+        moves.extend((target.curve, i, offsets[i]) for i in reversed(range(len(offsets))) if offsets[i] > 0)
+    for curve, index, delta in moves:
+        curve.moveKey(index=index, timeOffset=delta / ticks_per_frame)
+    return len(moves)
+
+
+@undoChunk("animBarSmoothKeys")
+def smoothKeys():
+    """各カーブの両端を固定し、選択キーを直前・直後の元のキーを結ぶ直線へ半分近づける。
+
+    飛び飛びの選択でも、選択外の隣接キーを補間に使う。選択外の値は保持する。
+    """
+    changes = []
+    for target in keys.targets():
+        values = target.curve.getKeyValues()
+        times = target.curve.getKeyInputs()
+        for index in target.indices:
+            if 0 < index < len(values) - 1:
+                fraction = (times[index] - times[index - 1]) / (times[index + 1] - times[index - 1])
+                interpolated = values[index - 1] + fraction * (values[index + 1] - values[index - 1])
+                value = (values[index] + interpolated) * 0.5
+                if value != values[index]:
+                    changes.append((target.curve, index, value))
+    for curve, index, value in changes:
+        keys.setKeyValue(curve, index, value)
+    return len(changes)

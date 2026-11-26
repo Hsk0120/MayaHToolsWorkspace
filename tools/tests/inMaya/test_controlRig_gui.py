@@ -79,10 +79,13 @@ def main(output_dir=None, finished=None):
         from mlrig.menu import Menu
 
         Menu.install()
+        first_items = cmds.menu(Menu.NAME, query=True, itemArray=True)
         Menu.install()
         check(cmds.menu(Menu.NAME, exists=True), "Top mlrig menu exists")
         items = cmds.menu(Menu.NAME, query=True, itemArray=True)
-        check(len(items) == 5, "Repeated menu install is unique")
+        check(items == first_items and len(items) == len(set(items)), "Repeated menu install is unique")
+        labels = [cmds.menuItem(item, query=True, label=True) for item in items]
+        check(labels.count("レイヤーエディタを開く") == 1 and labels.count("サンプル作成") == 1, "Core entries exist once")
         editor = Menu.run("editor")
         editor.module_type.setCurrentIndex(6)
         editor.module_name.setText("uiHand")

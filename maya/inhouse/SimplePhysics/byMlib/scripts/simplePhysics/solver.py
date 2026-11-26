@@ -59,15 +59,24 @@ def _project_collision(point, radius, collider):
     return point
 
 
-def penetration(points, radii, colliders, parents):
-    """最終出力の最大めり込み量をcmで返す。固定根元は除外する。"""
+def collision_diagnostics(points, radii, colliders, parents):
+    """固定根元以外の最大めり込み量(cm)と、外部衝突面まで1e-5cm以内の粒子数を返す。"""
+    tolerance = 1e-5
     maximum = 0.0
-    for index, point in enumerate(points):
-        if parents[index] < 0:
+    contacts = 0
+    for point, radius, parent in zip(points, radii, parents):
+        if parent < 0:
             continue
-        for collider in colliders:
-            maximum = max(maximum, (_project_collision(point, radii[index], collider) - point).length())
-    return maximum
+        depth = max(((_project_collision(point, radius + tolerance, collider) - point).length()
+                     for collider in colliders), default=0.0)
+        contacts += depth > 1e-10
+        maximum = max(maximum, depth - tolerance)
+    return maximum, contacts
+
+
+def penetration(points, radii, colliders, parents):
+    """固定根元を除いた最大めり込み量をcmで返す。"""
+    return collision_diagnostics(points, radii, colliders, parents)[0]
 
 
 def _restore(points, pose_points, poses, parents, settings, planar):

@@ -96,6 +96,18 @@ def _meshes_of(node):
     return []
 
 
+def selectedMeshPair():
+    """形状比較用に、明示的に選択した2つのメッシュを取得する。"""
+    selection = Selection.capture()
+    nodes = selection.getNodes()
+    if selection.getComponents() or len(nodes) != 2:
+        raise ValueError("Select two mesh objects in the pose to compare")
+    shapes = [_meshes_of(node) for node in nodes]
+    if any(len(group) != 1 for group in shapes) or shapes[0][0] == shapes[1][0]:
+        raise ValueError("Select two distinct objects with one mesh each")
+    return shapes[0][0], shapes[1][0]
+
+
 def _skin_of(mesh):
     """メッシュを変形している最初の skinCluster を返す。
 

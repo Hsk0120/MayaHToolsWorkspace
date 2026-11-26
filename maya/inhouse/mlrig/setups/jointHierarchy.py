@@ -3,11 +3,54 @@
 from contextlib import nullcontext
 
 import mlib
-from mlib.decorator import undoChunk
+from maya import cmds
+from maya.api import OpenMaya as om2
+from mlib.decorator import undoChunk, undoTransaction
 
 
 class JointHierarchy:
     """Maya標準の削除とは別に、ジョイント階層を整理する。"""
+
+    @staticmethod
+    @undoTransaction("mlrigOrientJointPair")
+    def orientPair(root):
+        """設計中の親骨の+Xを唯一の子骨へ向け、子骨のワールド姿勢を保持する。"""
+        root = mlib.Joint(root)
+        parent_name = root.getName(full=True)
+        children = cmds.listRelatives(parent_name, children=True, fullPath=True) or []
+        if len(children) != 1 or cmds.nodeType(children[0]) != "joint":
+            raise ValueError("直接の子がジョイント1本の親骨を指定してください")
+        child = children[0]
+        if cmds.autoKeyframe(query=True, state=True):
+            raise ValueError("自動キーを無効にしてください")
+        for bone in (root, mlib.Joint(child)):
+            name = bone.getName(full=True)
+            if bone.getSkinClusters() or cmds.referenceQuery(name, isNodeReferenced=True):
+                raise ValueError("バインド済みまたは参照の骨は調整できません: " + name)
+            for attr in ("translate", "rotate", "jointOrient", "scale", "rotateAxis"):
+                for axis in "XYZ":
+                    plug = name + "." + attr + axis
+                    if not cmds.getAttr(plug, settable=True) or cmds.connectionInfo(plug, isDestination=True):
+                        raise ValueError("ロックまたは入力接続があります: " + plug)
+            opm = name + ".offsetParentMatrix"
+            if cmds.connectionInfo(opm, isDestination=True):
+                raise ValueError("親マトリクスに入力接続があります: " + name)
+        if any(abs(value) > 1e-9 for value in cmds.getAttr(parent_name + ".rotate")[0]):
+            raise ValueError("親骨の回転チャンネルをゼロにしてから実行してください")
+        before = cmds.xform(child, query=True, matrix=True, worldSpace=True)
+        parent_world = cmds.xform(parent_name, query=True, matrix=True, worldSpace=True)
+        direction = om2.MVector(*before[12:15]) - om2.MVector(*parent_world[12:15])
+        if direction.length() <= 1e-8:
+            raise ValueError("骨の長さが不足しています")
+        # MayaのorientJointは子骨に回転値があると向きを変更しない。
+        cmds.setAttr(child + ".rotate", 0, 0, 0)
+        root.orient("xyz", "yup", children=False)
+        cmds.xform(child, matrix=before, worldSpace=True)
+        after = cmds.xform(child, query=True, matrix=True, worldSpace=True)
+        aligned = cmds.xform(parent_name, query=True, matrix=True, worldSpace=True)
+        if max(abs(a - b) for a, b in zip(before, after)) > 1e-6 or om2.MVector(*aligned[:3]).normal() * direction.normal() < 1 - 1e-6:
+            raise ValueError("この姿勢で軸合わせと子の姿勢保持を両立できません")
+        return child
 
     @staticmethod
     def delete(joints, *, skipConnected=False, fast=False):

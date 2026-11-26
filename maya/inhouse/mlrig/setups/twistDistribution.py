@@ -2,6 +2,7 @@
 
 
 import mlib
+from maya import cmds
 
 from mlib.decorator import undoTransaction
 
@@ -58,9 +59,9 @@ class TwistDistribution:
             not isinstance(n, mlib.Transform) for n in (start, end)
         ):
             raise ValueError("Expected two different transforms")
-        if mlib.objExists(name):
+        if cmds.objExists(name):
             raise ValueError("Twist container already exists: " + name)
-        graph = cls(mlib.createContainer(name=name))
+        graph = cls(cmds.container(name=name))
         owner = graph.container
         owner.addAttr(longName="twistMatrix", dataType="matrix")
         owner.addAttr(longName="relativeDecompose", attributeType="message")

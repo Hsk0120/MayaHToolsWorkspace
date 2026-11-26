@@ -10,11 +10,12 @@ import maya.cmds as cmds
 import maya.OpenMayaUI as omui
 
 import mlib
-from mlib.common import ScriptJob, Time
+from mlib.common import ScriptJob, Selection, Time
 from mlib.decorator import undoChunk
+from mlib.json import AnimationSnapshot, PoseSnapshot
 
-from ..core import (animCopy, crashRecovery, keys, keyTransform, mirror, selectSets, spaceTools, tangents,
-                    timeline, timing, tween, viewTools)
+from ..core import (animCopy, counterMotion, crashRecovery, keyPresets, keys, keyTransform, mirror, motionPath, poseClip, selectSets, spaceTools, tangents,
+                    timeDriver, timeline, timing, tween, viewTools)
 from . import icons, preferences
 from .qt import QtCore, QtGui, QtWidgets, wrapInstance
 
@@ -509,8 +510,8 @@ class AnimBar(QtWidgets.QWidget):
         slider.onPress = self._start_session
         slider.onDrag = lambda value: self.session.apply(value / 100.0) if self.session else None
         section.widget(slider)
-        section.button("range", "Blend Frames\n"
-                       "Click to store the current frame as the Left or Right frame used by the Frame mode.",
+        section.button("range", "Blend Frames and Key Tools\n"
+                       "Store a reference frame, limit adjacent differences, smooth keys, or apply seeded noise.",
                        menu=self._frame_menu)
         section.button("minus", "Subtract Step\n"
                        "Subtract the step value from the keys.\n" + _KEY_TARGETS,
@@ -549,6 +550,115 @@ class AnimBar(QtWidgets.QWidget):
             _action(menu, label, functools.partial(keyTransform.setBlendFrame, side),
                     tip="Store the current frame as the {} frame. In the Frame mode, dragging the slider {}\n"
                         "blends the keys toward the values at this frame.".format(side, side))
+        menu.addSeparator()
+        _action(menu, "Limit adjacent key difference...", self._clamp_difference,
+                tip="Limit the value change from the preceding key, regardless of frame spacing. "
+                    "Consecutive selected keys use the adjusted preceding value. Unselected keys stay in place.")
+        _action(menu, "Smooth selected keys", keyTransform.smoothKeys,
+                tip="Move each selected key halfway toward the line between its immediate neighbors. "
+                    "Unselected keys and the first and last keys of each curve stay fixed.")
+        _action(menu, "Power key values...", self._power_values,
+                tip="Raise the magnitude of each target key value to an exponent and preserve its sign.")
+        _action(menu, "Power key times...", self._power_times,
+                tip="Raise frame numbers to an exponent, preserving their signs. Keys must remain in order.")
+        _action(menu, "Apply noise with seed...", self._seeded_noise)
+        _action(menu, "Preview noise by unit...", self._preview_noise)
+        _action(menu, "Inspect selected channels...", self._inspect_channels)
+        presets = menu.addMenu("Key edit presets")
+        _action(presets, "Save current mode...", self._save_key_preset)
+        for name, settings in sorted(keyPresets.presets().items()):
+            item = presets.addMenu(name)
+            mode = settings["mode"]
+            tip = "{} (amount {:g})".format(dict(keyTransform.MODES).get(mode, mode), settings["amount"])
+            if mode == "noise":
+                tip += ", seed {}".format(settings["seed"])
+            _action(item, "Apply to current targets", functools.partial(keyPresets.apply, name), tip=tip)
+            _action(item, "Remove preset", functools.partial(keyPresets.remove, name))
+
+    def _inspect_channels(self):
+        """選択したノードのチャンネルと入力接続を絞り込んで表示する。"""
+        rows = keys.inspectChannels()
+        choices = ["All"] + sorted({row[0] for row in rows})
+        kind, ok = QtWidgets.QInputDialog.getItem(self, "Channel inputs", "Show:", choices, 0, False)
+        if ok:
+            lines = ["{}  {}  {}{}".format(label, plug, source, " [locked]" if locked else "")
+                     for label, plug, source, locked in rows if kind in ("All", label)]
+            dialog = QtWidgets.QMessageBox(self)
+            dialog.setWindowTitle("Channel inputs")
+            dialog.setText("{} matching channels".format(len(lines)))
+            dialog.setDetailedText("\n".join(lines))
+            dialog.exec_()
+
+    def _save_key_preset(self):
+        """現在の変形モードの設定を登録する。"""
+        mode = self.mode.currentData()
+        name, ok = QtWidgets.QInputDialog.getText(self, "Save key edit preset", "Preset name:")
+        if not ok or not name.strip():
+            return
+        if name in keyPresets.presets():
+            cmds.warning("This preset name is already in use.")
+            return
+        amount, ok = QtWidgets.QInputDialog.getDouble(self, "Save key edit preset", "Amount:", 1, -100, 100, 4)
+        if not ok:
+            return
+        seed = 0
+        if mode == "noise":
+            seed, ok = QtWidgets.QInputDialog.getInt(self, "Save key edit preset", "Random seed:", 0)
+        if ok:
+            keyPresets.save(name, mode, amount, seed)
+
+    def _clamp_difference(self):
+        """隣接キー間で許容する値の差を指定する。"""
+        limit, ok = QtWidgets.QInputDialog.getDouble(self, "Limit key difference", "Maximum difference:", 1, 0, 1e9, 4)
+        if ok:
+            keyTransform.clampDifference(limit)
+
+    def _power_values(self):
+        """対象キーの値に適用する指数を指定する。"""
+        exponent, ok = QtWidgets.QInputDialog.getDouble(self, "Power key values", "Exponent:", 2, -100, 100, 4)
+        if ok:
+            keyTransform.powerValues(exponent)
+
+    def _power_times(self):
+        """対象キーのフレーム番号に適用する指数を指定する。"""
+        exponent, ok = QtWidgets.QInputDialog.getDouble(self, "Power key times", "Exponent:", 2, -100, 100, 4)
+        if ok:
+            keyTransform.powerTimes(exponent)
+
+    def _preview_noise(self):
+        """単位別の最大変化量と、適用する各キーの値を確認する。"""
+        title = "Preview noise by unit"
+        seed, ok = QtWidgets.QInputDialog.getInt(self, title, "Random seed:", 0)
+        if not ok:
+            return
+        amplitudes = {}
+        for unit in ("deg", "cm", "unitless", "frame"):
+            amount, ok = QtWidgets.QInputDialog.getDouble(self, title, "Maximum change ({}):".format(unit), 0, 0, 1e9, 4)
+            if not ok:
+                return
+            amplitudes[unit] = amount
+        rows = keyTransform.previewNoise(seed, amplitudes)
+        if not rows:
+            cmds.warning("No existing keys with a nonzero amplitude.")
+            return
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle(title)
+        dialog.setText("Apply noise to {} keys? Seed {}".format(len(rows), seed))
+        dialog.setInformativeText(", ".join("{} {}".format(value, unit) for unit, value in amplitudes.items()))
+        dialog.setDetailedText("\n".join("{} @ {:g}: {:.9g} -> {:.9g} {}".format(
+            row.curve.getName(), row.time, row.before, row.after, row.unit) for row in rows))
+        dialog.setStandardButtons(QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Cancel)
+        dialog.setDefaultButton(QtWidgets.QMessageBox.Cancel)
+        if dialog.exec_() == QtWidgets.QMessageBox.Ok:
+            keyTransform.applyNoisePreview(rows)
+
+    def _seeded_noise(self):
+        """シードと振幅を指定して既存のノイズ変形を適用する。"""
+        seed, ok = QtWidgets.QInputDialog.getInt(self, "Key noise", "Random seed:", 0)
+        if ok:
+            amount, ok = QtWidgets.QInputDialog.getDouble(self, "Key noise", "Amplitude:", 0.1, 0, 100, 4)
+            if ok:
+                keyTransform.applyKeyTransform("noise", amount, seed)
 
     def _tangents(self):
         """接線のボタン。"""
@@ -766,9 +876,7 @@ class AnimBar(QtWidgets.QWidget):
         section.button("copy", "Copy Animation\n"
                        "Copy the animation of the selected objects (only the range selected in the Time Slider,\n"
                        "if any). Paste it with the button next to it.", animCopy.copyAnimation,
-                       menu=lambda menu: _action(menu, "Copy the playback range only",
-                                                 lambda: animCopy.copyAnimation(timeRange=Time.getRange()),
-                                                 tip="Copy only the keys inside the current playback range."))
+                       menu=self._copy_menu)
         section.button("paste", "Paste Animation\n"
                        "Paste the copied animation onto the selected objects in the order they were copied\n"
                        "(one copied object can be pasted onto many). Keys inside the pasted range are replaced,\n"
@@ -776,6 +884,179 @@ class AnimBar(QtWidgets.QWidget):
                        "another character, or mirrored as an offset cycle.",
                        animCopy.pasteAnimation, menu=self._paste_menu)
         return section
+
+    def _bake_motion_path(self):
+        """距離倍率と入力時刻を別々に受け取り、半フレームの位置誤差を表示する。"""
+        scale, ok = QtWidgets.QInputDialog.getDouble(self, "Bake motion path", "Travel distance scale:", 1, 0, 1e6, 5)
+        if not ok:
+            return
+        offset, ok = QtWidgets.QInputDialog.getDouble(self, "Bake motion path", "Source time offset (frames):", 0, -1e6, 1e6, 3)
+        if ok:
+            error = motionPath.bakeSelected(scale, offset)
+            _message("Maximum half-frame position error: {:.6g} cm".format(error))
+
+    def _preview_step_bake(self):
+        """サンプルの時刻と値を見てから、コマ打ちを確定する。"""
+        step, ok = QtWidgets.QInputDialog.getInt(self, "Stepped bake", "Frames per step:", 2, 2, 3)
+        if not ok:
+            return
+        phase, ok = QtWidgets.QInputDialog.getInt(self, "Stepped bake", "Phase from range start:", 0, 0, step - 1)
+        if not ok:
+            return
+        curve, rows = timing.previewSteppedBake(step, phase)
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Preview stepped bake")
+        dialog.setText("Bake {} samples on {}?".format(len(rows), curve.getName()))
+        dialog.setDetailedText("\n".join("{:g}: {:g}".format(*row) for row in rows))
+        dialog.setStandardButtons(QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Cancel)
+        dialog.setDefaultButton(QtWidgets.QMessageBox.Cancel)
+        if dialog.exec_() == QtWidgets.QMessageBox.Ok:
+            timing.applySteppedBake(curve, rows)
+
+    def _confirm_pose_blend(self, clips):
+        """表示中の混合ポーズを確定するか選ぶ。"""
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Preview pose clips")
+        dialog.setText("Keep the previewed pose?")
+        order = "\n".join("{} (weight {:g})".format(name, weight) for name, weight in clips)
+        dialog.setInformativeText("Starting from the current pose, blend each rotation axis linearly in this order:\n" + order)
+        dialog.setStandardButtons(QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Cancel)
+        dialog.setDefaultButton(QtWidgets.QMessageBox.Cancel)
+        return dialog.exec_() == QtWidgets.QMessageBox.Ok
+
+    def _save_snapshot(self, kind):
+        """選択した操作対象のポーズまたはキーを個人用ファイルに保存する。"""
+        nodes = keys.selectedNodes()
+        if not nodes:
+            raise ValueError("Select controls to save.")
+        snapshot = kind.capture(nodes)
+        if kind is AnimationSnapshot and not snapshot.toData()["curves"]:
+            raise ValueError("No time animation on the selected controls.")
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save " + kind.__name__, "", "JSON (*.json)")
+        if path:
+            snapshot.save(path)
+
+    def _load_snapshot(self, kind):
+        """保存元と復元先の名前空間を確認し、書けない対象を表示してから復元する。"""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Load " + kind.__name__, "", "JSON (*.json)")
+        if not path:
+            return
+        snapshot = kind.load(path)
+        data = snapshot.toData()
+        refs = ([entry["node"] for entry in data["nodes"]] if kind is PoseSnapshot else
+                [entry["plug"]["node"] for entry in data["curves"]])
+        mapping = {}
+        for namespace in sorted({ref["name"].rpartition(":")[0] for ref in refs}):
+            target, ok = QtWidgets.QInputDialog.getText(self, "Map namespace",
+                "Destination for {} (blank for root):".format(namespace or "<root>"), text=namespace)
+            if not ok:
+                return
+            mapping[namespace] = target.strip(":")
+        report = snapshot.validate(namespaceMap=mapping)
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Restore " + kind.__name__)
+        operation = "Merge saved keys at their frame numbers" if kind is AnimationSnapshot else "Restore saved values"
+        if kind is AnimationSnapshot:
+            dialog.setText("{}? {} missing. Locked or connected channels are reported after restoration.".format(operation, len(report.missing)))
+        else:
+            dialog.setText("{}? {} missing, {} skipped.".format(operation, len(report.missing), len(report.skipped)))
+        dialog.setDetailedText("\n".join(report.missing + report.skipped + report.errors))
+        dialog.setStandardButtons(QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Cancel)
+        dialog.setDefaultButton(QtWidgets.QMessageBox.Cancel)
+        if dialog.exec_() == QtWidgets.QMessageBox.Ok and report.valid:
+            if kind is AnimationSnapshot:
+                applied = snapshot.apply(namespaceMap=mapping, mode="merge")
+                if applied.skipped:
+                    _warn("\n".join(applied.skipped))
+            else:
+                snapshot.apply(namespaceMap=mapping)
+
+    def _copy_menu(self, menu):
+        """アニメーションのコピー範囲と事前確認の操作を表示する。"""
+        _action(menu, "Save selected pose to file...", lambda: self._save_snapshot(PoseSnapshot))
+        _action(menu, "Save selected animation to file...", lambda: self._save_snapshot(AnimationSnapshot))
+        _action(menu, "Capture selected controls as pose clip", poseClip.captureSelected)
+        _action(menu, "Rebuild selected pose clip from selected controls", poseClip.rebuildSelected)
+        _action(menu, "Restore selected pose clip", poseClip.restoreSelected)
+        _action(menu, "Preview selected pose clips...", lambda: poseClip.previewSelectedBlend(self._confirm_pose_blend))
+        _action(menu, "Blend pose group in hierarchy order (clip weights)", poseClip.restoreSelectedGroup)
+        menu.addSeparator()
+        _action(menu, "Preview copy channels...", self._preview_copy)
+        _action(menu, "Export keys and static values...", self._export_clip)
+        _action(menu, "Export published ports in playback range...", lambda: self._export_clip(Time.getRange(), published=True),
+                tip="Select rig roots with published channel definitions.")
+        _action(menu, "Export playback range...", lambda: self._export_clip(Time.getRange()))
+        _action(menu, "Export playback range for selected channels...", lambda: self._export_clip(Time.getRange(), channel_box_only=True),
+                tip="Export only highlighted Channel Box attributes on the selected objects.")
+        _action(menu, "Preview playback range copy...", lambda: self._preview_copy(Time.getRange()))
+        _action(menu, "Cancel reference motion on selected buffers", counterMotion.applySelected,
+                tip="Select the moving reference first, followed by unused root-level rig buffers.")
+        _action(menu, "Remove counter motion from selected buffers", counterMotion.removeSelected)
+        _action(menu, "Bake travel distance along path...", self._bake_motion_path,
+                tip="Select source control, path, then an empty root-level output transform.")
+        _action(menu, "Attach shared time driver to selected curves", timeDriver.attachSelected)
+        _action(menu, "Remove selected time driver", timeDriver.detachSelected)
+        for step in (2, 3):
+            _action(menu, "Copy time-driven controls on {}s".format(step), functools.partial(animCopy.copyTimeDrivenSteps, step))
+        _action(menu, "Preview stepped bake...", self._preview_step_bake)
+        _action(menu, "Copy stepped playback range in seconds", animCopy.copySteppedRange,
+                tip="Copy stepped curves spanning the playback range. Paste preserves their timing in seconds across frame rates.")
+        _action(menu, "Copy the playback range only", lambda: animCopy.copyAnimation(timeRange=Time.getRange()),
+                tip="Copy only the keys inside the current playback range.")
+
+    def _export_clip(self, time_range=None, channel_box_only=False, published=False):
+        """チャンネル別の対象と除外理由を表示し、確認した内容を保存する。"""
+        if published:
+            try:
+                clip, excluded = animCopy.previewPublishedExport(time_range)
+            except (ImportError, ValueError, KeyError, TypeError) as error:
+                _warn(str(error))
+                return
+            if not excluded and not clip["channels"]:
+                _warn("Select a rig root with published ports.")
+                return
+        else:
+            clip, excluded = animCopy.previewClipExport(time_range, channelBoxOnly=channel_box_only)
+        channels = clip["channels"]
+        if not channels:
+            if channel_box_only and not excluded:
+                _warn("Select a keyable scalar attribute in the Channel Box on a selected object.")
+                return
+            _warn("No channels to export" + ("\n" + "\n".join(f"{p}: {r}" for p, r in excluded.items()) if excluded else ""))
+            return
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Export keys and static values")
+        bounds = clip["range"]
+        frames = "All frames" if bounds is None else f"Frames {bounds[0]:g} to {bounds[1]:g}"
+        dialog.setText(f"{frames} ({clip['units']['time']})\n{len(channels)} included, {len(excluded)} excluded. Choose a file to save?")
+        details = []
+        for plug, entry in channels.items():
+            label = f"{len(entry['curve']['keys'])} keys" if "curve" in entry else f"static value {entry['value']}"
+            if published:
+                label += ", " + entry["publishedPorts"]
+            details.append(f"Include  {plug}  ({label})")
+        details.extend(f"Exclude  {plug}  ({kind})" for plug, kind in excluded.items())
+        dialog.setDetailedText("\n".join(details))
+        dialog.setStandardButtons(QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Cancel)
+        if dialog.exec_() == QtWidgets.QMessageBox.Ok:
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export Animation Clip", "", "JSON (*.json)")
+            if path:
+                animCopy.writeClip(path, clip)
+                _message(f"Exported {len(channels)} channels")
+
+    def _preview_copy(self, time_range=None):
+        """通常のコピーで含まれるチャンネルと除外されるチャンネルを表示する。"""
+        rows = animCopy.previewCopy(time_range)
+        included = sum(count > 0 for _, _, count in rows)
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Preview copy channels")
+        summary = f"{included} included, {len(rows) - included} excluded"
+        if time_range is not None:
+            summary = f"Frames {time_range[0]:g} to {time_range[1]:g}\n{summary}"
+        dialog.setText(summary)
+        dialog.setDetailedText("\n".join(f"{'Include' if count else 'Exclude'}  {plug}  {kind}  ({count} keys)"
+                                         for plug, kind, count in rows))
+        dialog.exec_()
 
     def _toggle_transform_all(self, state):
         """transformAll のトグル。押して始め、もう一度押して反映する。"""
@@ -805,15 +1086,91 @@ class AnimBar(QtWidgets.QWidget):
         button.setChecked(state)
         button.blockSignals(False)
 
+    def _edit_channel(self, operation):
+        """Channel Boxで選んだ1チャンネルのロックと数値を操作する。"""
+        plugs = list(Selection.getChannelBoxPlugs())
+        if len(plugs) != 1:
+            raise ValueError("Highlight one channel on one control.")
+        plug = plugs[0]
+        if operation == "lock":
+            plug.setLocked(not plug.isLocked())
+            return
+        if plug.isLocked() or plug.getConnections(input=True) is not None:
+            raise ValueError("Select an unlocked channel without an input connection.")
+        current = plug.get(uiUnits=True)
+        if not isinstance(current, float):
+            raise ValueError("Select a floating-point channel.")
+        low, high = plug.getRange(uiUnits=True)
+        value, ok = QtWidgets.QInputDialog.getDouble(self, "Edit channel", plug.getName(full=True),
+            current, -1e308 if low is None else low, 1e308 if high is None else high, 6)
+        if ok:
+            plug.set(value, uiUnits=True)
+
     def _reset_menu(self, menu):
         """リセットするアトリビュートの組。"""
+        _action(menu, "Set highlighted channel value...", lambda: self._edit_channel("value"))
+        _action(menu, "Toggle highlighted channel lock", lambda: self._edit_channel("lock"))
+        _action(menu, "Inspect selected key defaults...", self._inspect_reset_keys,
+                tip="Show selected key inputs and their reset values in scene units.")
+        _action(menu, "Inspect attribute defaults...", self._inspect_reset_defaults,
+                tip="Show defaults in scene units and input states for all keyable scalar channels on selected objects.")
+        _action(menu, "Inspect selected channel defaults...", functools.partial(self._inspect_reset_defaults, True),
+                tip="Show defaults and input states for keyable scalar attributes selected in the Channel Box.")
+        _action(menu, "Inspect published port defaults...", functools.partial(self._inspect_reset_defaults, published=True),
+                tip="Select rig roots to compare port declarations with attribute defaults and actual inputs.")
         for label, names in (("Translate", ["translate"]), ("Rotate", ["rotate"]), ("Scale", ["scale"]),
                              ("Translate, Rotate and Scale", ["translate", "rotate", "scale"])):
             _action(menu, "Reset " + label, functools.partial(timing.resetValues, None, names),
                     tip="Reset only the {} of the selected objects to the default values.".format(label.lower()))
 
+    def _inspect_reset_keys(self):
+        """選択キーの入力とリセット先を表示する。"""
+        rows = timing.inspectResetKeys()
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Selected key defaults")
+        count = sum(len(inputs) for _, _, inputs, _ in rows)
+        dialog.setText("{} selected keys".format(count) if count else "Select keys in the Graph Editor.")
+        lines = ["{}  {}  Key inputs: {}  Default: {}".format(
+            curve, path, ", ".join(map(str, inputs)), default if default is not None else "Unavailable")
+            for curve, path, inputs, default in rows]
+        dialog.setDetailedText("\n".join(lines))
+        dialog.exec_()
+
+    def _inspect_reset_defaults(self, channel_box_only=False, published=False):
+        """選択ノードの既定値と入力接続・ロックを表示する。"""
+        labels = {}
+        unavailable = {}
+        if published:
+            try:
+                declared, unavailable = timing.inspectPublishedDefaults()
+            except (ImportError, ValueError, KeyError, TypeError) as error:
+                _warn(str(error))
+                return
+            rows = [row[:5] for row in declared]
+            labels = {row[0]: "  " + row[5] for row in declared}
+        else:
+            rows = timing.inspectResetDefaults(channelBoxOnly=channel_box_only)
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Attribute defaults")
+        if published:
+            dialog.setText(f"{len(rows)} published channels (scene units), {len(unavailable)} unavailable"
+                           if rows or unavailable else "Select a rig root with published ports.")
+        elif channel_box_only:
+            dialog.setText("{} selected channels (scene units)".format(len(rows)) if rows else
+                           "Select a keyable scalar attribute in the Channel Box on a selected object.")
+        else:
+            dialog.setText("{} keyable channels on selected objects (scene units)".format(len(rows)))
+        lines = ["{}  Default: {}  {}{}{}".format(path, default if default is not None else "Unavailable",
+                                                 kind, " from " + source if source else "", " [locked]" if locked else "") + labels.get(path, "")
+                 for path, default, kind, source, locked in rows]
+        lines.extend(f"{name}  {reason}" for name, reason in unavailable.items())
+        dialog.setDetailedText("\n".join(lines))
+        dialog.exec_()
+
     def _paste_menu(self, menu):
         """貼付けのしかた。"""
+        _action(menu, "Restore pose from file...", lambda: self._load_snapshot(PoseSnapshot))
+        _action(menu, "Restore animation from file...", lambda: self._load_snapshot(AnimationSnapshot))
         _action(menu, "Paste in place (start at the current frame)", lambda: animCopy.pasteAnimation(inPlace=True),
                 tip="Paste onto the selected objects, shifted so that the first copied key lands on the current frame.")
         _action(menu, "Paste to another character (match names)", lambda: animCopy.pasteAnimation(mode="name"),
@@ -1020,6 +1377,7 @@ class AnimBar(QtWidgets.QWidget):
 
     def _sets_menu(self, menu):
         """選択セット全体の操作。"""
+        _action(menu, "Reverse selected controls", selectSets.reverseSelection)
         _action(menu, "Refresh", self.refreshSets,
                 tip="Rebuild the set buttons from the select sets in the scene.")
         _action(menu, "Export select sets...", self._export_sets,

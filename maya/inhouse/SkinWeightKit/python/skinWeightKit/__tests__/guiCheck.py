@@ -15,6 +15,172 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PYTHON = os.path.dirname(os.path.dirname(HERE))
 
 
+def _check_weight_previews(widget, geo, skin, joints):
+    """実際の確認ダイアログで取り消し・適用・貼り付けを比較する。"""
+    import maya.cmds as cmds
+    from skinWeightKit.ui.qt import QtCore, QtWidgets
+
+    def select(index):
+        cmds.select(f"{geo}.vtx[{index}]")
+        widget.refresh()
+
+    def rows():
+        return [cmds.skinPercent(skin, f"{geo}.vtx[{index}]", query=True, value=True)
+                for index in (19, 20, 21)]
+
+    def dialog_text(show, button_name=None):
+        messages = []
+
+        def close_dialog():
+            dialog = QtWidgets.QApplication.activeModalWidget()
+            if isinstance(dialog, QtWidgets.QMessageBox):
+                messages.append((dialog.text(), dialog.detailedText()))
+                for button in dialog.buttons():
+                    if button.text() == button_name:
+                        button.click()
+                        return
+                dialog.reject()
+
+        QtCore.QTimer.singleShot(0, close_dialog)
+        show()
+        return messages[0]
+
+    buttons = {button.text(): button for button in widget.findChildren(QtWidgets.QPushButton)}
+    select(0)
+    buttons["Copy"].click()
+    select(20)
+    original = rows()
+    title, details = dialog_text(buttons["Preview Paste"].click)
+    paste_preview = title == "1 changed vertices\nLocked influences: None" and "vtx[20]" in details and rows() == original
+    buttons["Paste"].click()
+    pasted = rows()
+    cmds.undo()
+    paste_ok = paste_preview and pasted[1] != original[1] and pasted[::2] == original[::2] and rows() == original
+
+    def preview_move():
+        widget._preview_move(joints[0], joints[1])
+
+    title, details = dialog_text(preview_move)
+    move_preview = "1 changed vertices" in title and "vtx[20]" in details and rows() == original
+    dialog_text(preview_move, "Apply")
+    moved = rows()
+    cmds.undo()
+    move_ok = (move_preview and moved[1][0] == 0 and abs(moved[1][1] - sum(original[1][:2])) < 1e-6
+               and moved[::2] == original[::2] and rows() == original)
+
+    cmds.setAttr(joints[2] + ".liw", True)
+    title, details = dialog_text(buttons["Preview Paste"].click)
+    locked_preview = title.endswith("Locked influences: " + joints[2]) and joints[2] not in details and rows() == original
+    buttons["Paste"].click()
+    locked_rows = rows()
+    cmds.undo()
+    locked_ok = (locked_preview and locked_rows[1] != original[1] and locked_rows[1][2] == original[1][2]
+                 and locked_rows[::2] == original[::2] and rows() == original)
+    cmds.setAttr(joints[2] + ".liw", False)
+
+    cmds.setAttr(joints[0] + ".rotateZ", 20)
+    cmds.setAttr(joints[1] + ".rotateX", 35)
+    buttons["Record Posed Mesh"].click()
+    cmds.skinPercent(skin, geo + ".vtx[21]", transformValue=[(joints[1], 1.0)], zeroRemainingInfluences=True)
+    title, details = dialog_text(buttons["Compare Posed Mesh"].click)
+    pose_ok = title == "Changed vertices: 1. Outside edit range: 1" and "vtx[21]" in details and "outside" in details
+    cmds.undo()
+    title, _ = dialog_text(buttons["Compare Posed Mesh"].click)
+    pose_ok = pose_ok and title == "Changed vertices: 0. Outside edit range: 0"
+    cmds.setAttr(joints[0] + ".rotateZ", 0)
+    cmds.setAttr(joints[1] + ".rotateX", 0)
+
+    buttons["Record Settings"].click()
+    cmds.setAttr(joints[2] + ".liw", True)
+    title, details = dialog_text(buttons["Compare Settings"].click)
+    buttons["Restore Settings"].click()
+    restored = not cmds.getAttr(joints[2] + ".liw") and rows() == original
+    cmds.undo()
+    bind_ok = restored and cmds.getAttr(joints[2] + ".liw") and title == "Differences: 1" and joints[2] in details and "locked: False → True" in details
+    cmds.setAttr(joints[2] + ".liw", False)
+
+    widget._item_clicked(widget.tree.topLevelItem(0), 1)
+    buttons["Cluster from Influence"].click()
+    created = cmds.ls(type="cluster")
+    cluster_ok = len(created) == 1 and abs(cmds.percent(created[0], geo + ".vtx[20]", query=True, value=True)[0] - original[1][0]) < 1e-6
+    cmds.undo()
+    cluster_ok = cluster_ok and not cmds.ls(type="cluster") and rows() == original
+    select(20)
+
+    # コピー元と名前が一致しないスケルトンでは、警告と全行の保持を確認する。
+    from maya.api import OpenMaya as om
+    buttons["Pick Source"].click()
+    other = cmds.duplicate(geo, name="swkGuiOther")[0]
+    cmds.move(30, 0, 0, other + ".vtx[21]", relative=True, worldSpace=True)
+    cmds.select(clear=True)
+    other_joint = cmds.joint(name="swkOtherJoint")
+    other_skin = cmds.skinCluster(other_joint, other, toSelectedBones=True)[0]
+    cmds.select(other + ".vtx[20]", other + ".vtx[21]")
+    widget.refresh()
+
+    def other_rows():
+        return [cmds.skinPercent(other_skin, f"{other}.vtx[{i}]", query=True, value=True)
+                for i in range(cmds.polyEvaluate(other, vertex=True))]
+
+    before = other_rows()
+    warnings = []
+
+    def capture(message, kind, _data):
+        if kind == om.MCommandMessage.kWarning:
+            warnings.append(message)
+
+    callback = om.MCommandMessage.addCommandOutputCallback(capture)
+    try:
+        for name in ("Preview Paste", "Paste"):
+            buttons[name].click()
+    finally:
+        om.MMessage.removeCallback(callback)
+    missing_ok = sum("Not influences of" in warning and joints[0] in warning for warning in warnings) == 2 and other_rows() == before
+
+    # 距離上限を実際の入力画面で確定し、続く結果画面を読む。
+    match_ok = True
+    for method in ("index", "position"):
+        widget.import_method.setCurrentIndex(widget.import_method.findData(method))
+        messages = []
+        def inspect_modal():
+            dialog = QtWidgets.QApplication.activeModalWidget()
+            if isinstance(dialog, QtWidgets.QInputDialog):
+                dialog.setDoubleValue(0.001)
+                dialog.accept()
+                QtCore.QTimer.singleShot(0, inspect_modal)
+            elif isinstance(dialog, QtWidgets.QMessageBox):
+                messages.append((dialog.text(), dialog.detailedText()))
+                dialog.accept()
+        QtCore.QTimer.singleShot(0, inspect_modal)
+        buttons["Preview Source Matches..."].click()
+        match_ok = match_ok and bool(messages) and messages[0][0] == "1 of 2 vertices unmatched" and "vtx[21]  unmatched" in messages[0][1] and "vtx[20]  vtx[20]" in messages[0][1]
+    match_ok = match_ok and other_rows() == before
+    def enter_pairs():
+        dialog = QtWidgets.QApplication.activeModalWidget()
+        if isinstance(dialog, QtWidgets.QInputDialog):
+            dialog.setTextValue("20 20\n21 21")
+            dialog.accept()
+
+    QtCore.QTimer.singleShot(0, enter_pairs)
+    buttons["Record Seam..."].click()
+    cmds.move(1, 0, 0, other + ".vtx[20]", relative=True, worldSpace=True)
+    title, details = dialog_text(buttons["Compare Seam"].click)
+    seam_ok = ("Worsened pairs: 1" in title and "Maximum:" in title and
+               any("vtx[20] / vtx[20]" in line and "(worsened)" in line for line in details.splitlines()) and
+               any("vtx[21] / vtx[21]" in line and "(worsened)" not in line for line in details.splitlines()))
+    cmds.select(geo, other)
+    widget.refresh()
+    title, _ = dialog_text(buttons["Compare Bind Meshes"].click)
+    bind_mesh_ok = "Topology matches" in title and "Local maximum:" in title and "World maximum:" in title and "vtx[21]" in title
+    title, details = dialog_text(buttons["Compare Cage Output"].click)
+    cage_ok = "Open boundary:" in title and "vtx[21]" in details
+    cmds.delete(other, other_joint)
+    select(20)
+
+    return dict(cage_output=cage_ok, bind_mesh_comparison=bind_mesh_ok, move_preview=move_ok, paste_preview=paste_ok, locked_paste=locked_ok, missing_paste=missing_ok,
+                posed_mesh=pose_ok, source_matches=match_ok, seam_distances=seam_ok, bind_settings=bind_ok, cluster_transfer=cluster_ok)
+
+
 def main(output_dir=None, finished=None):
     """パネルを表示し、確認の結果を ``result.json`` に書いて finished を呼ぶ。
 
@@ -122,6 +288,10 @@ def main(output_dir=None, finished=None):
             cmds.undo()
             values = cmds.skinPercent(skin_name, "{}.vtx[20]".format(geo), query=True, value=True)
             checks["undo_restored"] = abs(values[1] - 0.5) > 1e-4
+            checks.update(_check_weight_previews(widget, geo, skin_name, joints))
+            cmds.select(f"{geo}.vtx[20]", f"{geo}.vtx[21]")
+            widget.refresh()
+            widget._item_clicked(widget.tree.topLevelItem(1), 1)
             # Slide のドラッグ: 押して量を変え、離すと1回の Undo で書く。
             start = cmds.skinPercent(skin_name, "{}.vtx[20]".format(geo), query=True, value=True)[1]
             checks["slide_started"] = widget._slide_start()
@@ -245,7 +415,7 @@ def main(output_dir=None, finished=None):
             checks["toggle_hides"] = not cmds.workspaceControl(panel.CONTROL, exists=True)
             skinWeightKit.toggle()
             checks["toggle_shows"] = bool(cmds.workspaceControl(panel.CONTROL, exists=True))
-            expected = {"control_exists": True, "window_menu_item": True, "window_menu_icon": True, "widget_built": True, "docked": True, "on_right_side": True,
+            expected = {"posed_mesh": True, "bind_settings": True, "cluster_transfer": True, "seam_distances": True, "locked_paste": True, "missing_paste": True, "source_matches": True, "move_preview": True, "paste_preview": True, "control_exists": True, "window_menu_item": True, "window_menu_icon": True, "widget_built": True, "docked": True, "on_right_side": True,
                         "panels_in_control": 1, "tooltips_missing": [], "influence_rows": 3, "preset_value": 0.5,
                         "preset_sum": 1.0, "undo_restored": True, "menu_items_without_tips": [],
                         "paint_context": "artAttrSkin", "toggle_hides": True, "toggle_shows": True,

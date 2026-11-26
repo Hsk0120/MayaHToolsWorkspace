@@ -200,6 +200,46 @@ def reset(solverNode):
     cmds.currentTime(cmds.getAttr(solver_node + ".startFrame"))
 
 
+def addCurveCapsules(node, curve, radius=1.0):
+    """開いた1次カーブの現在の形から、各辺に独立したカプセルを作る。半径はcm。"""
+    _solver(node)
+    if type(radius) not in (int, float) or not math.isfinite(radius) or radius <= 0:
+        raise ValueError("Radiusには0より大きい有限値を指定してください")
+    if not isinstance(curve, str) or not curve or any(char in curve for char in ('.', '*', '?', '[', ']')):
+        raise ValueError("カーブのオブジェクト名を指定してください")
+    matches = cmds.ls(curve, long=True) or []
+    if len(matches) != 1:
+        raise ValueError("開いた1次カーブを1個指定してください")
+    shape = matches[0]
+    if cmds.nodeType(shape) == "transform":
+        shapes = cmds.listRelatives(shape, shapes=True, noIntermediate=True, fullPath=True) or []
+        shape = shapes[0] if len(shapes) == 1 else None
+    if not shape or cmds.nodeType(shape) != "nurbsCurve":
+        raise ValueError("開いた1次カーブを1個指定してください")
+    selection = om.MSelectionList()
+    selection.add(shape)
+    function = om.MFnNurbsCurve(selection.getDagPath(0))
+    if function.degree != 1 or function.form != om.MFnNurbsCurve.kOpen:
+        raise ValueError("開いた1次カーブを指定してください")
+    points = list(function.cvPositions(om.MSpace.kWorld))
+    segments = []
+    for first, second in zip(points, points[1:]):
+        edge = second - first
+        if edge.length() < 1e-7:
+            raise ValueError("長さ0の辺にはカプセルを作れません")
+        center = first + edge * 0.5
+        rotation = om.MVector.kYaxisVector.rotateTo(edge.normal()).asEulerRotation()
+        segments.append((edge.length(), tuple(om.MDistance(v).asUnits(om.MDistance.uiUnit()) for v in (center.x, center.y, center.z)),
+                         tuple(om.MAngle(v).asUnits(om.MAngle.uiUnit()) for v in rotation)))
+    guides = []
+    with _transaction("Simple Cloth: Curve Capsules"):
+        for length, center, rotation in segments:
+            guide = addCollider(node, "capsule", radius=radius, height=length)
+            cmds.xform(guide, worldSpace=True, translation=center, rotation=rotation)
+            guides.append(guide)
+    return guides
+
+
 def addCollider(solverNode, kind="sphere", radius=3.0, height=6.0, attachTo=None):
     """球・Yカプセル・+Y平面ガイドを作る。寸法はcm、追従先は任意。
 

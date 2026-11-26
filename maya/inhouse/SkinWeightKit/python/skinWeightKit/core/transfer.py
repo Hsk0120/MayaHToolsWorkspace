@@ -14,6 +14,8 @@ import io
 import json
 import math
 
+import maya.cmds as cmds
+
 import mlib
 from mlib.decorator import undoChunk
 
@@ -128,6 +130,141 @@ class _Grid(object):
             if best is not None and math.sqrt(best_distance) <= radius * self.size:
                 break
         return best
+
+
+class DeformationSample:
+    """同一の複合ポーズで全頂点の位置を比較し、記録した編集範囲外の変形を検出する。"""
+
+    def __init__(self, target):
+        self.mesh = target.mesh
+        self.skin = target.requireSkin()
+        self.region = frozenset(target.editVertices())
+        self.topology = self.mesh.getTopology()
+        self.pose = self._pose()
+        self.before = self.mesh.getPoints(worldSpace=True)
+
+    def _pose(self):
+        """フレーム、単位、入力骨とメッシュのワールド姿勢を記録する。"""
+        return (cmds.currentTime(query=True), cmds.currentUnit(query=True, time=True), cmds.currentUnit(query=True, linear=True),
+                tuple(self.mesh.getTransform().getMatrix(ws=True)),
+                [(joint.getUuid(), tuple(joint.getMatrix(ws=True))) for joint in self.skin.getInfluences()])
+
+    def compare(self, mesh):
+        """記録時と同じ形状・ポーズで、1e-6cmを超えた頂点番号、位置差、範囲外判定を返す。"""
+        if not self.mesh.isValid() or mesh != self.mesh or not self.skin.isValid() or self.skin not in mesh.getSkinClusters():
+            raise ValueError("Select the recorded skinned mesh")
+        if self.topology != mesh.getTopology() or self.pose != self._pose():
+            raise ValueError("Restore the recorded topology, frame, units and pose before comparing")
+        result = []
+        for index, (before, after) in enumerate(zip(self.before, mesh.getPoints(worldSpace=True))):
+            distance = (after - before).length()
+            if distance > 1e-6:
+                result.append((index, distance, index not in self.region))
+        return result
+
+
+class BoundarySample:
+    """指定した2つのスキンメッシュの境界ペアを同じ姿勢で比較する。"""
+
+    def __init__(self, source, destination, pairs):
+        self.meshes = (source, destination)
+        self.pairs = tuple(pairs)
+        if source == destination or not self.pairs:
+            raise ValueError("Specify vertex pairs on two different meshes")
+        self.pose, self.before = self._sample()
+
+    def _sample(self):
+        """フレーム・単位・メッシュとインフルエンスの姿勢、および各ペアの距離を読む。"""
+        pose = [cmds.currentTime(query=True), cmds.currentUnit(query=True, time=True), cmds.currentUnit(query=True, linear=True)]
+        points = []
+        for mesh in self.meshes:
+            if not mesh.isValid() or not mesh.getSkinClusters():
+                raise ValueError("The recorded skinned mesh is unavailable")
+            skin = mesh.getSkinClusters()[0]
+            pose.extend((skin.getUuid(), mesh.getNumVertices(), tuple(mesh.getTransform().getMatrix(ws=True))))
+            pose.extend((node.getUuid(), tuple(node.getMatrix(ws=True))) for node in skin.getInfluences())
+            points.append(mesh.getPoints(worldSpace=True))
+        distances = []
+        for first, second in self.pairs:
+            if not (0 <= first < len(points[0]) and 0 <= second < len(points[1])):
+                raise ValueError("Vertex pair is outside the mesh")
+            distances.append((points[0][first] - points[1][second]).length())
+        return pose, distances
+
+    def compare(self):
+        """姿勢が一致すればペアごとの頂点番号と前後のワールド距離(cm)を返す。"""
+        pose, after = self._sample()
+        if pose != self.pose:
+            raise ValueError("Restore the recorded frame, units and skeleton pose before comparing")
+        return [(a, b, old, new) for (a, b), old, new in zip(self.pairs, self.before, after)]
+
+
+def compareBindMeshes(first, second):
+    """現在姿勢で頂点番号が対応するか調べ、ローカル・ワールド別の最大頂点差(cm)を返す。"""
+    if first == second:
+        raise ValueError("Select two distinct mesh objects")
+    if first.getNumVertices() != second.getNumVertices() or first.getTopology() != second.getTopology():
+        raise ValueError("Topology differs: vertex counts, face counts or ordered face vertices do not match")
+    result = {}
+    for space, world in (("local", False), ("world", True)):
+        pairs = zip(first.getPoints(worldSpace=world), second.getPoints(worldSpace=world))
+        result[space] = max(((index, (b - a).length()) for index, (a, b) in enumerate(pairs)),
+                            key=lambda entry: entry[1], default=(None, 0.0))
+    return result
+
+
+def compareCageOutput(reference, wrapped, tolerance=1e-6):
+    """直接転送した参照形状とケージ出力の差(cm)を頂点ごとに測り、開いた境界を示す。"""
+    if not math.isfinite(tolerance) or tolerance < 0:
+        raise ValueError("Tolerance must be finite and non-negative")
+    topology = reference.getTopology()
+    if reference == wrapped or reference.getNumVertices() != wrapped.getNumVertices() or topology != wrapped.getTopology():
+        raise ValueError("Select distinct reference and cage outputs with matching vertex and face order")
+    counts, indices = topology
+    edge_counts = {}
+    start = 0
+    for count in counts:
+        face = indices[start:start + count]
+        for a, b in zip(face, face[1:] + face[:1]):
+            edge = (min(a, b), max(a, b))
+            edge_counts[edge] = edge_counts.get(edge, 0) + 1
+        start += count
+    boundary = {v for edge, count in edge_counts.items() if count == 1 for v in edge}
+    rows = []
+    for index, (a, b) in enumerate(zip(reference.getPoints(worldSpace=True), wrapped.getPoints(worldSpace=True))):
+        distance = (a - b).length()
+        if distance > tolerance:
+            rows.append((index, distance, index in boundary))
+    return rows
+
+
+def previewCorrespondence(source, target, method, maxDistance):
+    """指定範囲の頂点ごとに対応元番号とワールド空間の距離(cm)を返す。
+
+    距離上限を超えた場合は対応元番号をNoneにする。番号対応では両メッシュの頂点数が一致する必要がある。
+    """
+    source.requireSkin()
+    target.requireSkin()
+    if source.mesh == target.mesh:
+        raise ValueError("Pick a different mesh as the source")
+    if method not in METHODS:
+        raise ValueError("Unknown correspondence method")
+    if not math.isfinite(maxDistance) or maxDistance < 0:
+        raise ValueError("Maximum distance must be finite and non-negative")
+    vertices = target.editVertices()
+    source_points = source.mesh.getPoints(worldSpace=True)
+    target_points = target.mesh.getPoints(worldSpace=True)
+    if method == "index":
+        if len(source_points) != len(target_points):
+            raise ValueError("Vertex counts differ")
+        indices = vertices
+    else:
+        indices = source.mesh.getClosestVertices([target_points[v] for v in vertices], worldSpace=True)
+    result = []
+    for vertex, index in zip(vertices, indices):
+        distance = (target_points[vertex] - source_points[index]).length()
+        result.append((vertex, index if distance <= maxDistance else None, distance))
+    return result
 
 
 @undoChunk("skinWeightKitCopyFromMesh")

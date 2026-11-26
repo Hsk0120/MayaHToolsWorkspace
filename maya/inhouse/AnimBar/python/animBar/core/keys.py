@@ -483,3 +483,68 @@ def _unique(values):
         if not result or value - result[-1] > TIME_EPSILON:
             result.append(value)
     return result
+
+
+def inspectChannels(channelBoxOnly=False, *, nodes=None):
+    """選択ノードのキー可能なスカラーを、時間キー・ドリブン・入力接続・静的に分類する。"""
+    chosen = None
+    if channelBoxOnly:
+        chosen = {(plug.getNode().getName(full=True), plug.getAttributeName()) for plug in _channel_box_plugs()}
+    rows = []
+    if nodes is None:
+        nodes = cmds.ls(selection=True, long=True, objectsOnly=True) or []
+    for node in nodes:
+        for attr in sorted(cmds.listAttr(node, keyable=True, scalar=True) or []):
+            if chosen is not None and (node, attr) not in chosen:
+                continue
+            plug = node + "." + attr
+            sources = cmds.listConnections(plug, source=True, destination=False, plugs=True,
+                                           skipConversionNodes=True) or []
+            source = sources[0] if sources else ""
+            kind = "Static"
+            if source:
+                source_type = cmds.nodeType(source.split(".", 1)[0])
+                if source_type.startswith("animCurveT"):
+                    kind = "Time keys"
+                elif source_type.startswith("animCurveU"):
+                    kind = "Driven keys"
+                elif source_type.startswith("animBlendNode") and cmds.animLayer([plug], query=True, affectedLayers=True):
+                    kind = "Animation layer"
+                elif source_type.startswith("animBlendNode") or source_type == "pairBlend":
+                    kind = "Blended input"
+                else:
+                    inherited = cmds.nodeType(source.split(".", 1)[0], inherited=True) or []
+                    if "constraint" in inherited:
+                        kind = "Constraint"
+                    elif "geometryFilter" in inherited:
+                        kind = "Deformer"
+                    else:
+                        kind = "Connected"
+            rows.append((kind, plug, source, cmds.getAttr(plug, lock=True)))
+    return rows
+
+
+def inspectPublishedChannels():
+    """選択ルートの宣言、解決できない役割、実際のチャンネル状態を返す。"""
+    # 公開ポートを使う操作だけがmlrigに依存する。
+    from mlrig import publishedChannels
+
+    ports = {}
+    excluded = {}
+    for root in cmds.ls(selection=True, long=True, type="transform") or []:
+        definitions = publishedChannels.getPorts(root)
+        if not definitions:
+            excluded[root] = "No published ports"
+            continue
+        paths = {role: (entry["path"], entry["attribute"]) for role, entry in definitions.items()}
+        found, missing = publishedChannels.resolveChannels(root, paths)
+        for role in missing:
+            excluded[f"{root} [{role}]"] = f"Missing {definitions[role]['kind']} port: {paths[role]}"
+        for role, plug in found.items():
+            node = plug.rsplit(".", 1)[0]
+            plug = node + "." + cmds.attributeName(plug, long=True)
+            ports.setdefault(plug, []).append((role, definitions[role]["kind"]))
+
+    nodes = sorted({plug.rsplit(".", 1)[0] for plug in ports})
+    rows = {row[1]: row for row in inspectChannels(nodes=nodes)}
+    return ports, excluded, rows

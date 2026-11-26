@@ -1331,7 +1331,7 @@ def _compute_restore_joint_world_matrix(joint_name, world_matrix):
     joint.getPlug("translate").set(translate)
     joint.getPlug("rotate").set((euler.x, euler.y, euler.z), unit="rad")
 
-def _apply_orient_from_ui(*_):
+def _apply_orient_from_ui(*_, preview=False):
     """現在の UI 設定に基づいて Orient Joint を適用します。
 
     Args:
@@ -1377,6 +1377,21 @@ def _apply_orient_from_ui(*_):
 
     # 変形破綻を避けるため、影響する skinCluster を preservedSkinShape
     # (skinCluster -moveJointsMode / -recacheBindMatrices) で保護する。
+    if preview:
+        rows = []
+        for joint in joints:
+            proposed = _compute_joint_orient_degrees(
+                joint, primary_axis=primary, primary_space=primary_space, primary_ref_axis=primary_ref_axis,
+                primary_direction=primary_direction, secondary_axis=secondary, up_axis=up_axis,
+                up_direction=up_direction, up_space=up_space, third_settings=third_settings)
+            rows.append(joint + "  Proposed jointOrient (degrees): " + str(proposed))
+            for child, matrix in _compute_descendant_world_matrices(joint).items():
+                rows.append(f"  Preserve {child} world matrix: {matrix}")
+            for node in [joint] + (cmds.listRelatives(joint, allDescendents=True, type="joint", fullPath=True) or []):
+                links = cmds.listConnections(node, connections=True, plugs=True) or []
+                rows.extend(f"  Connection: {local} / {other}" for local, other in zip(links[::2], links[1::2]))
+        cmds.scrollField("oj_preview_report", edit=True, text="\n".join(rows), visible=True)
+        return
     target_joints = _compute_target_joints(joints, include_children=True)
     next_children_debug = _compute_is_next_children_debug_enabled(primary_space, up_space)
 
@@ -1658,6 +1673,8 @@ def show_orient_joint_like_window():
 
     # 操作ボタン
     cmds.separator(h=4, style="none")
+    cmds.button(label="Preview orientations and affected joints", c=lambda *_: _apply_orient_from_ui(preview=True))
+    cmds.scrollField("oj_preview_report", editable=False, visible=False, height=160)
     cmds.rowLayout(nc=2, cw2=(210,210), ct2=("both","both"))
     cmds.button(label="Apply", c=_apply_orient_from_ui)
     cmds.button(label="Close",  c=lambda *_: cmds.deleteUI(_WIN))

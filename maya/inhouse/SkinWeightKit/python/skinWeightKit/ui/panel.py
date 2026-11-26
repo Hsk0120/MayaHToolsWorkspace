@@ -362,6 +362,8 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
                     "Unlock this influence and lock all the others, so only it and the active influence change.")
             menu.addSeparator()
         if name and self.active and name != self.active:
+            _action(menu, "Preview move from active...", functools.partial(self._preview_move, self.active, name),
+                    "Inspect changed vertices and weights before moving them.")
             _action(menu, "Move active weights here", functools.partial(self._move_weights, self.active, name),
                     "Add the weights of the active influence ({}) to this influence and set the active one to 0.\n"
                     "Works on the selected vertices, or the whole mesh.".format(self.active))
@@ -697,6 +699,8 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
             _button("Paste", "Paste Weights\nPaste the copied weights onto every selected vertex. Influences are\n"
                     "matched by name, so you can paste onto another mesh with the same joints.",
                     functools.partial(self._edit, weights.paste)))
+        section.row(_button("Preview Paste", "Preview Paste\nShow clipboard weight changes for the selected vertices.",
+                            self._preview_paste))
         section.row(
             _button("Sample", "Sample Vertices\nRemember the weights and positions of the selected vertices as the\n"
                     "sample for Average and Proximity.", self._sample),
@@ -782,6 +786,8 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
         section.row(self.move_button,
                     _button("Remove Unused", "Remove Unused Influences\nRemove the influences that affect no vertex.",
                             functools.partial(self._edit, skin.removeUnusedInfluences)))
+        section.row(_button("Cluster from Influence", "Cluster from Influence\nCopy the active influence's weights on the selected vertices into a new cluster.",
+                            lambda: run(lambda: deformers.clusterFromInfluence(self._require_target(), self._require_active()))))
         section.row(_button("Closest Joint", "Assign Closest Joint\nBind each selected vertex (or every vertex of "
                             "the mesh) 100% to the nearest bone\n(the line from a joint to its child joints). Use it "
                             "for quick rigid starting weights,\nthen Smooth to blend. Locked influences are kept.",
@@ -820,8 +826,43 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
         self.settings_section.row(self.settings_max, self.settings_maintain,
                                   _button("Apply", "Apply Skin Settings\nWrite these settings to the target "
                                           "skinCluster (one undo).", self._apply_settings))
+        self.bind_settings = None
+        self.settings_section.row(
+            _button("Record Settings", "Record Settings\nRemember this skin's settings, influences and deformer order for comparison.",
+                    self._record_bind_settings),
+            _button("Compare Settings", "Compare Settings\nShow changes since recording the same mesh and skinCluster.",
+                    self._compare_bind_settings),
+            _button("Restore Settings", "Restore Settings\nRestore skin settings and influence locks on the recorded mesh (one undo).",
+                    self._restore_bind_settings))
         self.settings_section.header.toggled.connect(lambda state: self._refresh_settings() if state else None)
         return self.settings_section
+
+    def _record_bind_settings(self):
+        """現在の対象を比較基準として記録する。"""
+        sample = run(lambda: skin.captureBindSettings(self._require_target()))
+        if sample is not None:
+            self.bind_settings = sample
+            _message("Recorded bind settings")
+
+    def _restore_bind_settings(self):
+        """記録したスキンの設定とロックを戻す。"""
+        if self.bind_settings is None:
+            _warn("Record settings first")
+            return
+        self._edit(skin.restoreBindSettings, self.bind_settings)
+
+    def _compare_bind_settings(self):
+        """現在の対象と基準の差を表示する。"""
+        if self.bind_settings is None:
+            _warn("Record settings first")
+            return
+        changes = run(lambda: skin.compareBindSettings(self._require_target(), self.bind_settings))
+        if changes is not None:
+            dialog = QtWidgets.QMessageBox(self)
+            dialog.setWindowTitle("Bind settings comparison")
+            dialog.setText("Differences: {}".format(len(changes)))
+            dialog.setDetailedText("\n".join(changes))
+            dialog.exec_()
 
     def _refresh_settings(self):
         """skinCluster の設定を読み込む(セクションが閉じていれば何もしない)。"""
@@ -872,6 +913,20 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
         self.import_missing.setToolTip("Add Missing Influences\nAdd influences that are in the file but not in the\n"
                                        "skinCluster, when joints with those names exist in the scene.")
         section.row(self.import_method, self.import_missing)
+        self.deformation_sample = None
+        section.row(_button("Record Posed Mesh", "Record Posed Mesh\nRecord all vertex positions and mark the selected vertices as the intended edit range.", self._record_deformation),
+                    _button("Compare Posed Mesh", "Compare Posed Mesh\nShow vertex movement inside and outside the recorded range at the same pose.", self._compare_deformation))
+        self.boundary_sample = None
+        section.row(_button("Record Seam...", "Record Seam\nEnter source and target vertex indices for each pair in the current pose.",
+                            self._record_seam),
+                    _button("Compare Seam", "Compare Seam\nCompare the recorded pairs after editing weights at the same pose.",
+                            self._compare_seam))
+        section.row(_button("Compare Bind Meshes", "Compare Bind Meshes\nCompare topology and vertex positions on two selected meshes at the current pose.",
+                            self._compare_bind_meshes),
+                    _button("Compare Cage Output", "Compare Cage Output\nSelect the direct reference and cage-deformed output at the same pose. List differences over 0.000001 cm.",
+                            self._compare_cage_output))
+        section.row(_button("Preview Source Matches...", "Preview Source Matches\nCheck vertex matches on the picked source "
+                            "using the selected method and a world-space distance limit.", self._preview_source_matches))
         section.row(
             _button("Export...", "Export Weights\nSave the weights and vertex positions of the target mesh to a JSON\n"
                     "file.", self._export),
@@ -1154,6 +1209,114 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
             _message("Added {} influences".format(count))
         self.refresh()
 
+    def _record_deformation(self):
+        """複合ポーズと選択した編集範囲を記録する。"""
+        sample = run(lambda: transfer.DeformationSample(self._require_target()))
+        if sample is not None:
+            self.deformation_sample = sample
+            _message("Recorded {} vertices, {} in edit range".format(len(sample.before), len(sample.region)))
+
+    def _compare_deformation(self):
+        """編集範囲外も含め、同じポーズで変位した頂点を表示する。"""
+        if self.deformation_sample is None:
+            _warn("Record a posed mesh first")
+            return
+        rows = run(lambda: self.deformation_sample.compare(self._require_target().mesh))
+        if rows is None:
+            return
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Posed mesh differences")
+        dialog.setText("Changed vertices: {}. Outside edit range: {}".format(len(rows), sum(outside for _, _, outside in rows)))
+        dialog.setDetailedText("\n".join("vtx[{}]  {:.6g} cm  {}".format(index, distance, "outside" if outside else "inside")
+                                          for index, distance, outside in rows))
+        dialog.exec_()
+
+    def _record_seam(self):
+        """入力した境界ペアの基準距離を保持する。"""
+        if self.copy_source is None or not self.copy_source.isValid():
+            _warn("Pick a source mesh first")
+            return
+        text, accepted = QtWidgets.QInputDialog.getMultiLineText(
+            self, "Record Seam", "Source and target vertex indices, one pair per line (e.g. 12 45)")
+        if accepted:
+            def capture():
+                pairs = [tuple(map(int, line.split())) for line in text.splitlines() if line.strip()]
+                if any(len(pair) != 2 for pair in pairs):
+                    raise ValueError("Enter two vertex indices per line")
+                return transfer.BoundarySample(self.copy_source, self._require_target().mesh, pairs)
+
+            sample = run(capture)
+            if sample is not None:
+                self.boundary_sample = sample
+                _message("Recorded {} seam pairs".format(len(sample.pairs)))
+
+    def _compare_seam(self):
+        """同じ姿勢での距離の最大値と、開きが増えたペアを表示する。"""
+        if self.boundary_sample is None:
+            _warn("Record seam pairs first")
+            return
+        rows = run(self.boundary_sample.compare)
+        if rows is None:
+            return
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Seam distances")
+        dialog.setText("Maximum: {:.6g} → {:.6g} cm. Worsened pairs: {}".format(
+            max(row[2] for row in rows), max(row[3] for row in rows), sum(new > old + 1e-6 for _, _, old, new in rows)))
+        dialog.setDetailedText("\n".join("vtx[{}] / vtx[{}]: {:.6g} → {:.6g} cm{}".format(
+            a, b, old, new, " (worsened)" if new > old + 1e-6 else "") for a, b, old, new in rows))
+        dialog.exec_()
+
+    def _compare_cage_output(self):
+        """直接転送とケージからの出力のずれ、境界頂点のずれを表示する。"""
+        rows = run(lambda: transfer.compareCageOutput(*target.selectedMeshPair()))
+        if rows is None:
+            return
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Compare Cage Output")
+        dialog.setText("Vertices over 0.000001 cm: {}. Open boundary: {}. Maximum: {:.6g} cm".format(
+            len(rows), sum(boundary for _, _, boundary in rows), max((distance for _, distance, _ in rows), default=0.0)))
+        dialog.setDetailedText("\n".join("vtx[{}]: {:.6g} cm{}".format(index, distance, " (open boundary)" if boundary else "")
+                                         for index, distance, boundary in rows))
+        dialog.exec_()
+
+    def _compare_bind_meshes(self):
+        """選択した2形状をバインド前の姿勢で読み取り比較する。"""
+        result = run(lambda: transfer.compareBindMeshes(*target.selectedMeshPair()))
+        if result is None:
+            return
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Compare Bind Meshes")
+        lines = ["Topology matches at the current pose."]
+        for space, (index, distance) in result.items():
+            if index is not None:
+                lines.append(f"{space.title()} maximum: {distance:.6g} cm at vtx[{index}]")
+        dialog.setText("\n".join(lines))
+        dialog.exec_()
+
+    def _preview_source_matches(self):
+        """選択範囲の対応元と距離上限を超えた頂点を表示する。"""
+        limit, accepted = QtWidgets.QInputDialog.getDouble(self, "Preview Source Matches", "Maximum distance (cm)",
+                                                           1.0, 0.0, 1000000.0, 6)
+        if not accepted:
+            return
+
+        def compare():
+            if self.copy_source is None or not self.copy_source.isValid():
+                raise ValueError("Pick a source mesh first")
+            skins = self.copy_source.getSkinClusters()
+            source = target.Target(self.copy_source, skins[0] if skins else None, None)
+            return transfer.previewCorrespondence(source, self._require_target(), self.import_method.currentData(), limit)
+
+        rows = run(compare)
+        if rows is not None:
+            dialog = QtWidgets.QMessageBox(self)
+            dialog.setWindowTitle("Source vertex matches")
+            dialog.setText("{} of {} vertices unmatched".format(sum(index is None for _, index, _ in rows), len(rows)))
+            dialog.setDetailedText("\n".join("vtx[{}]  {}  {:.6g} cm".format(vertex, "unmatched" if index is None
+                                                                               else f"vtx[{index}]", distance)
+                                             for vertex, index, distance in rows))
+            dialog.exec_()
+
     def _copy_from_source(self):
         """覚えたメッシュから、選んだ頂点へコピーする。"""
         def call():
@@ -1185,6 +1348,44 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
     def _move_weights(self, source, destination):
         """インフルエンスのウェイトを移す。"""
         self._edit(weights.moveWeights, source, destination)
+
+    def _preview_move(self, source, destination):
+        """移送前後の値を表示し、選んだ場合だけ移送を実行する。"""
+        current = self._require_target()
+        rows = run(lambda: weights.previewMove(current, source, destination))
+        if rows is None:
+            return
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Weight transfer preview")
+        dialog.setText("{} → {}\n{} changed vertices".format(source, destination, len(rows)))
+        dialog.setDetailedText("\n".join("vtx[{}]   {:.8g} → 0   |   {:.8g} → {:.8g}".format(
+            index, amount, before, amount + before) for index, amount, before in rows))
+        apply_button = dialog.addButton("Apply", QtWidgets.QMessageBox.AcceptRole)
+        apply_button.setEnabled(bool(rows))
+        cancel = dialog.addButton(QtWidgets.QMessageBox.Cancel)
+        dialog.setDefaultButton(cancel)
+        dialog.exec_()
+        if dialog.clickedButton() == apply_button:
+            run(lambda: weights.moveWeights(current, source, destination))
+            self.refresh()
+
+    def _preview_paste(self):
+        """貼付先の各列で実際に変わる値を表示する。"""
+        def inspect(current):
+            changes = weights.previewPaste(current)
+            locked = [info.name for info in influences.listInfluences(current) if info.locked]
+            return changes, locked
+
+        preview = self._edit(inspect, refresh=False)
+        if preview is None:
+            return
+        dialog = QtWidgets.QMessageBox(self)
+        changes, locked = preview
+        dialog.setWindowTitle("Clipboard weight changes")
+        dialog.setText("{} changed vertices\nLocked influences: {}".format(len({row[0] for row in changes}),
+                                                                             ", ".join(locked) or "None"))
+        dialog.setDetailedText("\n".join("vtx[{}]  {}  {:.8g} → {:.8g}".format(*row) for row in changes))
+        dialog.exec_()
 
     def _ramp(self, start, end):
         """2つのインフルエンスの間のランプ。"""

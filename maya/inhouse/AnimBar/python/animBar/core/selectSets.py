@@ -208,3 +208,10 @@ def _plain_names(member):
         return [member.getName(node=True, removeNamespace=True)]
     names = member.getNames(full=True, compact=True) if isinstance(member, mlib.Components) else [str(member)]
     return [name.rpartition("|")[2].rpartition(":")[2] for name in names]
+
+
+def reverseSelection():
+    """選択したコントローラーの順を逆にする。完全パスで名前空間と階層を保つ。"""
+    nodes = keys.selectedNodes()
+    if len(nodes) >= 2:
+        mlib.select(nodes[::-1], replace=True)

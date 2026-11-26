@@ -4,6 +4,8 @@
 ウェイトはデフォーマーの最初の形状(weightList[0])を使い、値の無い頂点は Maya の既定どおり 1 とみなす。
 """
 
+import maya.cmds as cmds
+
 import mlib
 from mlib.decorator import undoChunk
 
@@ -77,3 +79,26 @@ def toInfluence(target, deformer, influence, threshold=0.0):
     written = [weights_module.fitColumn(row, column, values[vertex], locked) for vertex, row in zip(vertices, rows)]
     weights_module.writeRows(skin, influences, vertices, written)
     return len(vertices)
+
+@undoChunk("skinWeightKitClusterFromInfluence")
+def clusterFromInfluence(target, influence):
+    """選択範囲の1インフルエンスの分布を、新しいクラスターへ静的に転用する。"""
+    skin = target.requireSkin()
+    nodes = skin.getInfluences()
+    column = nodes.index(influences_module.find(skin, influence))
+    vertices = target.editVertices()
+    rows = weights_module.readRows(skin, nodes, vertices)
+    weighted = [(index, row[column]) for index, row in zip(vertices, rows) if row[column] > 0]
+    if not weighted:
+        raise ValueError("No vertices have weight for this influence in the selected range")
+    shape = target.mesh.getName(full=True)
+    members = ["{}.vtx[{}]".format(shape, index) for index, _ in weighted]
+    cluster, handle = cmds.cluster(members, after=True, bindState=True)
+    try:
+        geometry_index, = cmds.cluster(cluster, query=True, geometryIndices=True)
+        for vertex, weight in weighted:
+            cmds.setAttr(f"{cluster}.weightList[{geometry_index}].weights[{vertex}]", weight)
+    except RuntimeError:
+        cmds.delete(cluster, handle)
+        raise
+    return cluster, handle

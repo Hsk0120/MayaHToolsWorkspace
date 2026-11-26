@@ -11,7 +11,7 @@ import maya.cmds as cmds
 from mlib.common import Deferred
 
 import frameplayer
-from frameplayer.sync import DEFAULT_PORT
+from frameplayer.sync import DEFAULT_PORT, player_frame
 
 WINDOW = "framePlayerSyncWindow"
 _OPTION_PREFIX = "framePlayerSync_"
@@ -189,6 +189,29 @@ def _stop(*_):
         sync.stop()
 
 
+def _review_steps(*_):
+    """選択対象のステップキーの区間と現在の時刻の対応を表示する。"""
+    frame = cmds.currentTime(query=True)
+    rate = cmds.floatField(_controls["multiplier"], query=True, value=True)
+    offset = cmds.intField(_controls["offset"], query=True, value=True)
+    rows = [f"Maya {frame:g}   |   Mapped player frame {player_frame(frame, rate, offset)}"]
+    selected = cmds.ls(selection=True, long=True) or []
+    curves = cmds.keyframe(selected, query=True, name=True) if selected else []
+    for curve in sorted(set(curves or [])):
+        if not cmds.nodeType(curve).startswith("animCurveT"):
+            continue
+        keys = cmds.keyframe(curve, query=True, timeChange=True) or []
+        for index, (first, following) in enumerate(zip(keys, keys[1:])):
+            if first <= frame < following:
+                tangent = cmds.keyTangent(curve, query=True, index=(index, index), outTangentType=True)[0]
+                if tangent in ("step", "stepnext"):
+                    rows.append(f"{curve}  {tangent} [{first:g}, {following:g})  +{frame-first:g}f")
+                break
+    if len(rows) == 1:
+        rows.append("No stepped interval at this frame on the selection.")
+    cmds.scrollField(_controls["review"], edit=True, text="\n".join(rows))
+
+
 def show():
     """連携の画面を開く(既に開いていれば前に出す)。
 
@@ -237,6 +260,8 @@ def show():
     _controls["play"] = cmds.button(label="Play in FramePlayer", command=_play)
     _controls["stop"] = cmds.button(label="Stop", command=_stop)
     cmds.setParent("..")
+    cmds.button(label="Inspect stepped keys at current frame", command=_review_steps)
+    _controls["review"] = cmds.scrollField(editable=False, height=64, wordWrap=False)
     cmds.showWindow(WINDOW)
     _update_status()
     return WINDOW

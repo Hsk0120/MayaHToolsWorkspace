@@ -20,6 +20,7 @@ LABELS = {
     "iterationsBefore": "Iterations Before Collision", "iterationsAfter": "Iterations After Collision",
     "collisionIterations": "Collision Iterations", "warmupSteps": "Warmup Steps", "maxSteps": "Max Steps",
     "startFrame": "Start Frame", "planarConstraint": "Planar Constraint", "gravity": "Gravity (cm/s2)",
+    "maxParticleSpeed": "Maximum Particle Speed (cm/s)", "fixedRootCount": "Fixed Roots", "contactParticleCount": "Contact Particles",
     "wind": "Wind Velocity (cm/s)", "residualPenetration": "Residual Penetration (cm)",
 }
 
@@ -131,7 +132,7 @@ class PhysicsWindow:
             cmds.textScrollList(self.collider_list, edit=True, append=collider)
         cmds.button(label="選択したコライダーを削除", command=lambda *_: self._run(self._remove_collider))
         cmds.text(label="ガイドを移動・回転し、Channel BoxのphysicsRadius/Heightを調整。", align="left")
-        self._attributes(("collisionIterations", "residualPenetration"))
+        self._attributes(("collisionIterations", "residualPenetration", "maxParticleSpeed", "fixedRootCount", "contactParticleCount"))
         cmds.text(label="Residual > 0 は残留貫通。固定点・角度制限・衝突の両立を確認。", align="left")
         self._section("6  Bone Constraints", True)
         self._attributes(("iterationsBefore", "iterationsAfter"))

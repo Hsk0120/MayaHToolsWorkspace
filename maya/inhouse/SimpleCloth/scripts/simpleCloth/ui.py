@@ -3,7 +3,7 @@
 from maya import cmds
 from maya.api import OpenMaya as om
 
-from . import api, node
+from . import api, checkpoint, node
 
 
 WINDOW = "SimpleClothWindow"
@@ -112,15 +112,20 @@ class ClothWindow:
             cmds.menuItem(label=kind)
         self.attach = cmds.checkBox(label="選択Transform / Jointに追従", value=False)
         cmds.button(label="コライダーを追加", command=lambda *_: self._call(self._add_collider))
+        cmds.button(label="Capsules from Polyline (1 cm)", command=lambda *_: self._call(self._curve_capsules))
         cmds.button(label="選択コライダーを削除", command=lambda *_: self._call(self._remove_collider))
         cmds.text(label="球/カプセルはclothRadius・clothHeightで寸法変更 (cm)", align="left")
         self._section("5  Solver / Diagnostics", collapsed=True)
         for attr, label in (("startFrame", "Start Frame"), ("solverRate", "Solver Rate (Hz)"),
                             ("iterations", "Iterations"), ("maxSteps", "Max Steps"),
                             ("stretchError", "Max Stretch Error (ratio)"), ("residualPenetration", "Residual Penetration (cm)"),
-                            ("maxDistanceError", "Max Distance Error (cm)")):
+                            ("maxDistanceError", "Max Distance Error (cm)"), ("peakParticleSpeed", "Peak Particle Speed (cm/s)"),
+                            ("pinnedVertexCount", "Pinned Vertices"), ("contactParticleCount", "Contact Particles")):
             self._attr(attr, label)
         cmds.button(label="リセットして開始フレームへ", command=lambda *_: self._call(api.reset, self.solver))
+        cmds.button(label="Save Simulation State", command=lambda *_: self._call(self._checkpoint, False))
+        cmds.button(label="Resume Simulation State", command=lambda *_: self._call(self._checkpoint, True))
+        cmds.button(label="Compare Saved State", command=lambda *_: self._call(self._compare_state))
         self._section("6  Preset / Bake / Remove", collapsed=True)
         cmds.button(label="プリセット保存 (係数 + Map)", command=lambda *_: self._call(self._preset, True))
         cmds.button(label="プリセット読込 (同一トポロジー)", command=lambda *_: self._call(self._preset, False))
@@ -164,12 +169,37 @@ class ClothWindow:
         guide = api.addCollider(self.solver, cmds.optionMenu(self.kind, query=True, value=True), attachTo=attach)
         cmds.select(guide, replace=True)
 
+    def _curve_capsules(self):
+        """選択した折れ線の現在形状に半径1cmのカプセルを配置する。"""
+        selected = cmds.ls(selection=True, long=True) or []
+        if len(selected) != 1:
+            raise ValueError("開いた1次カーブを1個選択してください")
+        with api._transaction("Select Curve Capsules"):
+            guides = api.addCurveCapsules(self.solver, selected[0])
+            cmds.select(guides, replace=True)
+
     def _remove_collider(self):
         """選択した専用ガイドを登録解除して削除する。"""
         selected = cmds.ls(selection=True) or []
         if len(selected) != 1:
             raise ValueError("コライダーを1個選択してください")
         api.removeCollider(self.solver, selected[0])
+
+    def _compare_state(self):
+        """保存フレームの全点の最大位置差・速度差を表示する。"""
+        paths = cmds.fileDialog2(fileMode=1, fileFilter="Simple Cloth State (*.json)")
+        if paths:
+            result = checkpoint.compareState(self.solver, paths[0])
+            cmds.confirmDialog(title="Compare Saved State", message=(
+                f"Maximum position difference: {result['maxPositionDifference']:.8g} cm\n"
+                f"Maximum velocity difference: {result['maxVelocityDifference']:.8g} cm/s"))
+
+    def _checkpoint(self, reading):
+        """選択したファイルへ計算状態を保存、または検証して読み込む。"""
+        paths = cmds.fileDialog2(fileMode=1 if reading else 0, fileFilter="Simple Cloth State (*.json)")
+        if paths:
+            operation = checkpoint.loadState if reading else checkpoint.saveState
+            operation(self.solver, paths[0])
 
     def _preset(self, save):
         """ユーザーが選択したJSONファイルへ設定を保存・読込する。"""
