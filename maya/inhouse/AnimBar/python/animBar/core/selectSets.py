@@ -45,7 +45,7 @@ def label(node):
     Returns:
         str: 表示名。
     """
-    return node.getPlug(LABEL_ATTRIBUTE).get() if node.hasAttr(LABEL_ATTRIBUTE) else node.getName(node=True)
+    return node.getPlug(LABEL_ATTRIBUTE).get() if node.hasAttr(LABEL_ATTRIBUTE) else node.getName(short=True)
 
 
 def color(node):
@@ -205,7 +205,7 @@ def _plain_names(member):
         list[str]: 名前空間を除いた名前。コンポーネントは、まとめられた範囲ごとの名前。
     """
     if isinstance(member, mlib.Node):
-        return [member.getName(node=True, removeNamespace=True)]
+        return [member.getName(short=True, removeNamespace=True)]
     names = member.getNames(full=True, compact=True) if isinstance(member, mlib.Components) else [str(member)]
     return [name.rpartition("|")[2].rpartition(":")[2] for name in names]
 

@@ -156,7 +156,7 @@ def _set_type(curve, index, kind, side):
         flags["inTangentType"] = kind
     if side in ("both", "out") or kind == "step":
         flags["outTangentType"] = kind
-    curve.setTangent(index, **flags)
+    curve.getKeyframes(index).setTangent(**flags)
 
 
 def _set_computed(curve, index, kind, side):
@@ -180,4 +180,4 @@ def _set_computed(curve, index, kind, side):
         flags.update(inTangentType="fixed", inAngle=angle)
     if side in ("both", "out"):
         flags.update(outTangentType="fixed", outAngle=angle)
-    curve.setTangent(index, **flags)
+    curve.getKeyframes(index).setTangent(**flags)

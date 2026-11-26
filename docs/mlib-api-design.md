@@ -373,8 +373,8 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
 - `Transformation` は `om2.MTransformationMatrix` を継承し、translate・rotate(回転順序つき)・scale・shear・rotateAxis・ピボット4種に加えて、
   Joint のための jointOrient と inverseScale を持つ(距離 cm・角度 rad)。値はプロパティで読み書きし、取得した値は複製。
   `matrix` プロパティは Maya の transform・joint のローカルのマトリクスと同じ決まりで合成する(jointOrient・inverseScale を含む)。
-  継承した `asMatrix()` は om2 の計算のままで、この2つを含まない。基底クラスの `scale()`・`shear()`・`rotatePivot()`・`scalePivot()` は
-  同じ名前のプロパティに置き換えている。ノード側は `Transform.getTransformation()`・`setTransformation(value, *, fast=False)`(ローカルだけ)。
+  継承した `asMatrix()` は om2 の計算のままで、この2つを含まない。om2 と同じ名前の `scale(space)`・`shear(space)`・`rotatePivot(space)`・`scalePivot(space)` は
+  om2 のまま残し、値のプロパティは `scaleValue`・`shearValue`・`rotatePivotValue`・`scalePivotValue`(2026-11-26。それまでは同じ名前のプロパティで置き換えていた)。ノード側は `Transform.getTransformation()`・`setTransformation(value, *, fast=False)`(ローカルだけ)。
 - `Transformation` は `{"type": "Transformation", "value": {成分名: [x, y, z], "rotateOrder": "xyz"}}` で書く。角度は度。
   既定値のままの rotateAxis・ピボット・jointOrient・inverseScale は書かず、読むときに既定値で補う。
 
@@ -1091,7 +1091,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - ノードコレクションは `Nodes` を基底にし、`Joints`・`SkinClusters` は `Nodes` の派生とする。`Nodes` 自体は `Node` を継承しない。3.0.0で `DagNodes`・`Transforms`、単数メソッドへの一括転送(`_bulk_entries`・`callEach`)は利用が無いため廃止した。
 - 12.2.0(2026-11-11のユーザー指定)で、単数のメソッドを複数形から呼べるようにした。`Nodes.__getattr__`・`Components.__getattr__` が、コレクションに無い公開メソッド名を「各要素の同名メソッドを同じ引数で保持順に呼び、戻り値を保持順のリストで返す関数」として返す(書込みも常にリスト。コレクション自身の明示メソッドが優先)。通常は1回のUndoにまとめ、`fast=True` はそのまま各メソッドへ渡す。`Nodes` は呼ぶ前に全要素がメソッドを持ち有効か確かめ(無い要素はTypeError)、どの要素も持たない名前はAttributeError。名前で呼ぶ `Nodes.callEach(method, *args, **kwargs)` も同じ動き。要素ごとに違う引数は単数を `for` で呼ぶ。`Plugs` は転送しない。
 - 型スタブでは、転送するメソッドを各コレクションへ書き出す(`tools/generate_mlib_stubs.py` の `_forwards`。`Nodes` は `Node`・`DagNode`・`Transform` のメソッド)。`Nodes` は要素の型を引数に取る(`Nodes[Transform]`。既定は `Node`、共変)ため、`mlib.ls(type="transform")[0]` は `Transform`、`for n in mlib.ls(type="joint")` の `n` は `Joint` として補完される。型を指定しない `ls` の戻り値は従来どおりの組み合わせ型。実行時も `Nodes[Transform]` と書けるよう `Nodes.__class_getitem__` はクラス自身を返す。
-- 複数形が持つのは、listとしての振る舞い(`__iter__`・`__len__`・`__getitem__`・`copy`、6.0.0で `+`・`==`・`sort`)と入力検証(`_resolve_inputs`・`_validate_inputs`)、一括の書込み(5.0.0)に加え、`Joints.sortedByDepth()`・`Joints.getSkinClusters()`(重複を除いた `SkinClusters`)・`Joints.removeInfluence()`・`Joints.delete()`(10.6.0)だけとする。`+` は左辺の型で構築と同じ重複除外・型検証を行い、`==` は同じ並びのコレクション・list・tupleと比べる(このためハッシュ不可)。`sort(key=None, reverse=False)` はその場で並べ替えてNoneを返し、keyの省略時は完全名(コンポーネントは実番号)の順にする。
+- 複数形が持つのは、listとしての振る舞い(`__iter__`・`__len__`・`__getitem__`・`copy`、6.0.0で `+`・`==`・`sort`)と入力検証(`_resolve_inputs`・`_validate_inputs`)、一括の書込み(5.0.0)に加え、`Joints.sortedByDepth()`・`Joints.removeInfluence()`・`Joints.delete()`(10.6.0)だけとする。`+` は左辺の型で構築と同じ重複除外・型検証を行い、`==` は同じ並びのコレクション・list・tupleと比べる(このためハッシュ不可)。`sort(*, key=None, reverse=False)`(2026-11-26から list.sort と同じくキーワード専用)はその場で並べ替えてNoneを返し、keyの省略時は完全名(コンポーネントは実番号)の順にする。
 - `mlib.ls` は常に集まりで返す(6.0.0): ノードだけなら `Nodes`(`type="joint"` は `Joints`、`type="skinCluster"` は `SkinClusters`)、アトリビュートだけなら `Plugs`(`plugs/plug.py`)、同じシェイプの同じ種類のコンポーネントだけなら `Vertices`/`Edges`/`Faces`/`UVs`/`CVs`。種類が混在する場合だけlist、それ以外の0件は空の `Nodes`(コンポーネント型指定の0件はシェイプが決まらないため空の `Nodes`)。集まりは構築と同じく重複を除く。
 - `Plugs` は `Nodes` と同じ入力順・重複除外の規則で `len`・添字(sliceはPlugs)・`for`・`bool`・`+`・`==`・`sort`・`repr` だけを持つ。`maya.cmds` へ渡すとcmdsが各Plugの名前へ展開する。Componentsの `+` は同じシェイプ・同じ種類どうしだけで、それ以外はTypeError。
 - `item_class` で受け入れるラッパー型を宣言する。入力は各基底クラスの共通処理で解決し、型の不一致を黙って除外せず例外にする。登録済みの外部拡張の派生ラッパーを基底型へ置き換えない。
@@ -1451,3 +1451,37 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
   - `Component.getFullName()`(`CV` の上書きを含む) → `Component.getName(full=True)`。単数のコンポーネントに `getName(*, full=False)` を足し、既定は `Components.getNames()` の1要素と同じ最短の名前(シェイプの部分だけ `cmds.ls` で最短にする)。
   - mlib の中で cmds へ名前を渡す所(約480か所)・`__str__`・並べ替えの `methodcaller` は、引数の検査を省くため非公開の `_full_name()`(Node・Plug・Component)を直接呼ぶ。複数形の `getNames(full=True)` は領域1a・2で済んでいる。
   - 案内の表(`core/object.py`)の `longName`・`fullPath`・`fullPathName` は `getName(full=True)` を案内する。
+
+## 引数の統一と上書きの整理(2026-11-26)
+
+ユーザー指定(2026-11-26)により、引数の名前・働きと、基底のメソッドの上書きを揃えた。検討の資料と決めたことはローカルの
+`docs/research/mlib-test-coverage/arg-study/`(`decisions.md`・`argConsistency.md`・`overridesAndSiblings.md`)、
+**古い呼び方から新しい呼び方への対応表**は同じフォルダーの `renames/impl-dag.md`・`renames/impl-geometry.md`・`renames/impl-rest.md`
+(1行1件。意味を保つために呼び方を変えるものは書き換えを添えてある)。この節より前の節に出てくる古い名前(`getName(node=True)`・
+`getMatrix(parent=True)`・`IkHandle.getJoints(end=True)`・`getShader(plug=True)`・`Keyframe.getValue(time=True)`・`AnimCurve.setKey`・
+`Joint.getSkinClusters`・Mesh のセット操作の `color=True` など)は、その時点の記録として残し、今の名前はこの節と対応表を正とする。
+
+- **同じ名前の引数は同じ働き**: 引数名が同じなら、どのメソッドでも同じ働き・同じ種類の型・同じ受け方(位置かキーワード専用か)・同じ既定値と None の意味にする。
+  同じ働きは mlib の中で1つの名前にする(Maya のフラグ名が割れていても1つ)。Maya のフラグをそのまま受ける入口(`cmds/` の作成関数・`addAttr`・
+  `getConnections` の短縮名など)だけは Maya の名前。
+  - `force` は「障害があっても実行」だけ。ロックを外すのは `unlock`(`Plug.connect`・`disconnect`・`delete`)、不正なウェイトを直すのは `repair`。
+  - bool の引数に名詞を使わない: `getName(short=True)`・`getShader(asPlug=True)`・`Keyframe.getValue(input=True)`・`getMatrix(exclusive=True)`・
+    `IkHandle.getJoints(tipOnly=True)`・Mesh のセット操作の `kind="color"`・`getColor`/`setColor(toShape=True)`・`getNormal(lockedOnly=True)`。
+  - 末端は `leaves`、自身は `includeSelf`(`noSelf` は向きを変えて置き換え)、組は `asPair`(`connections`・`c` は置かない)、接続は `input`/`output` の対、
+    並べる順は `sortBy`、距離の単位は `distanceUnit`、ミラーの面は `plane`。
+  - `remove`・`clear` は list の意味だけ。自身を消すのは `delete`(`Namespace.delete`・`Keyframe(s).delete`)、親の変更は `setParent`(`Namespace.setParent`)。
+  - mlib 独自のメソッドの短縮名(`getMatrix` の `p`・`inv`、`getQuaternion` の `ra`・`r`・`jo`)は消した。短縮名は Maya のフラグを受ける入口と `ws` だけ。
+- **上書きで引数・意味を変えない**: 基底の引数をすべて同じ形で持ち、種類に特有の引数をキーワード専用・既定値つきで後ろに足すだけは許す
+  (`AnimationSnapshot.apply`・`Mesh.getShadingEngines(perFace=)`)。`Joint.delete` の引数は `Node.delete` へ上げ(Joint 以外では型の確認だけ)、
+  `Joint.getSkinClusters` は `DagNode.getSkinClusters(*, influence=False)` にまとめた(インフルエンス側は `influence=True`)。
+  `AnimCurve` の `setKey`・`removeKey`・`moveKey` の上書きは消し、カーブへのキーの追加は `addKey`、番号・時刻で選んだキーの編集は
+  `getKeyframes(indices | time=)` が返す `Keyframe`・`Keyframes` の `delete`・`move`・`setTangent`・`setBreakdown` にした。
+  `Transformation` は om2 の `scale(space)` などを om2 のまま残し、値のプロパティを `scaleValue`・`shearValue`・`rotatePivotValue`・`scalePivotValue` にした。
+- **許可表**: 意図して違うものは、mlib の `_tools/check_mlib_layout.py` の表に理由を書く。上書きは `OVERRIDE_ALLOWED`(L090)、親子でないクラスの
+  同じ名前の公開メソッドは `SIBLING_ALLOWED`(L094。取る対象が違って意味の無い引数は置かず、差を理由として書く)、同じ名前の引数の型は
+  `ARGUMENT_ALLOWED`(L095。情報)。もう違いの無い許可は L096 が報告する。これらはクラスの親をまたぐので、mlib 全体を対象にした
+  `check_mlib_layout.py --check`(`format_mlib.bat` の流れ)だけで行う。初めに入れた許可は、上書き5(Snapshot の `capture`)・同じ名前のメソッド63(クラスごとの81件)・引数の型2。
+  未実装: 上書きの戻り値・例外の比較(案の L091)、複数形の明示メソッドと単数の比較(L092)、om2 の名前の上書き(L093)。
+- **名前を変えたとき**: 互換の別名は残さない。`core/object.py` の `_MEMBER_HINTS`(消した名前の案内。AnimCurve の `getTangent` などと SkinCluster の `mesh`)と、
+  `_tools/generate_mlib_stubs.py` の `OVERLOADS`(`getVertexNormals(lockedOnly=)`・`getShader(asPlug=)`・`getJoints(tipOnly=)`・`getDgTimer(kind=)`・
+  `getConnections(output=)`)も合わせる。

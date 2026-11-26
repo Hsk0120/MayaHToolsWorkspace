@@ -41,7 +41,7 @@ class Target(object):
             ValueError: メッシュがバインドされていない場合。
         """
         if self.skin is None:
-            raise ValueError("{} has no skinCluster".format(self.mesh.getName(node=True)))
+            raise ValueError("{} has no skinCluster".format(self.mesh.getName(short=True)))
         return self.skin
 
     def requireVertices(self):
@@ -73,8 +73,8 @@ class Target(object):
         Returns:
             str: ``"body_GEO  skinCluster1  12 verts"`` のような文。
         """
-        parts = [self.mesh.getTransform().getName(node=True) if self.mesh.getTransform() else self.mesh.getName(node=True)]
-        parts.append(self.skin.getName(node=True) if self.skin is not None else "(not skinned)")
+        parts = [self.mesh.getTransform().getName(short=True) if self.mesh.getTransform() else self.mesh.getName(short=True)]
+        parts.append(self.skin.getName(short=True) if self.skin is not None else "(not skinned)")
         if self.vertices is not None:
             parts.append("{} verts".format(len(self.vertices)))
         return "  ".join(parts)

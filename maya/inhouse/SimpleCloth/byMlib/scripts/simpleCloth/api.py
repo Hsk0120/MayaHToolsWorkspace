@@ -401,7 +401,7 @@ def bake(solverNode, start, end):
         """複製時にMayaが増やす所有メッセージを外し、独立メッシュを返す。"""
         duplicate = mlib.duplicate(output, name=name, returnRootsOnly=True)
         message = duplicate.getPlug("message")
-        for destination in message.getConnections(outputs=True):
+        for destination in message.getConnections(output=True):
             if destination.getNode() == solver_node:
                 destination.disconnect(message)
         duplicate.deleteHistory(keepDeformers=False)

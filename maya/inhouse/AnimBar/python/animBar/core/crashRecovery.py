@@ -62,7 +62,7 @@ def backup(path=None):
     for curve in mlib.ls(type="animCurve"):
         if not curve.isTimeInput() or curve.isFromReferencedFile():
             continue
-        destinations = curve.getPlug("output").getConnections(outputs=True, skipConversionNodes=True)
+        destinations = curve.getPlug("output").getConnections(output=True, skipConversionNodes=True)
         if not destinations:
             continue
         data[destinations[0].getName()] = keys.curveSnapshot(curve)

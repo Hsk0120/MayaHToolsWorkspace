@@ -96,7 +96,7 @@ def get_or_create_shading_engine(material):
     if target_sgs:
         return target_sgs[0]
 
-    mat_short = mat_node.getName(node=True)
+    mat_short = mat_node.getName(short=True)
     sg_name = mat_short + 'SG'
     try:
         sg = mlib.createShadingEngine(name=sg_name)
@@ -369,12 +369,12 @@ def _duplicate_and_copy_skin_weights(meshes, prefix):
 
         # 複製名は接頭辞付きで生成する。
         # 既存命名規則に合わせるため短名ベースで組み立てる。
-        short_name = mesh.getName(node=True)
+        short_name = mesh.getName(short=True)
         dup_name = prefix + short_name
         dup = mlib.duplicate(mesh, rr=True, name=dup_name)
 
         # Maya の自動リネームで末尾に 1 が付いたら可能な限り除去
-        dup_short_name = dup.getName(node=True)
+        dup_short_name = dup.getName(short=True)
         if dup_short_name.endswith('1') and len(dup_short_name) > 1:
             target_name = dup_short_name[:-1]
             try:

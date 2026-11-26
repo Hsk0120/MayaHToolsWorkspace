@@ -143,7 +143,7 @@ def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False
                 # 変換ノードを省略しない直接の入力元と出力先(経路外の接続も含む)。
                 source = plug.getConnections(input=True)
                 edges = [(source, plug)] if source is not None else []
-                edges.extend((plug, dest) for dest in plug.getConnections(outputs=True))
+                edges.extend((plug, dest) for dest in plug.getConnections(output=True))
                 connections.update((a.getName(full=True), b.getName(full=True)) for a, b in edges)
                 if isinstance(node, mlib.DagNode):
                     child = node.getName()

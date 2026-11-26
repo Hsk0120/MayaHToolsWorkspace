@@ -209,7 +209,7 @@ def _delete_joints(joints):
         if not joint.isType("joint"):
             raise RuntimeError("Cannot delete an invalid joint")
         transfers = []
-        for skin in joint.getSkinClusters():
+        for skin in joint.getSkinClusters(influence=True):
             target = _transfer_target(joint, skin)
             if target is not None:
                 _raise_if_layers(skin)

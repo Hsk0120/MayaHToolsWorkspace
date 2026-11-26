@@ -46,7 +46,7 @@ def transfer_uvchannel_to_map():
             # 元の polyCopyUV と同じく、コピー先の UVMap が無ければ失敗にする(UVMap は作らない)。
             if 'UVMap' not in mesh.getSetNames():
                 raise RuntimeError('UV set "UVMap" does not exist.\nCommand polyCopyUV failed. Open Script Editor for details.\n')
-            mesh.copySet('UVChannel_1', 'UVMap', replace=True)
+            mesh.copySet('UVChannel_1', 'UVMap', overwrite=True)
 
             # current が削除対象だと失敗しやすいので map1 を current に変更
             mesh.setCurrentSet('map1')

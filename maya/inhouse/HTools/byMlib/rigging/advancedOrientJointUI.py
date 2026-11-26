@@ -923,7 +923,7 @@ def _compute_parent_frame_rotation(joint_name):
         mlib.Matrix: 親空間の回転行列。
     """
     joint = _compute_node(joint_name)
-    parent_matrix = joint.getMatrix(worldSpace=True, parent=True)
+    parent_matrix = joint.getMatrix(worldSpace=True, exclusive=True)
     if joint.getSegmentScaleCompensate():
         sx, sy, sz = joint.getInverseScale()
         if abs(sx) > 1e-12 and abs(sy) > 1e-12 and abs(sz) > 1e-12:
@@ -1303,7 +1303,7 @@ def _compute_restore_joint_world_matrix(joint_name, world_matrix):
         world_matrix (mlib.Matrix): 戻したいワールド行列。
     """
     joint = _compute_node(joint_name)
-    parent_matrix = joint.getMatrix(worldSpace=True, parent=True)
+    parent_matrix = joint.getMatrix(worldSpace=True, exclusive=True)
     local = mlib.Matrix(world_matrix * parent_matrix.inverse())
     translate = local.translate
 

@@ -44,7 +44,7 @@ class AimAxisConversion:
             AimAxisConversion | None: 既存の変換。
         """
         source = Node(constraint)
-        for plug in source.getPlug('message').getConnections(outputs=True):
+        for plug in source.getPlug('message').getConnections(output=True):
             if plug.getNode().getType() in ("container", "network") and plug.getNode().hasAttr(_TAG):
                 return cls(plug.getNode())
         return None

@@ -22,7 +22,7 @@ class RigFoundationsTest(unittest.TestCase):
 
     def test_container_and_scalar_graph(self):
         """演算評価、動的ラッパー、改名と所有削除を確認する。"""
-        owner = mlib.createContainer("owned")
+        owner = mlib.createContainer(name="owned")
         self.assertIsInstance(mlib.getNode(owner.getName(full=True)), mlib.Container)
         source = mlib.createNode("transform", name="external")
         source.addAttr(longName="value", attributeType="double", defaultValue=3)

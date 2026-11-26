@@ -37,7 +37,7 @@ def setScale(node, scale):
     """
     matrix = node.getMatrix(ws=True)
     matrix.scale = scale
-    matrix = matrix * node.getMatrix(ws=True, parent=True, inverse=True)
+    matrix = matrix * node.getMatrix(ws=True, exclusive=True, inverse=True)
     _setScalePlug(node, matrix.scale)
 
 

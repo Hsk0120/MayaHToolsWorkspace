@@ -603,8 +603,8 @@ class _JointOrientPreserver:
         current = node.getPlug("rotate").get()
         rotation.reorderIt(current.order)
         rotation = rotation.closestSolution(current)
-        node.getPlug("scale").set(parts.scale)
-        node.getPlug("shear").set(parts.shear)
+        node.getPlug("scale").set(parts.scaleValue)
+        node.getPlug("shear").set(parts.shearValue)
         node.getPlug("rotate").set(tuple(rotation), unit="rad")
         # ピボット補償を含む実際のローカル行列との差でtranslateを求める。
         actual = node.getPlug("matrix").get()

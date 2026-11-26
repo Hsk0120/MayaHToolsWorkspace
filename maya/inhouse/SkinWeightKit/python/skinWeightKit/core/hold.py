@@ -23,7 +23,7 @@ def hold(target):
     skin = target.requireSkin()
     influences = skin.getInfluences()
     vertices = list(range(target.mesh.getNumVertices()))
-    _held[str(target.mesh)] = {"influences": [node.getName(node=True) for node in influences],
+    _held[str(target.mesh)] = {"influences": [node.getName(short=True) for node in influences],
                                "rows": weights_module.readRows(skin, influences, vertices)}
     return len(vertices)
 
@@ -54,13 +54,13 @@ def fetch(target):
         ValueError: 覚えていない、頂点数が変わった、または覚えたインフルエンスが無い場合。
     """
     if not hasHold(target):
-        raise ValueError("Hold the weights of {} first".format(target.mesh.getName(node=True)))
+        raise ValueError("Hold the weights of {} first".format(target.mesh.getName(short=True)))
     held = _held[str(target.mesh)]
     if len(held["rows"]) != target.mesh.getNumVertices():
         raise ValueError("The vertex count changed since Hold")
     skin = target.requireSkin()
     influences = skin.getInfluences()
-    names = [node.getName(node=True) for node in influences]
+    names = [node.getName(short=True) for node in influences]
     missing = sorted(set(held["influences"]) - set(names))
     if missing:
         raise ValueError("Influences removed since Hold: " + ", ".join(missing))

@@ -289,7 +289,7 @@ def curveSnapshot(curve, timeRange=None):
     for index, (time, value) in enumerate(zip(curve.getKeyInputs(), curve.getKeyValues())):
         if timeRange is not None and not timeRange[0] - TIME_EPSILON <= time <= timeRange[1] + TIME_EPSILON:
             continue
-        tangent = dict(curve.getTangent(index))
+        tangent = dict(curve.getKeyframes(index).getTangent())
         weighted = tangent.pop("weightedTangents")
         entries.append([time, value, tangent])
     return {"weighted": bool(weighted), "infinity": curve.getInfinity(), "keys": entries}
@@ -321,19 +321,19 @@ def applySnapshot(curve, snapshot, offset=0.0, transform=None, replace="range"):
         curve.replaceKeys([(time, value) + pair for time, value, pair in zip(times, values, types)])
     elif replace == "range":
         if curve.getKeyCount():
-            curve.removeKey(time=(min(times), max(times)))
+            curve.getKeyframes(time=(min(times), max(times))).delete()
         for time, value, pair in zip(times, values, types):
-            curve.setKey(time, value, *pair)
+            curve.addKey(time, value, *pair)
     else:
         raise ValueError("replace must be 'range' or 'all'")
     if snapshot.get("weighted") and curve.getKeyCount():
-        curve.setTangent(0, weightedTangents=True)
+        curve.getKeyframes(0).setTangent(weightedTangents=True)
     inputs = curve.getKeyInputs()
     for time, entry in zip(times, entries):
         index = _closest_index(inputs, time)
         tangent = entry[2]
         # ロックを外してから角度・ウェイトを書き、最後に元のロックへ戻す(ロック中は片側の変更が反対側へ移るため)。
-        curve.setTangent(index, lock=False)
+        curve.getKeyframes(index).setTangent(lock=False)
         # 角度・ウェイトを書くと接線型は fixed になるため、fixed の側だけ書く。
         handles = {}
         for side in ("in", "out"):
@@ -344,10 +344,10 @@ def applySnapshot(curve, snapshot, offset=0.0, transform=None, replace="range"):
             if snapshot.get("weighted") and side + "Weight" in tangent:
                 handles[side + "Weight"] = tangent[side + "Weight"]
         if handles:
-            curve.setTangent(index, **handles)
-        curve.setTangent(index, lock=bool(tangent.get("lock", True)))
+            curve.getKeyframes(index).setTangent(**handles)
+        curve.getKeyframes(index).setTangent(lock=bool(tangent.get("lock", True)))
         if snapshot.get("weighted"):
-            curve.setTangent(index, weightLock=bool(tangent.get("weightLock", False)))
+            curve.getKeyframes(index).setTangent(weightLock=bool(tangent.get("weightLock", False)))
     infinity = snapshot.get("infinity")
     if infinity:
         curve.setInfinity(pre=infinity["pre"], post=infinity["post"])
@@ -430,7 +430,7 @@ def drivenPlug(curve):
         output = _blend_output(plug)
         if output is None:
             return plug
-        following = output.getConnections(outputs=True, skipConversionNodes=True)
+        following = output.getConnections(output=True, skipConversionNodes=True)
         plug = following[0] if following else None
     return plug
 

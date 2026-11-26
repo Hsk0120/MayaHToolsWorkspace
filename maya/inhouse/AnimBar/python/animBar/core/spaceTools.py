@@ -187,13 +187,13 @@ def clearTempPivots():
     now = Time.getCurrent()
     for pivot in pivots:
         constraints = []
-        for destination in pivot.getPlug("message").getConnections(outputs=True):
+        for destination in pivot.getPlug("message").getConnections(output=True):
             if destination.getNode() not in constraints:
                 constraints.append(destination.getNode())
         for target in constraints:
             if not target.isValid():
                 continue
-            driven = [destination.getNode() for destination in target.getPlug("constraintTranslateX").getConnections(outputs=True)]
+            driven = [destination.getNode() for destination in target.getPlug("constraintTranslateX").getConnections(output=True)]
             matrices = [(node, node.getMatrix(worldSpace=True)) for node in driven]
             mlib.delete(target)
             for node, matrix in matrices:

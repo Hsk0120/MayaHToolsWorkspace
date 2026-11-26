@@ -180,7 +180,7 @@ def _orientChain(root, secondary):
     Raises:
         ValueError: 子の方向と上方向が平行で、基準を決められない場合。
     """
-    nodes = mlib.Node(root).getChildren(allDescendents=True, order="breadthFirst", includeSelf=True)
+    nodes = mlib.Node(root).getChildren(allDescendents=True, sortBy="breadthFirst", includeSelf=True)
     positions = {node.getUuid(): Vector(node.getMatrix(worldSpace=True).translate) for node in nodes}
     up = Vector(0, 1, 0) if secondary == "yup" else Vector(0, 0, 1)
     for node in nodes:

@@ -49,7 +49,7 @@ class ApiMethodsTest(unittest.TestCase):
         cb = cy.Node(b.getName())
         self.assertEqual(b.tx.getConnections(input=True, skipConversionNodes=True).getName(), cb.tx.source().name())
         self.assertEqual(b.tx.getConnections(input=True).getNode(), conversion)
-        self.assertEqual([p.getName() for p in a.tx.getConnections(outputs=True, skipConversionNodes=True)], [p.name() for p in cy.Node(a.getName()).tx.destinations()])
+        self.assertEqual([p.getName() for p in a.tx.getConnections(output=True, skipConversionNodes=True)], [p.name() for p in cy.Node(a.getName()).tx.destinations()])
         for kwargs in ({}, {"asNode": True}, {"scn": True}, {"asPair": True},
                        {"t": "unitConversion", "et": True}, {"s": False}):
             def names(items, get_name):
@@ -87,7 +87,7 @@ class ApiMethodsTest(unittest.TestCase):
         self.assertEqual(h.getName(), c.partialPath())
         for shapes in (False, True):
             for intermediates in (False, True):
-                self.assertEqual([p.getName() for p in h.getChildren(shapes, intermediates)],
+                self.assertEqual([p.getName() for p in h.getChildren(shapes=shapes, intermediates=intermediates)],
                                  [p.name() for p in c.children(shapes, intermediates)])
         self.assertIsNone(h.getShape(20))
         mesh = h.getShape()
@@ -105,7 +105,7 @@ class ApiMethodsTest(unittest.TestCase):
     def test_flags(self):
         """末端フラグ設定とchannelBox操作のUndoを確認する。"""
         node = Node(cmds.createNode("transform"))
-        self.assertIsNone(node.getPlug("translate").setLocked(True, leaf=True))
+        self.assertIsNone(node.getPlug("translate").setLocked(True, leaves=True))
         self.assertTrue(node.tx.isLocked())
         cmds.undo()
         self.assertFalse(node.tx.isLocked())

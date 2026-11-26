@@ -273,7 +273,7 @@ class ConeReader:
         """
         # setMatrixの現在値に近いEuler解への補正を使わず、従来のxformと同じ
         # 分解規約で初期チャンネル値を保つ。数学処理と書込みはmlibへ委譲する。
-        local = matrix * target.getMatrix(worldSpace=True, p=True, inv=True)
+        local = matrix * target.getMatrix(worldSpace=True, exclusive=True, inverse=True)
         parts = local.decompose()
         for attr, value in (("translate", parts["translate"]), ("rotate", parts["euler"]),
                             ("scale", parts["scale"]), ("shear", parts["shear"])):

@@ -40,7 +40,7 @@ def copyAnimation(nodes=None, timeRange=None):
         timeRange = keys.timelineRange()
     order, data, count, times = [], {}, 0, []
     for node in nodes:
-        name = node.getName(node=True, removeNamespace=True)
+        name = node.getName(short=True, removeNamespace=True)
         curves = _copy_snapshots(node, timeRange)
         count += len(curves)
         for snapshot in curves.values():
@@ -57,7 +57,7 @@ def copySteppedRange():
     start, end = Time.getRange()
     order, data = [], {}
     for node in keys.selectedNodes():
-        name = node.getName(node=True, removeNamespace=True)
+        name = node.getName(short=True, removeNamespace=True)
         if name in data:
             raise ValueError("Select controls with distinct short names.")
         curves = {}
@@ -100,7 +100,7 @@ def copyTimeDrivenSteps(step, phase=0):
     samples = sorted({start, end, *range(int(start) + phase, int(end), step)})
     data = {}
     for node in keys.selectedNodes():
-        name = node.getName(node=True, removeNamespace=True)
+        name = node.getName(short=True, removeNamespace=True)
         if name in data:
             raise ValueError("Select controls with distinct short names.")
         curves = {}
@@ -149,7 +149,7 @@ def previewCopy(timeRange=None):
     counts = {}
     seen = set()
     for node in reversed(list(keys.selectedNodes())):
-        name = node.getName(node=True, removeNamespace=True)
+        name = node.getName(short=True, removeNamespace=True)
         if name in seen:
             continue
         seen.add(name)

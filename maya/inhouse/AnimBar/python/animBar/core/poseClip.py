@@ -10,6 +10,11 @@ _ATTRIBUTE = "animBarPoseSnapshotV1"
 _WEIGHT = "animBarPoseWeight"
 
 
+def _node_ref(data):
+    """保存データのノードの参照(``name``・``path``・``type`` の辞書)から NodeRef を作る。"""
+    return NodeRef(data["name"], data.get("path"), data.get("type"))
+
+
 def _selection():
     """選択したtransformをクリップと記録対象に分ける。"""
     clips, targets = [], []
@@ -69,7 +74,7 @@ def _apply_clip(snapshot, weight):
         return snapshot.apply()
     data = snapshot.toData()
     for entry in data["nodes"]:
-        node = NodeRef(**entry["node"]).resolve()
+        node = _node_ref(entry["node"]).resolve()
         if node is None:
             continue
         for name, value in list(entry["attrs"].items()):
@@ -125,7 +130,7 @@ def previewSelectedBlend(confirm):
     originals = []
     for snapshot, _ in snapshots:
         for entry in snapshot.toData()["nodes"]:
-            node = NodeRef(**entry["node"]).resolve()
+            node = _node_ref(entry["node"]).resolve()
             if node is None:
                 continue
             attrs = {name: node.getPlug(name).get() for name in entry["attrs"] if node.hasAttr(name)}
@@ -162,7 +167,7 @@ def restoreShortcut():
     selected = set(targets)
     entries = []
     for entry in data["nodes"]:
-        node = NodeRef(**entry["node"]).resolve()
+        node = _node_ref(entry["node"]).resolve()
         if node is not None and node.getName(full=True) in selected:
             entries.append(entry)
     if not entries:

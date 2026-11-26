@@ -64,12 +64,12 @@ def toInfluence(target, deformer, influence, threshold=0.0):
         ValueError: デフォーマーがメッシュに無い、またはインフルエンスがロックされている場合。
     """
     skin = target.requireSkin()
-    found = [node for node in listDeformers(target.mesh) if node == deformer or node.getName(node=True) == str(deformer)]
+    found = [node for node in listDeformers(target.mesh) if node == deformer or node.getName(short=True) == str(deformer)]
     if not found:
-        raise ValueError("{} is not a deformer of {}".format(deformer, target.mesh.getName(node=True)))
+        raise ValueError("{} is not a deformer of {}".format(deformer, target.mesh.getName(short=True)))
     node = influences_module.find(skin, influence)
     if influences_module.isLocked(skin, node):
-        raise ValueError("{} is locked".format(node.getName(node=True)))
+        raise ValueError("{} is locked".format(node.getName(short=True)))
     values = deformerWeights(found[0], target.mesh.getNumVertices())
     vertices = [vertex for vertex in target.editVertices() if values[vertex] > threshold]
     influences = skin.getInfluences()

@@ -299,11 +299,11 @@ class SkinTest(_Case):
     def test_skinned_meshes_in_scene(self):
         cmds.polyCube(name="swkLooseCube")
         meshes = skin.skinnedMeshes()
-        self.assertEqual([mesh.getName(node=True) for mesh in meshes], [self.shape.split("|")[-1]])
+        self.assertEqual([mesh.getName(short=True) for mesh in meshes], [self.shape.split("|")[-1]])
 
     def test_selected_joints_and_meshes(self):
         cmds.select(self.joints[0], self.geo)
-        self.assertEqual([node.getName(node=True) for node in skin.selectedJoints()], [self.joints[0]])
+        self.assertEqual([node.getName(short=True) for node in skin.selectedJoints()], [self.joints[0]])
         self.assertEqual(len(skin.selectedMeshes()), 1)
 
     def test_mirror_runs(self):
@@ -1117,7 +1117,7 @@ class MoreToolsTest(_Case):
         cmds.percent(cluster, "{}.vtx[0:30]".format(self.geo), value=0.25)
         cmds.select(self.geo)
         found = target.require()
-        self.assertIn(cluster, [node.getName(node=True) for node in deformers.listDeformers(found.mesh)])
+        self.assertIn(cluster, [node.getName(short=True) for node in deformers.listDeformers(found.mesh)])
         deformers.toInfluence(found, cluster, self.joints[2])
         self.assertAlmostEqual(_weights(self.skin, 10)[self.joints[2]], 0.25, places=4)
         self.assert_normalized(10)
@@ -1145,7 +1145,7 @@ class MoreToolsTest(_Case):
         weights.setValue(self.select_vertices(60), end, 0.5)
         cmds.select(self.geo)
         found = target.require()
-        self.assertEqual([node.getName(node=True) for node in influences.matchingInfluences(found, "*_end")], [end])
+        self.assertEqual([node.getName(short=True) for node in influences.matchingInfluences(found, "*_end")], [end])
         before = _weights(self.skin, 60)
         removed = influences.removeMatching(found, "*_end, *_helper")
         self.assertEqual(removed[0][0], end)

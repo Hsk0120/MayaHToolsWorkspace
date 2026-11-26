@@ -235,7 +235,7 @@ class HingeIK:
             if hinge is None:
                 raise ValueError("The chain is straight. Bend the knee slightly or pass the hinge axis.")
         hinge = Vector(*hinge).normal()
-        owner = mlib.createContainer(name).getName(full=True)
+        owner = mlib.createContainer(name=name).getName(full=True)
         setJointWorldOrientation(mid, orientationMatrix(worldPosition(mid), worldPosition(end) - worldPosition(mid),
                                                         hinge, axis))
         mid_joint = mlib.Node(mid)

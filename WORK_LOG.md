@@ -19,6 +19,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+- Claude Code (2026-11-26〜): mlib の引数の統一と上書きの整理、全部の引数を網羅するテスト(ユーザー指示「mlibで検討したこと全て実装」)。決まりはローカルの docs/research/mlib-test-coverage/arg-study/decisions.md。mlib 本体・テストと、改名に合わせて利用側(mlrig・HTools・AnimBar・SkinWeightKit・SimpleCloth・SimplePhysics・FramePlayer・mlib_bifrost など)の呼び出しを直す。
 
 
 

@@ -76,7 +76,7 @@ class PlanarIK:
         normal = planeNormal(root, mid, end)
         if normal is None:
             raise ValueError("The chain is straight. Bend the knee slightly before creating the IK.")
-        owner = mlib.createContainer(name).getName(full=True)
+        owner = mlib.createContainer(name=name).getName(full=True)
         positions = [worldPosition(node) for node in (root, mid, end)]
         parent = mlib.Node(root).getParent()
         drivers = []

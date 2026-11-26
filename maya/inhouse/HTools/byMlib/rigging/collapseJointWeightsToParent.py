@@ -30,7 +30,7 @@ def _find_skinclusters_using_influence(inf):
         inf: ウェイトを割り当てる、または移管するインフルエンス。
     """
     # 重複は除き、接続の順を保つ。
-    return mlib.getNode(inf).getSkinClusters()
+    return mlib.getNode(inf).getSkinClusters(influence=True)
 
 def _get_influences(sc):
     """skinCluster の influence 一覧を返します。

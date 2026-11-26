@@ -53,7 +53,7 @@ class PaintSession(object):
                 raise ValueError("Click an influence in the list first")
             node = influences_module.find(self.skin, influence)
             if influences_module.isLocked(self.skin, node):
-                raise ValueError("{} is locked".format(node.getName(node=True)))
+                raise ValueError("{} is locked".format(node.getName(short=True)))
             self.column = self.influences.index(node)
         if mode == "transfer":
             if source is None:
@@ -62,7 +62,7 @@ class PaintSession(object):
             if other == self.influences[self.column]:
                 raise ValueError("Choose two different influences")
             if influences_module.isLocked(self.skin, other):
-                raise ValueError("{} is locked".format(other.getName(node=True)))
+                raise ValueError("{} is locked".format(other.getName(short=True)))
             self.source = self.influences.index(other)
         self.limit = self.skin.getMaxInfluences() if keepMax else None
         if mode in ("smooth", "sharpen"):

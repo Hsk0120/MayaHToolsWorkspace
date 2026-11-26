@@ -419,7 +419,7 @@ def powerTimes(exponent):
         moves.extend((target.curve, i, d) for i, d in enumerate(offsets) if d < 0)
         moves.extend((target.curve, i, offsets[i]) for i in reversed(range(len(offsets))) if offsets[i] > 0)
     for curve, index, delta in moves:
-        curve.moveKey(index=index, timeOffset=delta / ticks_per_frame)
+        curve.getKeyframes(index).move(timeOffset=delta / ticks_per_frame)
     return len(moves)
 
 

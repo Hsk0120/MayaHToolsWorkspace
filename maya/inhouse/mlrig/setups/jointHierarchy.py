@@ -25,7 +25,7 @@ class JointHierarchy:
             raise ValueError("自動キーを無効にしてください")
         for bone in (root, mlib.Joint(child)):
             name = bone.getName(full=True)
-            if bone.getSkinClusters() or cmds.referenceQuery(name, isNodeReferenced=True):
+            if bone.getSkinClusters(influence=True) or cmds.referenceQuery(name, isNodeReferenced=True):
                 raise ValueError("バインド済みまたは参照の骨は調整できません: " + name)
             for attr in ("translate", "rotate", "jointOrient", "scale", "rotateAxis"):
                 for axis in "XYZ":
@@ -136,7 +136,7 @@ class JointHierarchy:
         plans = []
         for joint in targets:
             transfers = []
-            for skin in joint.getSkinClusters():
+            for skin in joint.getSkinClusters(influence=True):
                 target = joint.getTransferTarget(skin)
                 if target:
                     skin._raise_if_layers()
@@ -154,7 +154,7 @@ class JointHierarchy:
                         raise NotImplementedError("fast weight transfer requires one geometry")
                     skin._editable_weights()
                 require_editable(joint.mnode(), descendants=True)
-                for skin in joint.getSkinClusters():
+                for skin in joint.getSkinClusters(influence=True):
                     skin._raise_if_layers()
                 parent = joint.getParent()
                 while parent is not None and parent.getUuid() in deleted_ids:

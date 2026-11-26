@@ -111,7 +111,7 @@ def mirror(target, axis="x", positiveToNegative=True):
     """
     if axis not in MIRROR_AXES:
         raise ValueError("axis must be one of x, y, z")
-    target.requireSkin().mirrorWeights(axis=MIRROR_AXES[axis], positiveToNegative=positiveToNegative)
+    target.requireSkin().mirrorWeights(plane=MIRROR_AXES[axis], positiveToNegative=positiveToNegative)
 
 
 @undoChunk("skinWeightKitCopySkin")
@@ -294,7 +294,7 @@ def captureBindSettings(target):
         "skin": cluster.getUuid(),
         "settings": getSettings(target),
         "influences": {node.getUuid(): (node.getName(full=True), lock) for node, lock in zip(nodes, locks)},
-        "history": [(node.getUuid(), node.getName(node=True)) for node in target.mesh.getHistory(type="geometryFilter")],
+        "history": [(node.getUuid(), node.getName(short=True)) for node in target.mesh.getHistory(type="geometryFilter")],
     }
 
 

@@ -38,7 +38,7 @@ def nudgeKeys(frames, everything=False):
             # 隣のキーにぶつかる量は、そのカーブを動かさない(Mayaは直前の端数の時刻で止めてしまうため)。
             continue
         # 選んだキーは一緒に動かす。
-        curve.moveKey(index=indices, timeOffset=frames)
+        curve.getKeyframes(indices).move(timeOffset=frames)
         count += len(indices)
     if count and not everything and not keys.graphEditorKeys() and keys.timelineRange() is None:
         Time.setCurrent(Time.getCurrent() + frames)
@@ -99,7 +99,7 @@ def insertFrames(frames, nodes=None):
             curves.append(curve)
     for curve in curves:
         last = max(curve.getKeyInputs())
-        curve.moveKey(time=(now + keys.TIME_EPSILON, last), timeOffset=frames)
+        curve.getKeyframes(time=(now + keys.TIME_EPSILON, last)).move(timeOffset=frames)
     return len(curves)
 
 
@@ -182,7 +182,7 @@ def inspectResetKeys():
         if plug is None:
             continue
         path = plug.getNode().getName(full=True) + "." + plug.getAttributeName()
-        inputs = curve.getKeyframes(indices).getValues(time=True)
+        inputs = curve.getKeyframes(indices).getValues(input=True)
         rows.append((curve.getName(), path, inputs, plug.getDefault(uiUnits=True)))
     return rows
 
@@ -235,7 +235,7 @@ def transformAll(nodes=None):
                 continue
             delta = value - curve.evaluate(now)
             if abs(delta) > 1e-9:
-                curve.moveKey(valueOffset=delta)
+                curve.getKeyframes().move(valueOffset=delta)
                 count += 1
     return count
 
@@ -324,7 +324,7 @@ def finishTransformAll():
         if keyed and index is not None:
             indices.remove(index)
         if indices:
-            curve.moveKey(index=indices, valueOffset=delta)
+            curve.getKeyframes(indices).move(valueOffset=delta)
             count += 1
     return count
 
@@ -362,8 +362,8 @@ def applySteppedBake(curve, rows):
             cmds.setKeyframe(curve.getName(), time=boundary, insert=True)
     for index, time in reversed(list(enumerate(curve.getKeyInputs()))):
         if start < time < end:
-            curve.removeKey(index=index)
+            curve.getKeyframes(index).delete()
     for time, value in rows[:-1]:
         if time != start:
-            curve.setKey(time, value)
-        curve.setTangent(keys.keyIndexAt(curve, time), outTangentType="step")
+            curve.addKey(time, value)
+        curve.getKeyframes(keys.keyIndexAt(curve, time)).setTangent(outTangentType="step")

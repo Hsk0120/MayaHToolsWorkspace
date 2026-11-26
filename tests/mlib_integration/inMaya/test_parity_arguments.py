@@ -102,7 +102,7 @@ class ApiArgumentsTest(unittest.TestCase):
                     self.assertValues(getattr(node, "set" + mlib_suffix)(values, ws=ws, get=True), getattr(ref, "set" + suffix)(values, ws=ws, get=True))
                 for p in (False, True):
                     for inv in (False, True):
-                        self.assertValues(tuple(node.getMatrix(ws=ws, p=p, inv=inv)), tuple(ref.getMatrix(ws=ws, p=p, inv=inv)))
+                        self.assertValues(tuple(node.getMatrix(ws=ws, exclusive=p, inverse=inv)), tuple(ref.getMatrix(ws=ws, p=p, inv=inv)))
             original = node.getMatrix()
             values = node.setMatrix(original, get=True)
             self.assertEqual(set(values), {"translate", "rotate", "scale", "shear"})

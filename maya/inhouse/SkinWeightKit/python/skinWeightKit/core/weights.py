@@ -160,7 +160,7 @@ def setValue(target, influence, value, mode="set"):
     vertices = target.requireVertices()
     node = influences_module.find(skin, influence)
     if influences_module.isLocked(skin, node):
-        raise ValueError("{} is locked".format(node.getName(node=True)))
+        raise ValueError("{} is locked".format(node.getName(short=True)))
     current = list(skin.getWeights([node], vertices=vertices))
     skin.setWeights([node], newValues(current, float(value), mode), vertices=vertices, normalize=True)
     return len(vertices)
@@ -272,7 +272,7 @@ def setVertexValues(target, vertices, influence, value):
     skin = target.requireSkin()
     node = influences_module.find(skin, influence)
     if influences_module.isLocked(skin, node):
-        raise ValueError("{} is locked".format(node.getName(node=True)))
+        raise ValueError("{} is locked".format(node.getName(short=True)))
     influences = skin.getInfluences()
     locked = influences_module.lockedFlags(skin, influences)
     column = influences.index(node)
@@ -302,7 +302,7 @@ def table(target, limit=500):
     used = [column for column in range(len(influences)) if any(row[column] > 0.0 for row in rows)]
     return {
         "vertices": vertices,
-        "influences": [influences[column].getName(node=True) for column in used],
+        "influences": [influences[column].getName(short=True) for column in used],
         "rows": [[row[column] for column in used] for row in rows],
         "sums": [sum(row) for row in rows],
         "counts": [sum(1 for value in row if value > 0.0) for row in rows],
@@ -421,7 +421,7 @@ def _transferInfluences(target, source, destination):
         raise ValueError("Choose two different influences")
     for node in (source_node, destination_node):
         if influences_module.isLocked(skin, node):
-            raise ValueError("{} is locked".format(node.getName(node=True)))
+            raise ValueError("{} is locked".format(node.getName(short=True)))
     return skin, source_node, destination_node
 
 
@@ -447,7 +447,7 @@ def copy(target):
     influences = skin.getInfluences()
     rows = readRows(skin, influences, vertices)
     mean = [sum(column) / len(rows) for column in zip(*rows)]
-    _clipboard["weights"] = {node.getName(node=True): value for node, value in zip(influences, mean) if value > TOLERANCE}
+    _clipboard["weights"] = {node.getName(short=True): value for node, value in zip(influences, mean) if value > TOLERANCE}
     return dict(_clipboard["weights"])
 
 
@@ -483,10 +483,10 @@ def _pasteRows(target):
     if not hasCopy():
         raise ValueError("Copy weights first")
     skin, influences, locked, vertices = _context(target)
-    names = [node.getName(node=True) for node in influences]
+    names = [node.getName(short=True) for node in influences]
     missing = sorted(set(_clipboard["weights"]) - set(names))
     if missing:
-        raise ValueError("Not influences of {}: {}".format(skin.getName(node=True), ", ".join(missing)))
+        raise ValueError("Not influences of {}: {}".format(skin.getName(short=True), ", ".join(missing)))
     copied = [_clipboard["weights"].get(name, 0.0) for name in names]
     rows = readRows(skin, influences, vertices)
     return skin, influences, vertices, rows, [fitRow(copied, row, locked) for row in rows]
@@ -495,6 +495,6 @@ def _pasteRows(target):
 def previewPaste(target):
     """貼り付けで変わる頂点番号、インフルエンス名、変更前後の値を返す。"""
     _, influences, vertices, rows, result = _pasteRows(target)
-    names = [node.getName(node=True) for node in influences]
+    names = [node.getName(short=True) for node in influences]
     return [(vertex, name, old, new) for vertex, before, after in zip(vertices, rows, result)
             for name, old, new in zip(names, before, after) if old != new]

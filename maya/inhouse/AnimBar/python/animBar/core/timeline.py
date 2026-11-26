@@ -127,7 +127,7 @@ def jumpToKey(direction=0):
     if direction == 0:
         selected = keys.graphEditorKeys()
         chosen = [time for curve, indices in selected.items()
-                  for time in curve.getKeyframes(indices).getValues(time=True)]
+                  for time in curve.getKeyframes(indices).getValues(input=True)]
         if chosen:
             # 複数のカーブで選んだキーの真ん中あたりを見られるよう、平均の時刻へ移る(aTools と同じ)。
             Time.setCurrent(sum(chosen) / len(chosen))
@@ -332,7 +332,7 @@ def duplicateCamera(camera=None):
         Node: 複製したカメラのTransform。
     """
     source = mlib.Node(camera) if camera is not None else keys.selectedNodes()[0]
-    copy = mlib.duplicate(source, name=source.getName(node=True, removeNamespace=True) + "_copy")
+    copy = mlib.duplicate(source, name=source.getName(short=True, removeNamespace=True) + "_copy")
     extras = [child for child in copy.getChildren()]
     if extras:
         mlib.delete(extras)

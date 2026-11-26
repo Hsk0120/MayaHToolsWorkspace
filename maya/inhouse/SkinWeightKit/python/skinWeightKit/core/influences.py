@@ -22,7 +22,7 @@ class InfluenceInfo(object):
 
     def __init__(self, node, locked, value):
         self.node = node
-        self.name = node.getName(node=True)
+        self.name = node.getName(short=True)
         self.locked = locked
         self.value = value
 
@@ -41,9 +41,9 @@ def find(skin, influence):
         ValueError: skinCluster のインフルエンスでない場合。
     """
     for node in skin.getInfluences():
-        if node == influence or node.getName(node=True) == str(influence) or str(node) == str(influence):
+        if node == influence or node.getName(short=True) == str(influence) or str(node) == str(influence):
             return node
-    raise ValueError("{} is not an influence of {}".format(influence, skin.getName(node=True)))
+    raise ValueError("{} is not an influence of {}".format(influence, skin.getName(short=True)))
 
 
 def lockedFlags(skin, influences):
@@ -246,7 +246,7 @@ def removeJoints(joints):
         raise ValueError("Select the joints to remove from the skin")
     skins = []
     for joint in joints:
-        for skin in joint.getSkinClusters():
+        for skin in joint.getSkinClusters(influence=True):
             if skin not in skins:
                 skins.append(skin)
     removed = []
@@ -271,7 +271,7 @@ def matchingInfluences(target, patterns):
         patterns = [part for part in patterns.replace(",", " ").split() if part]
     skin = target.requireSkin()
     return [node for node in skin.getInfluences()
-            if any(fnmatch.fnmatchcase(node.getName(node=True).split(":")[-1], pattern) for pattern in patterns)]
+            if any(fnmatch.fnmatchcase(node.getName(short=True).split(":")[-1], pattern) for pattern in patterns)]
 
 
 @undoChunk("skinWeightKitRemoveMatching")
@@ -307,7 +307,7 @@ def _remove_from(skin, joints):
     joints = [joint for joint in joints if skin.hasInfluence(joint.getName(full=True))]
     ordered = sorted(joints, key=_depth, reverse=True)
     targets = [joint.getTransferTarget(skin) for joint in ordered]
-    removed = [(joint.getName(node=True), skin.getName(node=True), target.getName() if target is not None else None)
+    removed = [(joint.getName(short=True), skin.getName(short=True), target.getName() if target is not None else None)
                for joint, target in zip(ordered, targets)]
     if not joints:
         return removed

@@ -47,7 +47,7 @@ def _list_reference_paths():
         list[str]: 空文字を除いた参照パス。
     """
     # cmds.file(q=True, reference=True) と同じく、トップレベルのリファレンスを読み込んだ順に並べる。
-    refs = [ref.getFilename(withCopyNumber=False) for ref in listReferences(topLevelOnly=True, order='load')]
+    refs = [ref.getFilename(withCopyNumber=False) for ref in listReferences(topLevelOnly=True, sortBy='load')]
     return [ref for ref in refs if isinstance(ref, str) and ref]
 
 
