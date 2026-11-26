@@ -35,6 +35,7 @@ from .planetaryGear import PlanetaryGear
 from .differentialGear import DifferentialGear
 from .peaucellierLinkage import PeaucellierLinkage
 from .pantograph import Pantograph
+from .rollUpChain import RollUpChain
 from .swashplate import Swashplate
 from .stewartPlatform import StewartPlatform
 from .outlineBank import OutlineBank
@@ -126,6 +127,7 @@ __all__ = [
     "DifferentialGear",
     "PeaucellierLinkage",
     "Pantograph",
+    "RollUpChain",
     "Swashplate",
     "StewartPlatform",
     "UniversalJoint",

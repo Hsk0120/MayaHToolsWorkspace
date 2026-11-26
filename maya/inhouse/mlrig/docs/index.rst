@@ -47,6 +47,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    telescopic_cylinder
    coil_spring
    wave_chain
+   roll_up_chain
    wave_float
    wheel_roll
    pole_vector_placement

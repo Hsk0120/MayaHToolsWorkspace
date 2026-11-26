@@ -57,6 +57,7 @@ class SetupSamples:
         ("coilSpring", "CoilSpring - suspension spring"),
         ("bowString", "BowString - bow and nock"),
         ("waveChain", "WaveChain - tail wave"),
+        ("rollUpChain", "RollUpChain - tail rolls up from the tip"),
         ("waveFloat", "WaveFloat - boat on waves"),
         ("wheelRoll", "WheelRoll - wheel"),
         ("gearTrain", "GearTrain - four gears"),
@@ -406,6 +407,26 @@ class SetupSamples:
             joints.append(joint)
             parent = joint
         setup = WaveChain.create(joints, name=name, axis="z", amplitude=20.0, wavelength=5.0)
+        parent = hip
+        for index in range(len(joints)):
+            tips = ((1.5, 0, 0),) if index == len(joints) - 1 else ()
+            parent = _output("{}_tail{}Out".format(name, index), parent,
+                             "{}.matrix{}".format(setup.container, index), tips)
+        return setup, str(setup.container)
+
+    @classmethod
+    def _rollUpChain(cls, name, root):
+        """尻尾の8関節。containerの ``roll`` を増やすと、先端から1関節ずつ順に曲がって渦巻き(緑)に巻き取られる。
+        8を超えると全部巻いた所で止まり、 ``excess`` に超えた量が出る。 ``totalAngle`` は巻いた角度の合計。"""
+        from .setups import RollUpChain
+
+        hip = _transform(name + "_hip", root, translate=(0, 5, 0))
+        joints, parent = [], hip
+        for index in range(8):
+            joint = _joint("{}_tail{}".format(name, index), parent, translate=(1.5 if index else 0, 0, 0))
+            joints.append(joint)
+            parent = joint
+        setup = RollUpChain.create(joints, name=name, axis="z", angle=70.0, decay=0.85)
         parent = hip
         for index in range(len(joints)):
             tips = ((1.5, 0, 0),) if index == len(joints) - 1 else ()

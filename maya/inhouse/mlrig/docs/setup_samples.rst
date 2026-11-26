@@ -56,6 +56,9 @@
    * - WaveChain - tail wave
      - container
      - ``phase`` を変えると、波が根元から先へ進む。
+   * - RollUpChain - tail rolls up from the tip
+     - container
+     - ``roll`` を増やすと、8関節の尻尾が先端から1関節ずつ順に曲がり、外へ広がる渦巻き(緑)に巻き取られる(1関節70度、巻く順が1つ後になるごとに0.85倍)。8を超えると全部巻いた所で止まり、containerの ``excess`` に超えた量が出る。 ``rolled`` は止めたroll、 ``totalAngle`` は巻いた角度の合計。
    * - WaveFloat - boat on waves
      - 船のコントロール(locator)
      - 再生すると、船(緑)が2つの波に乗って上下・前後に揺れて傾く。水平に動かすと、その場所の波に乗る。
