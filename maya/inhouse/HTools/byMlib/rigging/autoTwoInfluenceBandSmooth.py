@@ -823,7 +823,7 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
         # (複数の形状の頂点を選ぶと、元の cmds.skinCluster と同じく失敗する)。
         index = skin.getGeometryIndices(selected.shape) if isinstance(selected, mlib.Vertices) else None
         skin.smoothWeights(
-            tolerance=float(smooth_weights),
+            threshold=float(smooth_weights),
             iterations=int(max_iterations),
             vertices=selected if len(selected) else None,
             obeyMaxInfluences=bool(obey_max_influences),

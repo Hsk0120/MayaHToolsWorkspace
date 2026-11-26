@@ -61,7 +61,7 @@ def _get_geometries(sc):
     Returns:
         Nodes: 対象ジオメトリ。
     """
-    return mlib.getNode(sc).getGeometry()
+    return mlib.getNode(sc).getGeometry(all=True)
 
 def _get_joint_liw(jnt):
     """ジョイントの lockInfluenceWeights 状態を取得します。

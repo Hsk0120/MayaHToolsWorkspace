@@ -474,7 +474,8 @@ class FramePlayerSync(object):
             if frame_range is not None and self.sync_range:
                 first = self.to_maya(frame_range[0])
                 last = self.to_maya(frame_range[1])
-                Time.setRange(first, last)
+                # Time.setRange は開始と終了が同じ範囲を受け付けない(Maya は終了を1フレーム広げる)ので、同じ形にして渡す。
+                Time.setRange(first, max(last, first + 1))
                 self._last_sent_range = (frame_range[0], frame_range[1])
             if frame is not None:
                 Time.setCurrent(self.to_maya(frame), update=True)

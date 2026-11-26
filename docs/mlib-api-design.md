@@ -516,7 +516,7 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
 
 #### 内部名の規則
 
-- 検証は `_require_<条件>`(例外を送出し、戻り値は無しか検査済み値)。`_validate_*`・`_check_*` で例外を送出する関数は `_require_*` へ改名し、boolを返す判定は `_is_*`/`_has_*` にする。登録プロトコルとしてDESIGN/CLAUDE.mdに名のある `Nodes._validate_inputs`・`skinEdit.validate_removals`・`attributeEdit.validate_extra_attribute` は維持する。`_validated_*`(`_validated_flags` 等)は検査済みの値を返す検証の名前。
+- 検証は `_require_<条件>`(例外を送出し、戻り値は無しか検査済み値)。`_validate_*`・`_check_*` で例外を送出する関数は `_require_*` へ改名し、boolを返す判定は `_is_*`/`_has_*` にする。登録プロトコルとしてDESIGN/CLAUDE.mdに名のある `Nodes._validate_inputs`・`attributeEdit.validate_extra_attribute` は維持する。`_validated_*`(`_validated_flags` 等)は検査済みの値を返す検証の名前。
 - 変換・解決は `_resolve_<対象>`(`_resolve_mvector`・`_resolve_mesh`・`_resolve_input_or_none`)。`_as_*`・`_coerce_*` は使わない。
 - 書込みの実装分岐は `_<method>_fast` / `_<method>_cmds`(`_direct`・`_fast_xxx` 前置は使わない)。
 - function setの取得は `_<kind>_fn`(`_dependency_fn`・`_geometry_fn`。キャッシュ付きでも `_cached_` は付けない)。`om2.MFnDependencyNode(self.mnode())` を直接書かず `_dependency_fn()` を使う。
@@ -549,7 +549,7 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
 | `core/object.py` | 入力の存在・選択の判定 | `_exists`・`_selection_plug`・`_selection_component` |
 | `core/fastWrite.py` | Plugへのom2書込み基盤 | `require_supported_type`・`require_writable`・`require_range`・`writable_compound`・`_ancestor_plugs`・`set_plug`・`set_attr`・`prepare_data` |
 | `core/nodeEdit.py` | ノードの編集可否・削除検査 | `require_editable`・`check_deletion`・`_dag_descendants` |
-| `core/geometryEdit.py`・`core/skinEdit.py`・`core/attributeEdit.py` | 形状・スキン・アトリビュートの編集基盤 | `set_positions`・`validate_removals`・`validate_extra_attribute` |
+| `core/geometryEdit.py`・`core/attributeEdit.py` | 形状・アトリビュートの編集基盤(スキンのfastの書き込みは `SkinCluster` の `_<method>_fast`。`core/skinEdit.py` は2026-11-27に削除) | `set_positions`・`validate_extra_attribute` |
 | `nodes/node.py` | ノード固有の解決・検証 | `Node._from_name`・`Node._require_valid`・`Node._input_name`・`Nodes._resolve_inputs` |
 
 共通化しないもの: `Node.delete`、`SkinCluster.mesh/mesh_path`・`Component.component_type`(core/common/cmdsが参照する内部契約)、`Version.isAtLeast` への委譲、cmds/ls.pyのフラグ列挙、core→commonのimport方向を作る単位変換の置換。
