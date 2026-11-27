@@ -1,4 +1,4 @@
-# WORK_LOG.md
+﻿# WORK_LOG.md
 
 Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業状況共有ファイル。
 これら3つのAIコーディングツールは互いを直接検知できないため、このファイルを介して
@@ -205,7 +205,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
-- Claude Code (2026-11-27): 全部の引数を網羅するテストで見つかった mlib 本体の食い違い(findings4 の約150項目)と保留を直した(mlib 0ee1f17)。bool の引数は bool 以外を TypeError、Raises に無い例外は入力を先に確かめて型をそろえる、geometryIndex の既定は None=先頭の形状(すべては all=True)、fast だけの書き込みに check、Reference.remove→removeReference・decimals→ndigits・smoothWeights の tolerance→threshold・Plug.disconnect の source→other・Matrix.extract の part→what、Node.select は add/deselect だけ、Edge/Vertex.getConnected(type=)・Edge.getLength(distanceUnit=) を追加、redo・fast の動きの誤りを修正、表の部品を拡張、core/skinEdit.py を削除。利用側は HTools byMlib 2件・FramePlayer byMlib 1件を直した。format_mlib --check OK、mlib テスト 2022/2025/2027 全件成功、run_rig_packages 971件中失敗1件(以前からのコマンド境界監査)、AnimBar 76件・SkinWeightKit 99件・HTools byMlib OK。残り: createCurve の degree の既定(1のまま、Maya は3)は未決。
+- Claude Code (2026-11-27): 全部の引数を網羅するテストで見つかった mlib 本体の食い違い(findings4 の約150項目)と保留を直した(mlib 0ee1f17)。bool の引数は bool 以外を TypeError、Raises に無い例外は入力を先に確かめて型をそろえる、geometryIndex の既定は None=先頭の形状(すべては all=True)、fast だけの書き込みに check、Reference.remove→removeReference・decimals→ndigits・smoothWeights の tolerance→threshold・Plug.disconnect の source→other・Matrix.extract の part→what、Node.select は add/deselect だけ、Edge/Vertex.getConnected(type=)・Edge.getLength(distanceUnit=) を追加、redo・fast の動きの誤りを修正、表の部品を拡張、core/skinEdit.py を削除。利用側は HTools byMlib 2件・FramePlayer byMlib 1件を直した。format_mlib --check OK、mlib テスト 2022/2025/2027 全件成功、run_rig_packages 971件中失敗1件(以前からのコマンド境界監査)、AnimBar 76件・SkinWeightKit 99件・HTools byMlib OK。その後 createCurve の degree の既定を Maya と同じ3にした。
 
 - Claude Code (2026-11-27): 夜間タスクで mlrig に RollUpChain(joint列を端から1関節ずつ順に曲げて渦巻きに巻き取る。roll を届く範囲 0〜N-1+width で止めて excess を出力、角度は angle·decay^j、totalAngle 出力、先端から/根元から)を追加した。`mlrig/setups/rollUpChain.py`・テスト8件・文書 `docs/roll_up_chain.rst`・サンプル・`tools/demo_roll_up_chain.py`。標準ノードのみ。Maya 2027 の隔離mayapyで test_rollUpChain 8件OK、standard 76件OK、setups 827件中826件OK(失敗1件は以前からのコマンド境界監査で、今回追加したファイルは違反に含まれない)。Sphinx -W 成功。コミット・プッシュ(このコミット)。
 - Claude Code (2026-11-26): mlib の引数の統一と上書きの整理を実装し(同じ名前の引数は同じ働き・上書きで引数と意味を変えない・許可表と check_mlib_layout.py の L090〜L096)、利用側の呼び出しを直した。全部の引数を網羅するテスト(表から値・誤った入力・2つの引数の組を確かめる部品と、公開メソッド約720個の表)を足した。Maya 2022・2025・2027、run_rig_packages(963件中962件。残る1件は以前からの失敗)、AnimBar・SkinWeightKit・HTools の byMlib 版で確認。テストで見つかった docstring との食い違い(約150項目)はローカルの docs/research/mlib-test-coverage/findings4 にあり、表の known に入れてある(未修正)。
