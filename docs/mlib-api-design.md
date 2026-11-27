@@ -1519,9 +1519,17 @@ bool を位置で受ける引数が `worldSpace`・`state` のほかに約40個�
   確かめずに書く(Mayaが拒否したときだけ例外になる)。」のあとへ「確かめるのは、…。」を続ける、`safe` は「Trueなら、失敗しても例外にしない。既定はFalse。」、
   `skipExisting` は「Trueなら、すでに目的の状態のときは何もしない。既定はFalse。」、`skipConnected` は「Trueなら、接続があるノードは削除しない。既定はFalse。」、
   `ws` は「worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。」だけ。
-- **既定値の食い違い**: 動きが変わるので、1件ずつ決めるまで変えていない。表の理由に「未決(2026-11-27)」と書いてある(`worldSpace` が True の5つ、
-  `Plug.connect(unlock=True)`、`children`、`tolerance` の値、`preserve`、`Node.setDgTimer(state=None)` など16件)。案はローカルの
-  `docs/research/mlib-test-coverage/arg-study/formatter/defaults-proposal.md`。`timeOffset` の 0.0 だけは動きが変わらないので 0 へ揃えた。
+- **既定値の食い違い(同じ日にユーザーが案のとおりに決めた)**: 16件のうち、動きを変えたのは5件。
+  - `Camera.getPoint`・`setPoint`・`getDirection` の `worldSpace`(以前は既定 True)を省けない引数にした(`worldSpace` か `ws` のどちらかを指定する。省くと TypeError)。
+  - `Plug.connect` の `unlock` の既定を False にし、`force` と関係なく `unlock=True` でロックを一時的に外す形にした(以前は `force=True` だけで外していた)。
+    ロックされた接続先へは `connect(source, force=True, unlock=True)` と書く。`disconnect`・`delete` と同じ意味になった。
+  - `Transform.setRotateOrder` の `preserve`(以前は既定 True)を省けない引数にした。
+  - 「指定なし」を `None` に揃えた: `createGroup(nodes=None)`・`createContainer(members=None)`・`Nodes(names=None)`・`Selection(items=None)`(空の並びも受ける。動きは同じ)。
+  - `Node.setDgTimer(state=None, *, reset=False)` を `setDgTimer(state=True)` と `resetDgTimer()` に分けた(2026-11-23 にまとめた `resetDgTimer` を戻した。
+    オン・オフと結果の消去は別の操作で、`state` の既定を True に揃えると「消すだけ」が書けなくなるため)。
+  - 残りの11件(`Joint.getBoneSegments`・`SkinCluster.restoreBindPose` の worldSpace=True、クォータニオンの unit="rad"、Plug の unit・timeUnit の None、
+    `setAttrFlags`・`setFlags` の children=False、tolerance の値、`includeSelf`、`setQuaternion` の preserve=False、`Reference` の failed、
+    `DrivenKey.setKey` の接線 linear、`SkinCluster.roundWeights` の ndigits=3、`addAttr` の channelBox=False)は、理由を表に書いて今のまま。
 - **文書**: Sphinx の「引数の一覧」(`_docs/source/arguments.rst`)は表から自動で作る(早見表と、引数ごとの受け方・既定値・例外と理由・使うメソッドへのリンク)。
   入門(`getting_started.rst`)に「引数の渡し方」の節を足した。
 - **テスト**: 引数の網羅(`support/argumentSweep.py`)に段4 `test_<メソッド>_calling` を足した。表の「正しい呼び方」を、渡し方だけ変えて呼ぶ:
