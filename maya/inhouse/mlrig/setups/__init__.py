@@ -78,6 +78,7 @@ from .slidingFk import SlidingFk
 from .rotationFollow import RotationFollow
 from .rotationMinimizingFrames import RotationMinimizingFrames
 from .scissorLift import ScissorLift
+from .umbrella import Umbrella
 from .comboWeight import ComboWeight
 from .rootDirectionLimit import RootDirectionLimit
 from .softIK import SoftIK
@@ -182,6 +183,7 @@ __all__ = [
     "RotationFollow",
     "RotationMinimizingFrames",
     "ScissorLift",
+    "Umbrella",
     "ComboWeight",
     "RootDirectionLimit",
     "SoftIK",

@@ -202,6 +202,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-28): mlrig 夜間。`mlrig/setups/umbrella.py` の Umbrella(傘の骨)を追加した。中棒を滑るランナーの位置 slide から、付け根・ランナー・つなぎ目の三角形(余弦定理)で親骨と受け骨の角度を求め、放射状に並べた親骨・受け骨・ランナーのワールド行列を出力する。三角形ができる範囲 |a-b|〜a+b の外は端で止めて excess へ出す。標準ノードのみ。テスト8件(`test_umbrella.py`)、文書(`docs/umbrella.rst`)、サンプル、検証デモ(`tools/demo_umbrella.py`)。Maya 2027 の隔離mayapy: standard 76件OK、setups 835件中834件OK(失敗1件は以前からのコマンド境界監査で、今回のファイルは含まれない)、Sphinx -W 成功。検証動画372フレーム合格。コミット・プッシュ(このコミット)。
+
 - Claude Code (2026-11-27): mlib の引数の既定値の食い違い16件を、案のおすすめどおりに決めて実装した。Camera.getPoint・setPoint・getDirection の worldSpace と Transform.setRotateOrder の preserve を省けない引数に、Plug.connect の unlock を既定 False(force と別。ロックされた接続先は unlock=True)に、「指定なし」を None に(createGroup・createContainer・Nodes・Selection)、Node.setDgTimer(state=True) と resetDgTimer() に分けた。残り11件は check_mlib_arguments.py の表に理由を書いて今のまま。利用側の呼び出しの変更は無し。
 
 - Claude Code (2026-11-27): mlib の引数の表・検査・フォーマッター(`_tools/check_mlib_arguments.py`。A001〜A015。`format_mlib.bat` は5手順)を入れ、bool・kind・type・index の位置引数を約30メソッドでキーワード専用にした(mlib 2773220)。docstring の既定値の記述と決まり文句を揃え、Sphinx に引数の一覧(自動生成)と入門の節、引数の網羅テストに段4 calling を足した。利用側は mlrig 2か所・SkinWeightKit 4か所・`tests/mlib_integration` 2か所を直した。format_mlib --check OK、mlib テスト 2022/2025/2027 全件成功、Sphinx のビルド成功、run_rig_packages 971件中失敗1件(以前からのコマンド境界監査)、AnimBar 76件・SkinWeightKit 99件・HTools byMlib OK。既定値の食い違い16件は未決(案は `docs/research/mlib-test-coverage/arg-study/formatter/defaults-proposal.md`)。

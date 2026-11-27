@@ -73,6 +73,7 @@ class SetupSamples:
         ("crossedKneeLinkage", "CrossedKneeLinkage - knee with crossed ligaments"),
         ("patellaFollow", "PatellaFollow - kneecap pulled by the patellar tendon"),
         ("scissorLift", "ScissorLift - three-stage scissor lift"),
+        ("umbrella", "Umbrella - eight ribs opened by the runner"),
         ("cableSag", "CableSag - hanging cable between two posts"),
         ("rotationMinimizingFrames", "RotationMinimizingFrames - points"),
         ("rotationMinimizingFramesCurve", "RotationMinimizingFrames - curve"),
@@ -608,6 +609,25 @@ class SetupSamples:
         _output(name + "_platformOut", root, owner + ".platformMatrix", ((6.0, 0.0, 0.0),))
         for role in ("baseSlider", "topSlider"):
             _output("{}_{}Out".format(name, role), root, "{}.{}Matrix".format(owner, role), ((0.0, 0.8, 0.0),))
+        return setup, setup.container
+
+    @classmethod
+    def _umbrella(cls, name, root):
+        """8本骨の傘(親骨のつなぎ目まで4、受け骨5)。containerの ``slide`` (付け根からランナーまでの距離)を
+        小さくすると、ランナー(緑、中棒の上)が上がり、受け骨(緑、ランナーから)に押されて親骨(緑、付け根から)が開く。
+        3で水平、9で閉じ、範囲(1〜9)の外は端で止まって ``excess`` に超えた量が出る。"""
+        from .setups import Umbrella
+
+        count = 8
+        base = _transform(name + "_base", root, translate=(0, 10, 0))
+        setup = Umbrella.create(base, count=count, ribLength=4.0, stretcherLength=5.0, slide=6.0, name=name)
+        owner = str(setup.container)
+        _output(name + "_runnerOut", root, owner + ".runnerMatrix")
+        for index in range(count):
+            _output("{}_rib{}Out".format(name, index), root, "{}.rib{}Matrix".format(owner, index),
+                    ((4.0, 0.0, 0.0), (7.0, 0.0, 0.0)))
+            _output("{}_stretcher{}Out".format(name, index), root, "{}.stretcher{}Matrix".format(owner, index),
+                    ((5.0, 0.0, 0.0),))
         return setup, setup.container
 
     @classmethod

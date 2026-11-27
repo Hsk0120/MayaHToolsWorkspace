@@ -110,6 +110,9 @@
    * - ScissorLift - three-stage scissor lift
      - container
      - containerの ``height`` を変えると、3段のX字の腕(緑、先の子jointが腕の反対の端)が真ん中で交わったまま開閉し、台(緑、上)が上下し、右の滑る足(緑)が左右へ動く。
+   * - Umbrella - eight ribs opened by the runner
+     - container
+     - containerの ``slide`` (付け根からランナーまでの距離)を小さくすると、ランナー(緑)が中棒を上がり、受け骨(緑)に押されて8本の親骨(緑)が開く。3で水平、9で閉じ、範囲(1〜9)の外は端で止まって ``excess`` に超えた量が出る。
    * - CableSag - hanging cable between two posts
      - 右の留め具のlocator
      - ``translateX`` で左へ近づけるほど、2本の柱の間のケーブルの9点(緑)が深く垂れ、containerの ``length`` (既定9.6)以上離すと一直線に張る。

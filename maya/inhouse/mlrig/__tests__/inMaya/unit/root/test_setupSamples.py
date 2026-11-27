@@ -79,6 +79,7 @@ CHANGES = {
     "crossedKneeLinkage": (_set(".flexion", 60.0), "_tibiaOut"),
     "patellaFollow": (_set(".rotateZ", -60.0), "_patellaOut"),
     "scissorLift": (_set(".height", 12.0), "_platformOut"),
+    "umbrella": (_set(".slide", 3.0), "_rib0Out"),
     "cableSag": (_add(".translateX", -2.0), "_cable4Out"),
     "rotationMinimizingFrames": (_add(".translateY", 2.0), "_frame1Out"),
     "rotationMinimizingFramesCurve": (_moveCv, "_frame3Out"),
@@ -149,6 +150,8 @@ CHANGES = {
 #: test_setup_ackermann_steering で確認する)。
 #: ScissorLiftの出力は台の高さから作る腕・台・滑る足で、対応する入力のノードが無いため対象外(作成直後の
 #: 腕の両端が段の支点に乗ることは test_setup_scissor_lift で確認する)。
+#: Umbrellaの出力はランナーの位置から作る親骨・受け骨で、対応する入力のノードが無いため対象外(骨の先が
+#: つなぎ目で一致することは test_umbrella で確認する)。
 #: BodyProportionの出力は体格調整用の骨そのもの(translate・scaleへ接続)なので対象外(作成直後に骨が
 #: 動かないことは test_setup_body_proportion で確認する)。
 #: ComboWeightの出力はウェイトの値(口のブレンドシェイプのウェイトへ接続)で、対応する入力のノードが無いため
