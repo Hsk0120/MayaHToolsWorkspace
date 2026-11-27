@@ -25,7 +25,7 @@ class ApiMethodsTest(unittest.TestCase):
         hp = node.getPlug("tx")
         self.assertEqual(hp.getName(), cp.name())
         for kind, c_name in (("short", "shortName"), ("long", "longName")):
-            self.assertEqual(hp.getAttributeName(kind), getattr(cp, c_name)())
+            self.assertEqual(hp.getAttributeName(kind=kind), getattr(cp, c_name)())
         # アトリビュートのパスは名前の「.」から後ろで取る(mlib に attrName 相当の専用メソッドは無い)。
         self.assertEqual("." + hp.getName().partition(".")[2], cp.attrName())
         self.assertEqual(hp.getNode(), node)
@@ -89,7 +89,7 @@ class ApiMethodsTest(unittest.TestCase):
             for intermediates in (False, True):
                 self.assertEqual([p.getName() for p in h.getChildren(shapes=shapes, intermediates=intermediates)],
                                  [p.name() for p in c.children(shapes, intermediates)])
-        self.assertIsNone(h.getShape(20))
+        self.assertIsNone(h.getShape(index=20))
         mesh = h.getShape()
         self.assertIs(mesh.getShape(), mesh)
         self.assertEqual(mesh.getChildren(), [])

@@ -1485,3 +1485,47 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - **名前を変えたとき**: 互換の別名は残さない。`core/object.py` の `_MEMBER_HINTS`(消した名前の案内。AnimCurve の `getTangent` などと SkinCluster の `mesh`)と、
   `_tools/generate_mlib_stubs.py` の `OVERLOADS`(`getVertexNormals(lockedOnly=)`・`getShader(asPlug=)`・`getJoints(tipOnly=)`・`getDgTimer(kind=)`・
   `getConnections(output=)`)も合わせる。
+
+## 引数の表・検査・フォーマッター(2026-11-27)
+
+2026-11-27のユーザー指定(引数の扱いのフォーマッターが欲しい、引数のテストと文書を厚くしたい、引数の差による問題が気になる)で入れた。
+2026-11-26 に決めた「同じ名前の引数は同じ働き・型・受け方・既定値」のうち、受け方と既定値は誰も検査していなかった。
+実測(公開def 約980個・引数名 約750種)では、同じ名前で位置とキーワード専用が混ざる名前が69種、既定値が違う名前が77種、
+bool を位置で受ける引数が `worldSpace`・`state` のほかに約40個、既定値つきの引数の説明に既定値の記述が無いものが約4割あった。
+
+- **引数の表**: `_tools/check_mlib_arguments.py` の `ARGUMENTS`。2か所以上で使う引数名ごとに、働き・受け方(`kind`)・既定値(`default`)・docstring の型(`type`)・
+  説明の決まり文句(`text`)と、違ってよい def と理由(`kindAllowed`・`defaultAllowed`)を書く。種類ごとに既定が違うものは `default=VARIES` と理由。
+  `check_mlib_layout.py` の L090・L094〜L096 が「同じ名前のメソッドどうし」を比べるのに対して、この表は「同じ名前の引数どうし」を比べる。
+- **検査(A001〜A015)**: A001 キーワード専用の名前を既定値つきの位置引数で受けない、A002 既定値は表と同じ、A003 bool の位置引数は `worldSpace`・`state` だけ、
+  A004 表に無い名前を食い違う形で使わない、A005 使わなくなった許可、A006 引数の一覧のページが古い、A010 docstring の型が既定値を含む、
+  A011 説明に既定値を書く、A012 決まり文句、A013 型の書き方、A014 キーワード専用の引数の並び、A015 `Args:` の並び。
+  `format_mlib.bat` の4番目の手順(5手順になった)で、`[OK]` の条件に入る。
+- **フォーマッター**: `--check` を付けない `format_mlib.bat` が、動きを変えずに直せるものを書き込む: 型へ `| None` を足す、説明の末尾へ「既定は…。」を足す、
+  決まり文句へ書き換える(`ws` は全体、`check` などは古い文の対応表にあるものだけ)、型の書き方を表の形にする、キーワード専用の引数を
+  「その他 → fast → check → safe → 位置引数の短縮名」の順にする、`Args:` を署名の順にする。位置引数をキーワード専用へ変える・既定値を変える・名前を変えるのは、
+  呼び出し側が壊れるので自動では直さない(報告だけ)。省略を番兵(`_UNSET`)で見分ける Maya のフラグの入口は、既定値を Maya に任せるので A011 の対象外。
+  バックスラッシュを含む既定値(`end="\n"`)は docstring を raw にする必要があるので自動では足さない。
+- **キーワード専用へ変えたもの(2026-11-27。互換の別名なし)**: `ShadingEngine.getShader(*, kind=)`・`setShader(shader, *, kind=, output=)`、`SkinCluster.getMode(*, kind=)`・`setMode(value, *, kind=)`、
+  `Plug.getAttributeName(*, kind=)`、`Transform.addConstraint(target, *, type=, maintainOffset=)`、`DagNode`/`Transform.getShape(*, index=)`、
+  `Vector.getClosestAxis(*, includeNegative=)`・`Transform.getClosestAxisToVector(refVector, *, includeNegative=)`、`Reference.getEdits`/`removeEdits(*, successful=, failed=)`、
+  `createCurve(points, degree, *, closed=, knots=)`、`PluginPackage.tryLoad(*, dialog=, warn=)`、`listReferences(*, topLevelOnly=)`、`ScalarGraph.sum(role, left, right, *, subtract=)`、
+  `DagNode.deleteHistory(*, keepDeformers=)`、`Joint.mirror(plane, *, behavior=, searchReplace=)`、`Node.getType(*, inherited=)`、`Node.rename(name, *, ignoreShape=)`、
+  `Node.addAttr(longName, type, subType, *, channelBox=, …)`、`Reference.getFilename(*, resolved=, withCopyNumber=)`・`importContents(*, removeNamespace=)`、
+  `SkinCluster.mirrorWeights(plane, *, positiveToNegative=)`・`unbind(*, keepHistory=)`、`BlendShape.mirrorTarget(target, axis, *, positiveToNegative=, base=)`、
+  `Transform.matchTransform(target, *, position=, rotation=, scale=, pivots=)`、`MultiPlug.removeElement(index, *, shift=)`。
+  位置のまま残したもの(表に理由): 数学型の `tolerance`(om2 と同じ)、`Node.addAttr` の `type`(名前と型を続けて書く)、`NodeRef(name, dagPath, type)`、
+  `Components.pop(index)`(list と同じ)、`MultiPlug.getElement(index)`(主な値)、`BlendShape.resetTargetVertices(target, vertices)`、`bakeResults(nodes, attributes, time)`、`NameMapping(nameMap, replace, namespaceMap)`。
+- **決まり文句**: `fast` は「TrueはUndoなしのOpenMaya更新。既定False。」、`check` は「Trueなら書き込む前に確かめ、問題があれば何も書かずに例外にする。既定はFalseで、
+  確かめずに書く(Mayaが拒否したときだけ例外になる)。」のあとへ「確かめるのは、…。」を続ける、`safe` は「Trueなら、失敗しても例外にしない。既定はFalse。」、
+  `skipExisting` は「Trueなら、すでに目的の状態のときは何もしない。既定はFalse。」、`skipConnected` は「Trueなら、接続があるノードは削除しない。既定はFalse。」、
+  `ws` は「worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。」だけ。
+- **既定値の食い違い**: 動きが変わるので、1件ずつ決めるまで変えていない。表の理由に「未決(2026-11-27)」と書いてある(`worldSpace` が True の5つ、
+  `Plug.connect(unlock=True)`、`children`、`tolerance` の値、`preserve`、`Node.setDgTimer(state=None)` など16件)。案はローカルの
+  `docs/research/mlib-test-coverage/arg-study/formatter/defaults-proposal.md`。`timeOffset` の 0.0 だけは動きが変わらないので 0 へ揃えた。
+- **文書**: Sphinx の「引数の一覧」(`_docs/source/arguments.rst`)は表から自動で作る(早見表と、引数ごとの受け方・既定値・例外と理由・使うメソッドへのリンク)。
+  入門(`getting_started.rst`)に「引数の渡し方」の節を足した。
+- **テスト**: 引数の網羅(`support/argumentSweep.py`)に段4 `test_<メソッド>_calling` を足した。表の「正しい呼び方」を、渡し方だけ変えて呼ぶ:
+  `defaults`=省いた引数へ既定値を明示しても同じ結果、`positional`=位置で渡しても名前で渡したときと同じ、`keywordOnly`=キーワード専用を位置で渡すと TypeError で
+  シーンが変わらない。ツール自身は `noMaya/test_checkMlibArguments.py`。
+- **試して入れなかったもの**: 呼び出し側(利用側のツール)が古い引数名・位置引数を渡していないかを、名前だけで調べる検査。ツール自身の同じ名前の関数と
+  区別できず誤検出が多い(mlib で約2500件)。型スタブと pyright の役目とした。

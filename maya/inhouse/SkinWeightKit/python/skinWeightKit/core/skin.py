@@ -198,8 +198,8 @@ def getSettings(target):
     """
     skin = target.requireSkin()
     return {
-        "skinningMethod": skin.getMode("skinning"),
-        "normalizeWeights": skin.getMode("normalize"),
+        "skinningMethod": skin.getMode(kind="skinning"),
+        "normalizeWeights": skin.getMode(kind="normalize"),
         "maxInfluences": int(skin.getMaxInfluences()),
         "maintainMaxInfluences": skin.getMaxInfluences(maintain=True),
     }
@@ -226,11 +226,11 @@ def setSettings(target, skinningMethod=None, normalizeWeights=None, maxInfluence
     if skinningMethod is not None:
         if skinningMethod not in SKINNING_METHODS:
             raise ValueError("skinningMethod must be one of " + ", ".join(SKINNING_METHODS))
-        skin.setMode(skinningMethod, "skinning")
+        skin.setMode(skinningMethod, kind="skinning")
     if normalizeWeights is not None:
         if normalizeWeights not in NORMALIZE_MODES:
             raise ValueError("normalizeWeights must be one of " + ", ".join(NORMALIZE_MODES))
-        skin.setMode(normalizeWeights, "normalize")
+        skin.setMode(normalizeWeights, kind="normalize")
     if maxInfluences is not None:
         if maxInfluences < 1:
             raise ValueError("maxInfluences must be 1 or more")

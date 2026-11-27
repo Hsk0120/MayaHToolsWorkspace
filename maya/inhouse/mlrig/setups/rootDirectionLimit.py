@@ -333,7 +333,7 @@ class RootDirectionLimit(ScalarGraph):
         # 参照空間のX/Yからuに平行でない軸を選ぶ。縮退時だけ使用する。
         x2 = self.multiply("upX2", u[0], u[0])
         use_y = self.condition("fallbackAxis", x2, 0.5, 1, 0)
-        alternate = self._reject("alternateSide", (self.sum("fallbackX", 1, use_y, True), use_y, 0), u)
+        alternate = self._reject("alternateSide", (self.sum("fallbackX", 1, use_y, subtract=True), use_y, 0), u)
         side = self._normal("bodySide", side, self._normal("alternate", alternate, (1, 0, 0)))
         radial = self._reject("radial", self._add("fromBody", position, center, True), u)
         n = self._normal("outward", radial, side)
@@ -353,7 +353,7 @@ class RootDirectionLimit(ScalarGraph):
         # 反平行でh≈epsilonだけにすると、180度のごく狭い領域で向きが急変する。
         # 奥の半球は軸成分を反射し、真逆付近も入力に近い速度で外側へ戻す。
         forward = self.condition("forwardAxis", c, 0, c, self.multiply("reverseAxis", c, -1))
-        difference = self.sum("boundaryDifference", forward, boundary, True)
+        difference = self.sum("boundaryDifference", forward, boundary, subtract=True)
         square = self.multiply("difference2", difference, difference)
         smooth = owner.getPlug("softness")
         soft2 = self.multiply("softness2", smooth, smooth)

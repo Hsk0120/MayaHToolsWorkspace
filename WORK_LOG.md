@@ -147,9 +147,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| --- | --- | --- | --- |
-
-| --- | --- | --- | --- |
 
 
 
@@ -204,6 +201,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Claude Code (2026-11-27): mlib の引数の表・検査・フォーマッター(`_tools/check_mlib_arguments.py`。A001〜A015。`format_mlib.bat` は5手順)を入れ、bool・kind・type・index の位置引数を約30メソッドでキーワード専用にした(mlib 2773220)。docstring の既定値の記述と決まり文句を揃え、Sphinx に引数の一覧(自動生成)と入門の節、引数の網羅テストに段4 calling を足した。利用側は mlrig 2か所・SkinWeightKit 4か所・`tests/mlib_integration` 2か所を直した。format_mlib --check OK、mlib テスト 2022/2025/2027 全件成功、Sphinx のビルド成功、run_rig_packages 971件中失敗1件(以前からのコマンド境界監査)、AnimBar 76件・SkinWeightKit 99件・HTools byMlib OK。既定値の食い違い16件は未決(案は `docs/research/mlib-test-coverage/arg-study/formatter/defaults-proposal.md`)。
 
 - Claude Code (2026-11-27): 全部の引数を網羅するテストで見つかった mlib 本体の食い違い(findings4 の約150項目)と保留を直した(mlib 0ee1f17)。bool の引数は bool 以外を TypeError、Raises に無い例外は入力を先に確かめて型をそろえる、geometryIndex の既定は None=先頭の形状(すべては all=True)、fast だけの書き込みに check、Reference.remove→removeReference・decimals→ndigits・smoothWeights の tolerance→threshold・Plug.disconnect の source→other・Matrix.extract の part→what、Node.select は add/deselect だけ、Edge/Vertex.getConnected(type=)・Edge.getLength(distanceUnit=) を追加、redo・fast の動きの誤りを修正、表の部品を拡張、core/skinEdit.py を削除。利用側は HTools byMlib 2件・FramePlayer byMlib 1件を直した。format_mlib --check OK、mlib テスト 2022/2025/2027 全件成功、run_rig_packages 971件中失敗1件(以前からのコマンド境界監査)、AnimBar 76件・SkinWeightKit 99件・HTools byMlib OK。その後 createCurve の degree の既定を Maya と同じ3にした。
 
