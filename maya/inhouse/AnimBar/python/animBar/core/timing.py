@@ -1,5 +1,8 @@
 """キーの時間の操作(前後へ動かす・間を空ける/詰める・キーをそろえる)と、値のリセット・全体への反映。"""
 
+import json
+import math
+
 import maya.cmds as cmds
 
 import mlib
@@ -199,16 +202,26 @@ def inspectResetDefaults(channelBoxOnly=False):
 
 def inspectPublishedDefaults():
     """公開ポートの宣言、既定値(UI単位)、実入力とロック状態を照合する。"""
-    ports, unavailable, channels = keys.inspectPublishedChannels()
-    rows = []
-    for path, roles in ports.items():
-        label = ", ".join(f"{role} ({kind})" for role, kind in roles)
-        if path not in channels:
-            unavailable[path] = label + ": Not a keyable scalar"
-            continue
-        kind, _, source, locked = channels[path]
-        default = mlib.getPlug(path).getDefault(uiUnits=True)
-        rows.append((path, default, kind, source, locked, label))
+    rows, unavailable = [], {}
+    for root in cmds.ls(selection=True, long=True, type="transform") or []:
+        ports, missing, channels = keys.inspectPublishedChannels([root])
+        unavailable.update(missing)
+        plug = root + ".mlrigChannelDefaults"
+        captured = json.loads(cmds.getAttr(plug)) if cmds.objExists(plug) else {}
+        if not isinstance(captured, dict):
+            raise ValueError("Invalid published defaults on " + root)
+        for path, roles in ports.items():
+            label = ", ".join(f"{role} ({kind})" for role, kind in roles)
+            if path not in channels:
+                unavailable[path] = label + ": Not a keyable scalar"
+                continue
+            values = [captured[role] for role, _ in roles if role in captured]
+            if any(not isinstance(v, (int, float)) or not math.isfinite(v) or v != values[0] for v in values):
+                unavailable[path] = label + ": Invalid or conflicting saved defaults"
+                continue
+            kind, _, source, locked = channels[path]
+            default = values[0] if values else mlib.getPlug(path).getDefault(uiUnits=True)
+            rows.append((path, default, kind, source, locked, label))
     return rows, unavailable
 
 

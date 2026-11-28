@@ -3,9 +3,10 @@
 import json
 from collections import defaultdict
 
+import mlib
 from maya import cmds
-from maya.api import OpenMaya as om2
 from mlib.decorator import undoTransaction
+from mlib.maths import Matrix, Vector
 
 
 _ATTRIBUTE = "mlrigCharacterMap"
@@ -14,11 +15,11 @@ _MODEL_ID = "mlrigCharacterModelId"
 
 def _inspect(root, mapping):
     """名前空間を除いたモデル内パスを照合し、ルート空間の左右・姿勢を読み取る。"""
-    roots = cmds.ls(root, long=True, transforms=True) or []
+    roots = mlib.ls(root, long=True, transforms=True).getNames(full=True)
     if len(roots) != 1 or not isinstance(mapping, dict) or not mapping:
         raise ValueError("モデルルートを1つ選び、部位別の対応表を指定してください")
     root = roots[0]
-    inverse = om2.MMatrix(cmds.getAttr(root + ".worldInverseMatrix[0]"))
+    inverse = Matrix(cmds.getAttr(root + ".worldInverseMatrix[0]"))
     paths = defaultdict(list)
     for node in cmds.listRelatives(root, allDescendents=True, fullPath=True) or []:
         key = "|".join(p.rsplit(":", 1)[-1] for p in node[len(root) + 1:].split("|"))
@@ -41,8 +42,8 @@ def _inspect(root, mapping):
                 if cmds.nodeType(node) != "transform" or not cmds.listRelatives(node, shapes=True, noIntermediate=True, type="mesh"):
                     issues.append(role + " メッシュの形状がありません: " + key)
                 else:
-                    path = om2.MSelectionList().add(node).getDagPath(0)
-                    center = om2.MFnDagNode(path).boundingBox.center * path.inclusiveMatrix() * inverse
+                    transform = mlib.getNode(node)
+                    center = (transform.getMatrix(ws=True) * inverse).transformPoint(transform.getBoundingBox().center)
                     values[role]["meshSide"] = 1 if center.x > 1e-6 else -1 if center.x < -1e-6 else 0
                 continue
             if cmds.nodeType(node) != "joint":
@@ -51,9 +52,9 @@ def _inspect(root, mapping):
             if node in owners:
                 issues.append("{} と {} が同じ骨を指定: {}".format(owners[node], role, key))
             owners[node] = role
-            matrix = om2.MMatrix(cmds.getAttr(node + ".worldMatrix[0]")) * inverse
+            matrix = Matrix(cmds.getAttr(node + ".worldMatrix[0]")) * inverse
             x = matrix[12]
-            axes = [list(om2.MVector(*list(matrix)[i:i + 3]).normal()) for i in (0, 4, 8)]
+            axes = [list(Vector(*list(matrix)[i:i + 3]).normal()) for i in (0, 4, 8)]
             values[role].update(side=1 if x > 1e-6 else -1 if x < -1e-6 else 0, axes=axes)
     return values, issues
 
@@ -68,7 +69,7 @@ def record(root, modelId, mapping):
     values, issues = _inspect(root, mapping)
     if issues:
         raise ValueError("\n".join(issues))
-    node = cmds.createNode("network", name="characterMap#", skipSelect=True)
+    node = mlib.createNode("network", name="characterMap#", skipSelect=True).getName()
     cmds.addAttr(node, longName=_ATTRIBUTE, dataType="string")
     data = dict(version=1, modelId=modelId, original=mapping, working=mapping, baseline=values)
     cmds.setAttr(node + "." + _ATTRIBUTE, json.dumps(data, ensure_ascii=False), type="string")
@@ -101,7 +102,7 @@ def compare(node, root, modelId, mapping=None):
             issues.append(role + " 左右位置が異なります")
         if "meshSide" in new and old.get("meshSide") != new["meshSide"]:
             issues.append(role + " 形状の左右位置が異なります")
-        if "axes" in new and any(om2.MVector(*a) * om2.MVector(*b) < 0.99999 for a, b in zip(old["axes"], new["axes"])):
+        if "axes" in new and any(Vector(*a) * Vector(*b) < 0.99999 for a, b in zip(old["axes"], new["axes"])):
             issues.append(role + " 骨の軸方向が異なります")
     return sorted(issues)
 
@@ -132,7 +133,7 @@ def show():
     status = cmds.scrollField(editable=False, height=90)
 
     def act(action):
-        selected = cmds.ls(selection=True, long=True) or []
+        selected = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
         mid = cmds.textFieldGrp(identifier, query=True, text=True)
         if action == "id" and len(selected) == 1:
             _assign_id(selected[0], mid)
@@ -146,7 +147,7 @@ def show():
         entries = json.loads(cmds.scrollField(mapping, query=True, text=True))
         if action == "record" and len(selected) == 1:
             node = record(selected[0], mid, entries)
-            cmds.select(node, replace=True)
+            mlib.select(node, replace=True)
             message = "基準を記録: " + node
         elif action in ("compare", "save") and len(selected) == 2:
             node, root = selected

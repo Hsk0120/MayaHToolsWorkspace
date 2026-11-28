@@ -1,7 +1,7 @@
 """4点から右手座標系を作り、親のスケールに依存しない補助ガイドを配置する。"""
 
+import mlib
 from maya import cmds
-from maya.api import OpenMaya as om2
 from mlib.decorator import undoTransaction
 
 
@@ -10,8 +10,8 @@ def create(tips, parent=None):
     """X先端・原点・Y先端・Z先端から直交軸を求め、補助トランスフォームを返す。"""
     if len(tips) != 4 or len(set(tips)) != 4 or not all(cmds.objectType(n, isAType="transform") for n in tips):
         raise ValueError("X先端、原点、Y先端、Z先端の異なる4点を選択してください")
-    paths = [om2.MSelectionList().add(n).getDagPath(0) for n in tips]
-    points = [om2.MPoint() * p.inclusiveMatrix() for p in paths]
+    paths = [mlib.getNode(n) for n in tips]
+    points = [p.getMatrix(ws=True).translate for p in paths]
     axes = [(points[i] - points[1]).normal() for i in (0, 2, 3)]
     if (axes[0] ^ axes[1]) * axes[2] <= 1e-6:
         raise ValueError("ガイドが同一点・共線・同一平面または反転しています")
@@ -19,7 +19,7 @@ def create(tips, parent=None):
     members = []
 
     def node(kind):
-        name = cmds.createNode(kind, name="fourPoint" + kind[0].upper() + kind[1:] + "#", skipSelect=True)
+        name = mlib.createNode(kind, name="fourPoint" + kind[0].upper() + kind[1:] + "#", skipSelect=True).getName()
         members.append(name)
         return name
 
@@ -35,7 +35,7 @@ def create(tips, parent=None):
     coords = []
     for path in paths:
         dec = node("decomposeMatrix")
-        cmds.connectAttr("{}.worldMatrix[{}]".format(path.fullPathName(), path.instanceNumber()), dec + ".inputMatrix")
+        cmds.connectAttr("{}.worldMatrix[{}]".format(path.getName(full=True), path.getInstanceIndex()), dec + ".inputMatrix")
         coords.append(dec + ".outputTranslate")
     directions = []
     for i in (0, 2, 3):
@@ -71,15 +71,15 @@ def create(tips, parent=None):
     result = node("multMatrix")
     cmds.connectAttr(choice + ".output", result + ".matrixIn[0]")
     cmds.connectAttr(position + ".outputMatrix", result + ".matrixIn[1]")
-    output = cmds.createNode("transform", name="fourPointGuide#", **({"parent": parent} if parent else {}))
+    output = mlib.createNode("transform", name="fourPointGuide#", **({"parent": parent} if parent else {})).getName()
     if parent:
-        path = om2.MSelectionList().add(parent).getDagPath(0)
-        cmds.connectAttr("{}.worldInverseMatrix[{}]".format(path.fullPathName(), path.instanceNumber()), result + ".matrixIn[2]")
+        path = mlib.getNode(parent)
+        cmds.connectAttr("{}.worldInverseMatrix[{}]".format(path.getName(full=True), path.getInstanceIndex()), result + ".matrixIn[2]")
     cmds.connectAttr(result + ".matrixSum", output + ".offsetParentMatrix")
     cmds.container(owner, edit=True, addNode=members)
     cmds.addAttr(output, longName="mlrigFourPointFrame", attributeType="message")
     cmds.connectAttr(owner + ".message", output + ".mlrigFourPointFrame")
-    cmds.select(output)
+    mlib.select(output)
     return output
 
 
@@ -97,6 +97,6 @@ def release(output):
     matrix = cmds.getAttr(plug)
     cmds.disconnectAttr(source, plug)
     cmds.setAttr(plug, *matrix, type="matrix")
-    cmds.delete(owner)
+    mlib.delete(owner)
     cmds.deleteAttr(marker)
     return output

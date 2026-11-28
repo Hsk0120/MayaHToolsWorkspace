@@ -14,6 +14,7 @@ def main(output_dir, finished):
     from shiboken6 import wrapInstance
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "SimplePhysics" / "scripts"))
     from simpleCloth import api, ui
 
     cmds.file(new=True, force=True)
@@ -36,11 +37,11 @@ def main(output_dir, finished):
     checks = {label: label in visible for label in labels}
     checks["positive_speed"] = cmds.getAttr(node + ".peakParticleSpeed") > 0
     checks["fixed_count"] = cmds.getAttr(node + ".pinnedVertexCount") == 3
-    buttons = {cmds.button(item, query=True, label=True): item for item in cmds.lsUI(type="button", long=True) or []
-               if item.startswith(window + "|")}
-
     def click(label):
-        control = wrapInstance(int(omui.MQtUtil.findControl(buttons[label])), QtWidgets.QPushButton)
+        # Setups and Undo may rebuild the panel. Resolve the current control at click time.
+        control_name = next(item for item in cmds.lsUI(type="button", long=True) or []
+                            if item.startswith(window + "|") and cmds.button(item, query=True, label=True) == label)
+        control = wrapInstance(int(omui.MQtUtil.findControl(control_name)), QtWidgets.QPushButton)
         control.click()
 
     cmds.currentTime(12)
@@ -66,6 +67,13 @@ def main(output_dir, finished):
     checks["curve_capsules_undo"] = cmds.ls(selection=True) == [curve] and not any(cmds.objExists(guide) for guide in guides)
     cmds.redo()
     checks["curve_capsules_redo"] = cmds.ls(selection=True, long=True) == guides
+    cmds.select(clear=True)
+    field = cmds.radial(position=(0, 4, 0), magnitude=10, attenuation=1)[0]
+    cmds.select(field)
+    click("Attach Selected Static Maya Field")
+    checks["field_attached"] = bool(cmds.listConnections(node + ".fieldForces", source=True, destination=False))
+    click("Detach Selected Maya Field")
+    checks["field_detached"] = not cmds.listConnections(node + ".fieldForces", source=True, destination=False)
     result = {"status": "passed" if all(checks.values()) else "failed", "checks": checks}
     (Path(output_dir) / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     finished(result)

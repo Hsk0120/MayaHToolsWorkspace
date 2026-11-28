@@ -4,7 +4,42 @@ from pathlib import Path
 
 import maya.cmds as cmds
 
+from mlib.decorator import undoTransaction
+
 from HTools.system.pluginDependencies import dependencies, savedRequirements
+
+
+def displayInfo(root):
+    """ローカルのリグルートに保存した表示ラベルと版を取得する。"""
+    if not cmds.objExists(root + ".mlrigDefinition"):
+        raise ValueError("Choose a rig root containing mlrigDefinition.")
+    result = []
+    for attr in ("htAssetLabel", "htAssetVersion"):
+        plug = root + "." + attr
+        if cmds.objExists(plug) and cmds.getAttr(plug, type=True) != "string":
+            raise ValueError("Unexpected metadata type: " + plug)
+        result.append((cmds.getAttr(plug) or "") if cmds.objExists(plug) else "")
+    return tuple(result)
+
+
+@undoTransaction("Update Rig Display Information")
+def updateInfo(root, label, version):
+    """シーン保存の対象となるリグの表示情報だけを更新する。"""
+    displayInfo(root)
+    if not label.strip() or not version.strip():
+        raise ValueError("Enter a label and version.")
+    if cmds.referenceQuery(root, isNodeReferenced=True) or cmds.lockNode(root, query=True, lock=True)[0]:
+        raise ValueError("Choose an editable local rig root.")
+    for attr in ("htAssetLabel", "htAssetVersion"):
+        plug = root + "." + attr
+        if cmds.objExists(plug) and (not cmds.getAttr(plug, settable=True) or cmds.connectionInfo(plug, isDestination=True)):
+            raise ValueError("Metadata is locked or driven: " + plug)
+    for attr, value in (("htAssetLabel", label), ("htAssetVersion", version)):
+        plug = root + "." + attr
+        if not cmds.objExists(plug):
+            cmds.addAttr(root, longName=attr, dataType="string")
+        cmds.setAttr(plug, value, type="string")
+    return displayInfo(root)
 
 
 def inspect(root):
@@ -17,6 +52,9 @@ def inspect(root):
             "Maya version: " + cmds.about(version=True)]
     version_attr = root + ".version"
     rows.append("Asset version: " + (str(cmds.getAttr(version_attr)) if cmds.objExists(version_attr) else "Not declared"))
+    if cmds.objExists(root + ".mlrigDefinition"):
+        label, display_version = displayInfo(root)
+        rows.extend(["Display label: " + label, "Display version: " + display_version])
     rows.append("Published ports:")
     rows.extend(f"  {role}: {plug}" for role, plug in sorted(resolved.items()))
     rows.extend(f"  {role}: Missing target" for role in sorted(missing))
@@ -52,6 +90,22 @@ def run():
         cmds.scrollField(report, edit=True, text="\n".join(rows))
 
     cmds.button(label="Inspect selected rig and scene dependencies", command=refresh)
+    label = cmds.textFieldGrp(label="Display label")
+    version = cmds.textFieldGrp(label="Display version")
+
+    def metadata(save):
+        roots = cmds.ls(selection=True, long=True, transforms=True) or []
+        if len(roots) != 1:
+            raise ValueError("Select one rig root.")
+        if save:
+            updateInfo(roots[0], cmds.textFieldGrp(label, query=True, text=True),
+                       cmds.textFieldGrp(version, query=True, text=True))
+        for control, value in zip((label, version), displayInfo(roots[0])):
+            cmds.textFieldGrp(control, edit=True, text=value)
+        refresh()
+
+    cmds.button(label="Read selected rig display information", command=lambda *_: metadata(False))
+    cmds.button(label="Update selected rig display information", command=lambda *_: metadata(True))
     refresh()
     cmds.showWindow(window)
 

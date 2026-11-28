@@ -14,7 +14,7 @@ from mlib.common import ScriptJob, Selection, Time
 from mlib.decorator import undoChunk
 from mlib.json import AnimationSnapshot, PoseSnapshot
 
-from ..core import (animCopy, counterMotion, crashRecovery, keyPresets, keys, keyTransform, mirror, motionPath, poseClip, selectSets, spaceTools, tangents,
+from ..core import (animCopy, counterMotion, crashRecovery, keyPresets, keys, keyTransform, mirror, motionPath, poseClip, rigChannels, selectSets, spaceTools, tangents,
                     timeDriver, timeline, timing, tween, viewTools)
 from . import icons, preferences
 from .qt import QtCore, QtGui, QtWidgets, wrapInstance
@@ -564,7 +564,7 @@ class AnimBar(QtWidgets.QWidget):
         _action(menu, "Apply noise with seed...", self._seeded_noise)
         _action(menu, "Preview noise by unit...", self._preview_noise)
         _action(menu, "Inspect selected channels...", self._inspect_channels)
-        presets = menu.addMenu("Key edit presets")
+        presets = _submenu(menu, "Key edit presets", "Save or apply the current key edit settings.")
         _action(presets, "Save current mode...", self._save_key_preset)
         for name, settings in sorted(keyPresets.presets().items()):
             item = presets.addMenu(name)
@@ -971,15 +971,91 @@ class AnimBar(QtWidgets.QWidget):
             else:
                 snapshot.apply(namespaceMap=mapping)
 
+    def _register_pose_side(self):
+        """選択クリップを側ラベル付きで登録する。"""
+        clips, groups = poseClip._selection()
+        if len(groups) != 1 or not clips:
+            raise ValueError("Select one group and one or more existing pose clips.")
+        side, ok = QtWidgets.QInputDialog.getItem(self, "Register pose clips", "Side", ["Left", "Right", "Center"], 0, False)
+        if not ok:
+            return
+        weight, ok = QtWidgets.QInputDialog.getItem(self, "Register pose clips", "Clip weight", ["Keep", "Reset to zero"], 0, False)
+        if ok:
+            poseClip.registerClips(groups[0], clips, side, resetWeight=weight == "Reset to zero")
+
+    def _select_control_color(self):
+        """見本と探索ルートを指定し、色の一致した制御を選ぶ。"""
+        selected = cmds.ls(selection=True, long=True) or []
+        if len(selected) != 2:
+            raise ValueError("Select a sample curve control, then the rig root.")
+        tolerance, ok = QtWidgets.QInputDialog.getDouble(self, "Match control color", "RGB distance tolerance", 0.01, 0, 2, 4)
+        if ok:
+            matches = rigChannels.controlsByColor(selected[0], selected[1], tolerance)
+            if matches:
+                cmds.select(matches, replace=True)
+            else:
+                _warn("No matching controls.")
+
+    def _remove_rig_keys(self):
+        """削除対象の時間曲線・件数・保護状態を表示して適用する。"""
+        roots = cmds.ls(selection=True, long=True) or []
+        if len(roots) != 1:
+            raise ValueError("Select the rig root or unit transform.")
+        modes = ["Root or unit and descendants", "Selected root or unit only", "Published channels only"]
+        mode, ok = QtWidgets.QInputDialog.getItem(self, "Preview key removal", "Scope", modes, 0, False)
+        if not ok:
+            return
+        start, end = Time.getRange()
+        scope = dict(descendants=mode == modes[0], published=mode == modes[2])
+        rows = rigChannels.previewKeyRemoval(roots[0], start, end, **scope)
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle("Preview key removal")
+        dialog.setText("{} removable keys on direct animation curves, frames {} to {}.".format(
+            sum(len(times) for _, _, times, protected in rows if not protected), start, end))
+        dialog.setDetailedText("\n".join("{}   {}   {} keys{}".format(plug, curve, len(times), " (protected)" if protected else "")
+                                          for plug, curve, times, protected in rows) or "No matching keys.")
+        dialog.setStandardButtons(QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Cancel)
+        dialog.setDefaultButton(QtWidgets.QMessageBox.Cancel)
+        if dialog.exec_() == QtWidgets.QMessageBox.Ok:
+            rigChannels.removePreviewedKeys(roots[0], start, end, rows, **scope)
+
+    def _bake_wheel(self):
+        """選択した車輪と車軸の成分を指定してベイクする。"""
+        selected = cmds.ls(selection=True, long=True) or []
+        if len(selected) not in (1, 2):
+            raise ValueError("Select the wheel transform, optionally followed by its axle.")
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Bake wheel in playback range")
+        layout = QtWidgets.QVBoxLayout(dialog)
+        boxes = []
+        for label in ("Roll (wheel rotateX)", "Yaw (axle rotateY)", "Heave (axle translateXYZ)"):
+            box = QtWidgets.QCheckBox(label)
+            box.setChecked(True)
+            layout.addWidget(box)
+            boxes.append(box)
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec_():
+            rigChannels.bakeWheelChannels(selected[0], *Time.getRange(), axle=selected[-1],
+                                         roll=boxes[0].isChecked(), yaw=boxes[1].isChecked(), heave=boxes[2].isChecked())
+
     def _copy_menu(self, menu):
         """アニメーションのコピー範囲と事前確認の操作を表示する。"""
         _action(menu, "Save selected pose to file...", lambda: self._save_snapshot(PoseSnapshot))
         _action(menu, "Save selected animation to file...", lambda: self._save_snapshot(AnimationSnapshot))
-        _action(menu, "Capture selected controls as pose clip", poseClip.captureSelected)
-        _action(menu, "Rebuild selected pose clip from selected controls", poseClip.rebuildSelected)
-        _action(menu, "Restore selected pose clip", poseClip.restoreSelected)
+        _action(menu, "Capture selected controls as pose clip", poseClip.captureSelected,
+                tip="Create a pose clip from the selected controls.")
+        _action(menu, "Register pose clips with left / right / center label...", self._register_pose_side,
+                tip="Select existing clips and their destination group.")
+        _action(menu, "Rebuild selected pose clip from selected controls", poseClip.rebuildSelected,
+                tip="Select the stored clip and controls to replace its saved pose.")
+        _action(menu, "Restore selected pose clip", poseClip.restoreSelected,
+                tip="Apply the selected clip at its current pose weight.")
         _action(menu, "Preview selected pose clips...", lambda: poseClip.previewSelectedBlend(self._confirm_pose_blend))
-        _action(menu, "Blend pose group in hierarchy order (clip weights)", poseClip.restoreSelectedGroup)
+        _action(menu, "Blend pose group in hierarchy order (clip weights)", poseClip.restoreSelectedGroup,
+                tip="Select a group to combine its clips in DAG order.")
         menu.addSeparator()
         _action(menu, "Preview copy channels...", self._preview_copy)
         _action(menu, "Export keys and static values...", self._export_clip)
@@ -991,13 +1067,25 @@ class AnimBar(QtWidgets.QWidget):
         _action(menu, "Preview playback range copy...", lambda: self._preview_copy(Time.getRange()))
         _action(menu, "Cancel reference motion on selected buffers", counterMotion.applySelected,
                 tip="Select the moving reference first, followed by unused root-level rig buffers.")
-        _action(menu, "Remove counter motion from selected buffers", counterMotion.removeSelected)
+        _action(menu, "Remove counter motion from selected buffers", counterMotion.removeSelected,
+                tip="Select the generated counter-motion buffers to remove their compensating keys.")
+        _action(menu, "Preview rig / unit / published key removal...", self._remove_rig_keys,
+                tip="Select one root or unit to inspect directly connected time curves before removing keys.")
+        _action(menu, "Bake wheel roll, yaw and heave...", self._bake_wheel,
+                tip="Select the wheel, optionally followed by its axle; choose channels in the dialog.")
+        _action(menu, "Add live handles to selected path CVs", motionPath.addSelectedHandles,
+                tip="Select editable path CVs to add one live cluster handle per point.")
+        _action(menu, "Remove selected path handles", motionPath.removeSelectedHandles,
+                tip="Remove the selected AnimBar handles and their deformation.")
         _action(menu, "Bake travel distance along path...", self._bake_motion_path,
                 tip="Select source control, path, then an empty root-level output transform.")
-        _action(menu, "Attach shared time driver to selected curves", timeDriver.attachSelected)
-        _action(menu, "Remove selected time driver", timeDriver.detachSelected)
+        _action(menu, "Attach shared time driver to selected curves", timeDriver.attachSelected,
+                tip="Connect the selected animation curves to a shared time input.")
+        _action(menu, "Remove selected time driver", timeDriver.detachSelected,
+                tip="Restore the driven curves to their previous time input.")
         for step in (2, 3):
-            _action(menu, "Copy time-driven controls on {}s".format(step), functools.partial(animCopy.copyTimeDrivenSteps, step))
+            _action(menu, "Copy time-driven controls on {}s".format(step), functools.partial(animCopy.copyTimeDrivenSteps, step),
+                    tip="Sample time-driven controls in playback range at the indicated interval.")
         _action(menu, "Preview stepped bake...", self._preview_step_bake)
         _action(menu, "Copy stepped playback range in seconds", animCopy.copySteppedRange,
                 tip="Copy stepped curves spanning the playback range. Paste preserves their timing in seconds across frame rates.")
@@ -1109,7 +1197,8 @@ class AnimBar(QtWidgets.QWidget):
     def _reset_menu(self, menu):
         """リセットするアトリビュートの組。"""
         _action(menu, "Set highlighted channel value...", lambda: self._edit_channel("value"))
-        _action(menu, "Toggle highlighted channel lock", lambda: self._edit_channel("lock"))
+        _action(menu, "Toggle highlighted channel lock", lambda: self._edit_channel("lock"),
+                tip="Lock or unlock the highlighted attributes in the Channel Box.")
         _action(menu, "Inspect selected key defaults...", self._inspect_reset_keys,
                 tip="Show selected key inputs and their reset values in scene units.")
         _action(menu, "Inspect attribute defaults...", self._inspect_reset_defaults,
@@ -1377,7 +1466,10 @@ class AnimBar(QtWidgets.QWidget):
 
     def _sets_menu(self, menu):
         """選択セット全体の操作。"""
-        _action(menu, "Reverse selected controls", selectSets.reverseSelection)
+        _action(menu, "Match curve control color under root...", self._select_control_color,
+                tip="Select a curve control followed by the hierarchy to search.")
+        _action(menu, "Reverse selected controls", selectSets.reverseSelection,
+                tip="Reverse the selection order of the selected controls.")
         _action(menu, "Refresh", self.refreshSets,
                 tip="Rebuild the set buttons from the select sets in the scene.")
         _action(menu, "Export select sets...", self._export_sets,

@@ -1,6 +1,7 @@
 """明示したリグ部品の仕上げ設定を個別に診断・適用する。"""
 
 import maya.cmds as cmds
+from mlib.decorator import undoTransaction
 
 _RULES = {
     "Hide setup transform": (("visibility", False),),
@@ -26,6 +27,52 @@ def inspect(node, rule):
         if value != expected:
             changes.append((plug, value, expected))
     return changes
+
+
+def copyPlan(root, rule):
+    """複製に適用するルート規則、不要な中間形状と元の材質を列挙する。"""
+    paths = cmds.ls(root, long=True, transforms=True) or []
+    if len(paths) != 1:
+        raise ValueError("Select one transform.")
+    root = paths[0]
+    shapes = cmds.listRelatives(root, allDescendents=True, shapes=True, fullPath=True) or []
+    unused = []
+    materials = {}
+    for shape in shapes:
+        if cmds.getAttr(shape + ".intermediateObject"):
+            destinations = cmds.listConnections(shape, source=False, destination=True, plugs=True) or []
+            if not destinations and len(cmds.listRelatives(shape, allParents=True) or []) == 1:
+                unused.append(shape)
+        elif cmds.nodeType(shape) == "mesh":
+            materials[shape] = sorted(set(cmds.listConnections(shape, type="shadingEngine") or []))
+    return dict(root=root, attributes=inspect(root, rule), intermediates=unused, materials=materials)
+
+
+@undoTransaction("Create Clean Export Duplicate")
+def duplicateForExport(root, rule):
+    """選択した枝を複製し、そのコピーにだけ仕上げ規則を適用する。"""
+    if not cmds.undoInfo(query=True, state=True) or cmds.autoKeyframe(query=True, state=True):
+        raise ValueError("Enable Undo and disable Auto Key.")
+    plan = copyPlan(root, rule)
+    root = plan["root"]
+    parent, leaf = root.rsplit("|", 1)
+    duplicate = cmds.duplicate(root, returnRootsOnly=True, renameChildren=False,
+                               name=leaf.rsplit(":", 1)[-1] + "_export")[0]
+    target = parent + "|" + duplicate.rsplit("|", 1)[-1]
+    if not cmds.objExists(target):
+        raise RuntimeError("Cannot resolve export duplicate.")
+    # 入力グラフを共有しない複製で再診断する。元に履歴がある中間形状も事前表示の範囲だけを処理する。
+    copied = copyPlan(target, rule)
+    for plug, _, value in copied["attributes"]:
+        if not cmds.getAttr(plug, settable=True) or cmds.connectionInfo(plug, isDestination=True):
+            raise ValueError("Duplicate attribute cannot be changed: " + plug)
+        cmds.setAttr(plug, value)
+    # 複製時の子の改名を避けて元との相対パスを保つ場合だけ除去できる。
+    for source in plan["intermediates"]:
+        child = target + source[len(root):]
+        if child in copied["intermediates"]:
+            cmds.delete(child)
+    return target
 
 
 def run():
@@ -75,6 +122,22 @@ def run():
 
     cmds.button(label="Diagnose selected rule", command=lambda *_: update(False))
     cmds.button(label="Apply selected display rule", command=lambda *_: update(True))
+    def exportCopy(apply):
+        roots = cmds.ls(selection=True, long=True, transforms=True) or []
+        if len(roots) != 1:
+            raise ValueError("Select one transform to duplicate.")
+        rule = cmds.optionMenu(menu, query=True, value=True)
+        plan = copyPlan(roots[0], rule)
+        rows = ["Source: " + plan["root"]]
+        rows.extend(f"{plug}: {old} -> {new}" for plug, old, new in plan["attributes"])
+        rows.extend("Unused intermediate: " + path for path in plan["intermediates"])
+        rows.extend(f"Materials: {path} {', '.join(sets)}" for path, sets in plan["materials"].items())
+        if apply:
+            rows.append("Export duplicate: " + duplicateForExport(roots[0], rule))
+        cmds.scrollField(report, edit=True, text="\n".join(rows))
+
+    cmds.button(label="Preview export duplicate cleanup", command=lambda *_: exportCopy(False))
+    cmds.button(label="Create cleaned export duplicate", command=lambda *_: exportCopy(True))
     cmds.showWindow(window)
 
 

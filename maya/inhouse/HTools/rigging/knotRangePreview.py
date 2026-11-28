@@ -46,6 +46,57 @@ def preview(shape, u_range, v_range):
     return [axis[0] for axis in axes], max(distances), sorted(set(sinks))
 
 
+def compareSubdivision(shape, spans_u, spans_v, guide_uv):
+    """一時的なDG演算で等間隔に再構築し、境界・法線・ガイド位置の差を返す。"""
+    if any(type(value) is not int or value < 1 for value in (spans_u, spans_v)):
+        raise ValueError("Enter positive U and V span counts.")
+    selected = om.MSelectionList()
+    selected.add(shape)
+    path = selected.getDagPath(0)
+    if not path.node().hasFn(om.MFn.kNurbsSurface):
+        raise ValueError("Select one NURBS surface shape.")
+    source = om.MFnNurbsSurface(path)
+    u_range, v_range = source.knotDomainInU, source.knotDomainInV
+    if len(guide_uv) != 2 or not all(bounds[0] <= value <= bounds[1] for bounds, value in zip((u_range, v_range), guide_uv)):
+        raise ValueError("Enter a guide UV inside the original knot domain.")
+    # 一時DGノードの生成・接続・除去はユーザーのUndoキューに積まない。
+    modifier = om.MDGModifier()
+    rebuild = om.MFnDependencyNode(modifier.createNode("rebuildSurface"))
+    shape_fn = om.MFnDependencyNode(path.node())
+    modifier.connect(shape_fn.findPlug("local", False), rebuild.findPlug("inputSurface", False))
+    for name, value in (("rebuildType", 0), ("direction", 2), ("keepRange", 1), ("spansU", spans_u),
+                        ("spansV", spans_v), ("degreeU", source.degreeInU), ("degreeV", source.degreeInV)):
+        modifier.newPlugValueInt(rebuild.findPlug(name, False), value)
+    modifier.doIt()
+    try:
+        output_data = rebuild.findPlug("outputSurface", False).asMObject()
+        changed = om.MFnNurbsSurface(output_data)
+        matrix = path.inclusiveMatrix()
+
+        def distance(u, v):
+            return (source.getPointAtParam(u, v) * matrix).distanceTo(changed.getPointAtParam(u, v) * matrix)
+
+        maximum = boundary = normal_angle = 0.0
+        invalid_normals = 0
+        for i in range(11):
+            u = u_range[0] + (u_range[1] - u_range[0]) * i / 10
+            for j in range(11):
+                v = v_range[0] + (v_range[1] - v_range[0]) * j / 10
+                delta = distance(u, v)
+                maximum = max(maximum, delta)
+                if i in (0, 10) or j in (0, 10):
+                    boundary = max(boundary, delta)
+                first, second = (fn.normal(u, v).transformAsNormal(matrix) for fn in (source, changed))
+                if first.length() and second.length():
+                    normal_angle = max(normal_angle, math.degrees(first.angle(second)))
+                else:
+                    invalid_normals += 1
+        return dict(spans=(changed.numSpansInU, changed.numSpansInV), surfaceCm=maximum, boundaryCm=boundary,
+                    normalDegrees=normal_angle, undefinedNormals=invalid_normals, guideCm=distance(*guide_uv))
+    finally:
+        modifier.undoIt()
+
+
 def run():
     """選択形状の範囲と下流の接続先を確認する。"""
     window = "HToolsKnotRangePreview"
@@ -77,6 +128,19 @@ def run():
         cmds.scrollField(report, edit=True, text="\n".join(rows))
 
     cmds.button(label="Preview on geometry copy", command=inspect)
+    spans = cmds.intFieldGrp(label="Uniform spans U / V", numberOfFields=2, value1=4, value2=4)
+    guide = cmds.floatFieldGrp(label="Guide U / V (knot units)", numberOfFields=2, value1=0.5, value2=0.5)
+
+    def subdivision(*_):
+        nodes = cmds.ls(selection=True, long=True) or []
+        shapes = cmds.ls(nodes, dag=True, type="nurbsSurface", noIntermediate=True, long=True) if nodes else []
+        if len(shapes) != 1:
+            raise ValueError("Select one NURBS surface.")
+        su, sv = cmds.intFieldGrp(spans, query=True, value=True)[:2]
+        result = compareSubdivision(shapes[0], su, sv, cmds.floatFieldGrp(guide, query=True, value=True)[:2])
+        cmds.scrollField(report, edit=True, text="\n".join(f"{key}: {value}" for key, value in result.items()))
+
+    cmds.button(label="Compare uniform surface subdivision", command=subdivision)
     cmds.showWindow(window)
 
 

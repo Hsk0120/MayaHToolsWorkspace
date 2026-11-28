@@ -1,48 +1,76 @@
 """スキン面上の重心座標から、補正値または小物の追従ウェイトを求める。"""
 
+import mlib
 from maya import cmds
-from maya.api import OpenMaya as om2
-from maya.api import OpenMayaAnim as oma2
+from mlib import getNode
+from mlib.maths import Vector
 from mlib.decorator import undoTransaction
 
 
 def sample(mesh, locator, face=None):
     """最近接三角形の3頂点でスキンウェイトを線形補間する。faceで探索を1面に限定できる。"""
-    path = om2.MSelectionList().add(mesh).getDagPath(0)
-    if not path.node().hasFn(om2.MFn.kMesh):
+    shape = getNode(mesh)
+    if shape.getType() != "mesh":
         raise ValueError("メッシュのシェイプを指定してください")
-    shape = path.fullPathName()
-    skins = []
-    for node in cmds.ls(cmds.listHistory(shape, pruneDagObjects=True) or [], type="skinCluster") or []:
-        fn = oma2.MFnSkinCluster(om2.MSelectionList().add(node).getDependNode(0))
-        if path.node() in fn.getOutputGeometry():
-            skins.append(fn)
+    skins = [skin for skin in shape.getHistory(type="skinCluster")
+             if shape.getUuid() in {target.getUuid() for target in skin.getGeometry(all=True)}]
     if len(skins) != 1:
         raise ValueError("選択メッシュに直接対応するスキンクラスタが1つ必要です")
-    fn = skins[0]
-    world_mesh = om2.MFnDagNode(path).findPlug("worldMesh", False).elementByLogicalIndex(path.instanceNumber()).asMObject()
-    intersector = om2.MMeshIntersector()
+    skin = skins[0]
+    point = getNode(locator).getTranslation(ws=True)
+    fn = shape.mfn()
     if face is None:
-        intersector.create(world_mesh, om2.MMatrix())
-    else:
-        if face < 0 or face >= om2.MFnMesh(world_mesh).numPolygons:
+        matrix = shape.getPlug("worldMatrix")[shape.getInstanceIndex()].get()
+        axes = [Vector(*list(matrix)[i:i+3]) for i in (0, 4, 8)]
+        squared = [axis * axis for axis in axes]
+        tolerance = max(squared) * 1e-12
+        # 相似変換ならMayaの最近面をそのまま使える。非一様スケール・シアーでは
+        # オブジェクト空間で遠い面がワールド空間で近くなる場合がある。
+        if min(squared) > 0 and max(squared) - min(squared) <= tolerance and all(
+            abs(axes[i] * axes[j]) <= tolerance for i, j in ((0, 1), (1, 2), (2, 0))
+        ):
+            _, face = shape.getClosestPoint(point, ws=True)
+    if face is not None:
+        if not 0 <= face < shape.getNumPolygons():
             raise ValueError("面の番号が範囲外です")
-        intersector.create(world_mesh, om2.MMatrix(), [face])
-    transform = om2.MSelectionList().add(locator).getDagPath(0)
-    point = om2.MPoint() * transform.inclusiveMatrix()
-    hit = intersector.getClosestPoint(point)
-    indices = om2.MFnMesh(world_mesh).getPolygonTriangleVertices(hit.face, hit.triangle)
-    a, b = hit.barycentricCoords
-    infs = fn.influenceObjects()
-    totals = [0.0] * len(infs)
-    for i, factor in zip(indices, (a, b, 1 - a - b)):
-        comp = om2.MFnSingleIndexedComponent()
-        obj = comp.create(om2.MFn.kMeshVertComponent)
-        comp.addElement(i)
-        weights, _ = fn.getWeights(path, obj)
-        for j, weight in enumerate(weights):
-            totals[j] += factor * weight
-    return hit.face, {joint.fullPathName(): weight for joint, weight in zip(infs, totals)}
+        triangles = [(face, list(fn.getPolygonTriangleVertices(face, i))) for i in range(shape.getFaces(face).getTriangleCount())]
+        indices = {i for _, vertices in triangles for i in vertices}
+        positions = {i: shape.getVertices(i).getPosition(ws=True) for i in indices}
+    else:
+        positions = shape.getPoints(ws=True)
+        counts, ids = fn.getTriangles()
+        indices = iter(ids)
+        triangles = ((index, (next(indices), next(indices), next(indices))) for index, count in enumerate(counts) for _ in range(count))
+
+    best = None
+    for index, vertices in triangles:
+        a, b, c = corners = [positions[i] for i in vertices]
+        if best is not None:
+            lower_bound = sum(max(min(a[i], b[i], c[i]) - point[i], point[i] - max(a[i], b[i], c[i]), 0.0)**2 for i in range(3))
+            if lower_bound >= best[0]:
+                continue
+        if ((b - a) ^ (c - a)).length() == 0:
+            continue
+        weights = point.getBarycentricWeights(*corners)
+        candidates = [weights] if min(weights) >= 0 else []
+        if not candidates:
+            for i, j in ((0, 1), (1, 2), (2, 0)):
+                t = min(1, max(0, point.getBarycentricWeights(corners[i], corners[j])[1]))
+                edge_weights = [0.0, 0.0, 0.0]
+                edge_weights[i], edge_weights[j] = 1.0 - t, t
+                candidates.append(edge_weights)
+        for factors in candidates:
+            delta = point - sum((v * w for v, w in zip(corners, factors)), Vector())
+            squared_distance = delta * delta
+            if best is None or squared_distance < best[0]:
+                best = squared_distance, index, vertices, factors
+    if best is None:
+        raise ValueError("評価できる三角形がありません")
+    _, face, vertices, factors = best
+    influences = list(skin.getInfluences())
+    weights = skin.getWeights(influences, vertices=vertices, rows=True, geometryIndex=skin.getGeometryIndices(shape))
+    return face, {joint.getName(full=True): sum(row[i] * w for row, w in zip(weights, factors))
+                  for i, joint in enumerate(influences)}
 
 
 @undoTransaction("mlrigAttachBySkinWeights")
@@ -52,7 +80,7 @@ def attach(mesh, target, face):
     active = [(joint, w) for joint, w in weights.items() if w > 1e-8]
     if not active:
         raise ValueError("指定面に有効なインフルエンスがありません")
-    target = om2.MSelectionList().add(target).getDagPath(0).fullPathName()
+    target = getNode(target).getName(full=True)
     if any(joint == target or joint.startswith(target + "|") for joint, _ in active):
         raise ValueError("インフルエンスの祖先に追従を設定できません")
     for attr in ("translate", "rotate"):
@@ -69,7 +97,7 @@ def attach(mesh, target, face):
 
 def run(action):
     """メッシュまたは単一面、小物の順に選択して照会または接続する。"""
-    selection = cmds.ls(selection=True, long=True, flatten=True) or []
+    selection = [item.getName(full=True) for item in mlib.ls(selection=True, long=True, flatten=True)]
     if len(selection) != 2:
         raise ValueError("メッシュまたは1面、位置を示すトランスフォームを順に選択してください")
     first, target = selection

@@ -2,20 +2,23 @@
 
 import math
 
+import mlib
 from maya import cmds
-from maya.api import OpenMaya as om2
+from mlib import getNode
+from mlib.maths import Transformation, Vector
 
 
 def measure(node, reverse=False):
     """ローカル±Xを長手、+Yを上としてワールドロールと親空間のXツイストを度で返す。"""
     sign = -1 if reverse else 1
-    world = om2.MMatrix(cmds.getAttr(node + ".worldMatrix[0]"))
-    forward = om2.MVector(sign, 0, 0) * world
+    transform = getNode(node)
+    world = transform.getMatrix(ws=True)
+    forward = world.transformVector((sign, 0, 0))
     if forward.length() < 1e-9:
         raise ValueError("長手方向の長さが不足しています")
     forward.normalize()
-    up = om2.MVector(0, 1, 0) * world
-    scene_up = om2.MVector(0, 1, 0) if cmds.upAxis(query=True, axis=True) == "y" else om2.MVector(0, 0, 1)
+    up = world.transformVector((0, 1, 0))
+    scene_up = Vector(0, 1, 0) if cmds.upAxis(query=True, axis=True) == "y" else Vector(0, 0, 1)
     baseline = scene_up - forward * (scene_up * forward)
     guide_up = up - forward * (up * forward)
     if min(baseline.length(), guide_up.length()) < 1e-9:
@@ -23,8 +26,8 @@ def measure(node, reverse=False):
     baseline.normalize()
     guide_up.normalize()
     roll = math.degrees(math.atan2(forward * (baseline ^ guide_up), baseline * guide_up))
-    local = om2.MMatrix(cmds.getAttr(node + ".matrix")) * om2.MMatrix(cmds.getAttr(node + ".offsetParentMatrix"))
-    quat = om2.MTransformationMatrix(local).rotation(asQuaternion=True)
+    local = transform.getPlug("matrix").get() * transform.getPlug("offsetParentMatrix").get()
+    quat = Transformation(local).quaternion
     if math.hypot(quat.w, quat.x) < 1e-9:
         raise ValueError("このローカル回転ではXツイストを決定できません")
     twist = (math.degrees(2 * math.atan2(sign * quat.x, quat.w)) + 180) % 360 - 180
@@ -43,7 +46,7 @@ def show():
 
     def refresh(*_):
         rows = []
-        for node in cmds.ls(selection=True, long=True, transforms=True) or []:
+        for node in mlib.ls(selection=True, long=True, transforms=True).getNames(full=True):
             try:
                 roll, twist = measure(node, cmds.checkBox(reverse, query=True, value=True))
                 rows.append("{}  ワールド {:.4f}°  ローカル {:.4f}°".format(node, roll, twist))

@@ -6,10 +6,12 @@ import maya.api.OpenMaya as om
 import maya.cmds as cmds
 
 
-def inspectContact(node, start, end, contactStart, contactEnd, floor=0.0, step=1.0, floorNormal=None, floorMesh=None):
+def inspectContact(node, start, end, contactStart, contactEnd, floor=0.0, step=1.0, floorNormal=None, floorMesh=None, *, rigidFloor=False):
     """ワールド平面に対する足の接地と、両端の位置・回転差を計測する。
 
     floorMesh指定時は現在時刻の静的な床と鉛直線の最近交点を使い、滑りは水平距離で測る。
+    rigidFloor=Trueは接地開始時の床のローカル形状を固定し、各時刻の床マトリクスで足を評価する。
+    滑りは開始点の面の接平面に投影し、高さは最寄りの面法線に沿った符号付き距離。
     時刻はシーンのフレーム単位、距離はcm、回転は度。接地点に置いたTransformを指定する。
     """
     if not all(math.isfinite(x) for x in (start, end, contactStart, contactEnd, floor, step)):
@@ -22,16 +24,27 @@ def inspectContact(node, start, end, contactStart, contactEnd, floor=0.0, step=1
     if not all(math.isfinite(component) for component in normal) or normal * up_vector <= 0:
         raise ValueError("Floor normal must be finite and point upwards.")
     normal = normal.normal()
+    if rigidFloor and not floorMesh:
+        raise ValueError("Choose a mesh shape for a moving rigid floor.")
     ground = None
+    ground_matrix_plug = None
     if floorMesh:
         ground_selection = om.MSelectionList()
         ground_selection.add(floorMesh)
         ground_path = ground_selection.getDagPath(0)
         if not ground_path.node().hasFn(om.MFn.kMesh):
-            raise ValueError("Choose a static floor mesh shape.")
+            raise ValueError("Choose a floor mesh shape.")
         ground = om.MFnMesh(ground_path)
         # 現在時刻の床を固定し、足先だけを各時刻で評価する。
         normal = up_vector
+        if rigidFloor:
+            shape_fn = om.MFnDependencyNode(ground_path.node())
+            ground_matrix_plug = shape_fn.findPlug("worldMatrix", False).elementByLogicalIndex(ground_path.instanceNumber())
+            start_context = om.MDGContext(om.MTime(contactStart, om.MTime.uiUnit()))
+            # 評価キャッシュと寿命を共有せず、開始時のローカル形状をメモリに固定する。
+            rest_data = om.MFnMeshData().create()
+            local_data = shape_fn.findPlug("outMesh", False).asMObject(start_context)
+            ground = om.MFnMesh(om.MFnMesh().copy(local_data, rest_data))
     selection = om.MSelectionList()
     selection.add(node)
     path = selection.getDagPath(0)
@@ -45,14 +58,34 @@ def inspectContact(node, start, end, contactStart, contactEnd, floor=0.0, step=1
     initial, q0 = sample(start)
     final, q1 = sample(end)
     anchor, _ = sample(contactStart)
+    def groundMatrix(frame):
+        context = om.MDGContext(om.MTime(frame, om.MTime.uiUnit()))
+        matrix = om.MFnMatrixData(ground_matrix_plug.asMObject(context)).matrix()
+        if matrix.isSingular():
+            raise ValueError(f"Floor transform is singular at frame {frame:g}.")
+        return matrix
+
+    if rigidFloor:
+        anchor_local = om.MPoint(anchor) * groundMatrix(contactStart).inverse()
+        _, anchor_normal, _ = ground.getClosestPointAndNormal(anchor_local, om.MSpace.kObject)
+
     count = int(math.ceil((contactEnd - contactStart) / step))
     slide = clearance = penetration = 0.0
     for index in range(count + 1):
-        position, _ = sample(min(contactEnd, contactStart + step * index))
+        frame = min(contactEnd, contactStart + step * index)
+        position, _ = sample(frame)
         delta = position - anchor
         slip = (delta - normal * (delta * normal)).length()
         height = (position - up_vector * floor) * normal
-        if ground is not None:
+        if rigidFloor:
+            matrix = groundMatrix(frame)
+            local = om.MPoint(position) * matrix.inverse()
+            closest, face_normal, _ = ground.getClosestPointAndNormal(local, om.MSpace.kObject)
+            tangent_normal = anchor_normal.transformAsNormal(matrix).normal()
+            displacement = (local - anchor_local) * matrix
+            slip = (displacement - tangent_normal * (displacement * tangent_normal)).length()
+            height = ((local - closest) * matrix) * face_normal.transformAsNormal(matrix).normal()
+        elif ground is not None:
             hits = ground.allIntersections(om.MFloatPoint(position), om.MFloatVector(up_vector),
                                            om.MSpace.kWorld, 1e20, True)
             if not hits or not len(hits[0]):
@@ -81,7 +114,8 @@ def run():
     normal = cmds.floatFieldGrp(label="Floor normal (XYZ)", numberOfFields=3,
                                 value2=float(cmds.upAxis(query=True, axis=True) == "y"),
                                 value3=float(cmds.upAxis(query=True, axis=True) == "z"))
-    mesh_field = cmds.textFieldGrp(label="Static floor mesh (optional DAG path)")
+    mesh_field = cmds.textFieldGrp(label="Floor mesh shape (optional DAG path)")
+    moving = cmds.checkBox(label="Follow moving rigid mesh (freeze shape at contact start)", value=False)
     step = cmds.floatFieldGrp(label="Sample step (frames)", value1=1)
     report = cmds.scrollField(editable=False, height=170)
 
@@ -94,7 +128,8 @@ def run():
                                     floor=cmds.floatFieldGrp(floor, query=True, value1=True),
                                     step=cmds.floatFieldGrp(step, query=True, value1=True),
                                     floorNormal=cmds.floatFieldGrp(normal, query=True, value=True)[:3],
-                                    floorMesh=cmds.textFieldGrp(mesh_field, query=True, text=True))
+                                    floorMesh=cmds.textFieldGrp(mesh_field, query=True, text=True),
+                                    rigidFloor=cmds.checkBox(moving, query=True, value=True))
             lines.append(node + "\n" + ", ".join("{}={:.4f}".format(k, v) for k, v in result.items()))
         cmds.scrollField(report, edit=True, text="\n".join(lines) or "Select one or more foot contact transforms.")
 

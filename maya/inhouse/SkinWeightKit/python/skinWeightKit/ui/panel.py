@@ -11,7 +11,7 @@ import maya.OpenMayaUI as omui
 
 from mlib.common import ScriptJobs, Selection
 
-from ..core import (blend, cleanup, deformers, hold, influences, reduction, sample, selectionTools, shells, skin,
+from ..core import (blend, cage, cleanup, deformers, hold, influences, reduction, sample, selectionTools, shells, skin,
                     symmetry, target, transfer, weights)
 from ..core import paint as paint_core
 from . import paint as paint_ui
@@ -925,6 +925,10 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
                             self._compare_bind_meshes),
                     _button("Compare Cage Output", "Compare Cage Output\nSelect the direct reference and cage-deformed output at the same pose. List differences over 0.000001 cm.",
                             self._compare_cage_output))
+        section.row(_button("Bind Triangle Cage", "Bind Triangle Cage\nSelect the polygon cage, then the target mesh.", lambda: self._cage("bind")),
+                    _button("Rebind Cage Vertices", "Rebind Cage Vertices\nSelect one cage face and the target vertices to repair.", lambda: self._cage("repair")))
+        section.row(_button("Save Cage Binding...", "Save Cage Binding\nSelect one triangle-cage target mesh.", lambda: self._cage("save")),
+                    _button("Restore Cage Binding...", "Restore Cage Binding\nSelect the cage, then the target with matching topology.", lambda: self._cage("restore")))
         section.row(_button("Preview Source Matches...", "Preview Source Matches\nCheck vertex matches on the picked source "
                             "using the selected method and a world-space distance limit.", self._preview_source_matches))
         section.row(
@@ -1265,6 +1269,33 @@ class SkinWeightKitPanel(QtWidgets.QWidget):
         dialog.setDetailedText("\n".join("vtx[{}] / vtx[{}]: {:.6g} → {:.6g} cm{}".format(
             a, b, old, new, " (worsened)" if new > old + 1e-6 else "") for a, b, old, new in rows))
         dialog.exec_()
+
+    def _cage(self, action):
+        """三角形ケージの対応を設定、修正、ファイルへ保存する。"""
+        def operate():
+            selected = cmds.ls(selection=True, long=True, flatten=True) or []
+            if action == "save" and len(selected) == 1:
+                path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Cage Binding", "", "JSON (*.json)")
+                if path:
+                    cage.save(selected[0], path)
+            elif action == "repair":
+                faces = cmds.filterExpand(selected, selectionMask=34, fullPath=True) or [] if selected else []
+                vertices = cmds.filterExpand(selected, selectionMask=31, fullPath=True) or [] if selected else []
+                meshes = {v.rsplit(".vtx[", 1)[0] for v in vertices}
+                if len(faces) != 1 or len(meshes) != 1:
+                    raise ValueError("Choose one cage face and vertices on one target.")
+                driver, face = faces[0].rsplit(".f[", 1)
+                cage.bind(driver, meshes.pop(), [int(v.rsplit("[", 1)[1][:-1]) for v in vertices], int(face[:-1]))
+            elif action in ("bind", "restore") and len(selected) == 2:
+                if action == "bind":
+                    cage.bind(*selected)
+                else:
+                    path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Restore Cage Binding", "", "JSON (*.json)")
+                    if path:
+                        cage.restore(selected[0], selected[1], path)
+            else:
+                raise ValueError("Select the objects specified in the button tooltip.")
+        run(operate)
 
     def _compare_cage_output(self):
         """直接転送とケージからの出力のずれ、境界頂点のずれを表示する。"""

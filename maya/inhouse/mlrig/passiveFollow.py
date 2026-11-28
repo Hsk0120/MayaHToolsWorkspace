@@ -1,5 +1,6 @@
 """専用バッファの行列追従を作成し、現在の親空間姿勢を保持して抑制する。"""
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -12,7 +13,7 @@ _GRAPH = "mlrigPassiveFollowGraph"
 @undoTransaction("mlrigPassiveFollow")
 def run(action):
     """作成時は送り・受け側の順に選択し、切り替え時は受け側だけを選択する。"""
-    selected = cmds.ls(selection=True, long=True, type="transform") or []
+    selected = mlib.ls(selection=True, long=True, type="transform").getNames(full=True)
     if action == "create":
         if len(selected) != 2:
             raise ValueError("送り側と専用バッファを順に選択してください")

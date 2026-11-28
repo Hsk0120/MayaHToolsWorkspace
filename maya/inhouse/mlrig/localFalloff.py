@@ -2,6 +2,7 @@
 
 import math
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -28,8 +29,8 @@ def apply(vertex, radius, deformer=None):
         node = deformer
         if not cmds.objExists(node + ".mlrigFalloffHandle"):
             raise ValueError("このツールで作成したSoft Modificationを指定してください")
-        shapes = cmds.ls(cmds.softMod(node, query=True, geometry=True), long=True) or []
-        current = cmds.ls(mesh, long=True)[0]
+        shapes = [item.getName(full=True) for item in mlib.ls(cmds.softMod(node, query=True, geometry=True), long=True)]
+        current = [item.getName(full=True) for item in mlib.ls(mesh, long=True)][0]
         if current not in shapes and current not in [s.rpartition("|")[0] for s in shapes]:
             raise ValueError("同じメッシュの頂点を指定してください")
         handle = cmds.connectionInfo(node + ".mlrigFalloffHandle", sourceFromDestination=True).rsplit(".", 1)[0]
@@ -45,7 +46,7 @@ def apply(vertex, radius, deformer=None):
 def show():
     """メッシュ頂点と必要なら再配置するデフォーマーを選んで影響範囲を表示する。"""
     vertices = cmds.filterExpand(selectionMask=31, expand=True, fullPath=True) or []
-    nodes = cmds.ls(selection=True, type="softMod") or []
+    nodes = mlib.ls(selection=True, type="softMod").getNames()
     if len(vertices) != 1 or len(nodes) > 1:
         raise ValueError("中心の頂点を1点、再配置時はSoft Modificationも選択してください")
     window = "mlrigLocalFalloff"
@@ -62,7 +63,7 @@ def show():
 
     def build(*_):
         _, handle = apply(vertices[0], cmds.floatFieldGrp(radius, query=True, value1=True), nodes[0] if nodes else None)
-        cmds.select(handle)
+        mlib.select(handle)
 
     cmds.button(label="範囲を確認", command=preview)
     cmds.button(label="範囲を再配置" if nodes else "局所変形を作成", command=build)

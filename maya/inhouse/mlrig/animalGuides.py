@@ -1,5 +1,6 @@
 """非人型のガイドとFK骨を部位ごとの配置から作成する。Yが上、Zが前方。"""
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -36,7 +37,7 @@ def _member(root, name):
     source = cmds.connectionInfo(plug, sourceFromDestination=True)
     if not source:
         raise ValueError("登録された部品が見つかりません: " + name)
-    return (cmds.ls(source.rpartition(".")[0], long=True) or [None])[0]
+    return ([item.getName(full=True) for item in mlib.ls(source.rpartition(".")[0], long=True)] or [None])[0]
 
 
 def _record(root, name, node):
@@ -48,7 +49,7 @@ def _record(root, name, node):
 def create(kind):
     """部位のモデル合わせに使うガイドを作る。"""
     spec = _PRESETS[kind]
-    root = cmds.createNode("transform", name=kind + "Rig#")
+    root = mlib.createNode("transform", name=kind + "Rig#").getName()
     cmds.addAttr(root, longName="mlrigAnimalPreset", dataType="string")
     cmds.setAttr(root + ".mlrigAnimalPreset", kind, type="string", lock=True)
     for role, parent, translation in spec:
@@ -56,7 +57,7 @@ def create(kind):
         guide = cmds.parent(guide, _member(root, "guide_" + parent) if parent else root, relative=True)[0]
         cmds.setAttr(guide + ".translate", *translation)
         _record(root, "guide_" + role, guide)
-    cmds.select(root)
+    mlib.select(root)
     return root
 
 
@@ -79,15 +80,15 @@ def build(root):
     for joint in ordered:
         role, parent = joint.id, joint.parent
         guide = _member(root, "guide_" + role)
-        expected = _member(root, "guide_" + parent) if parent else cmds.ls(root, long=True)[0]
+        expected = _member(root, "guide_" + parent) if parent else [item.getName(full=True) for item in mlib.ls(root, long=True)][0]
         if (cmds.listRelatives(guide, parent=True, fullPath=True) or []) != [expected]:
             raise ValueError("ガイドの親役割が変更されています: " + role)
         bone = _member(root, "bone_" + role)
         bone_parent = result[parent] if parent else root
         if bone is None:
-            bone = cmds.createNode("joint", name=prefix + "_" + role, parent=bone_parent)
+            bone = mlib.createNode("joint", name=prefix + "_" + role, parent=bone_parent).getName()
             _record(root, "bone_" + role, bone)
-        elif cmds.listRelatives(bone, parent=True, fullPath=True) != cmds.ls(bone_parent, long=True):
+        elif cmds.listRelatives(bone, parent=True, fullPath=True) != [item.getName(full=True) for item in mlib.ls(bone_parent, long=True)]:
             raise ValueError("骨の親役割が変更されています: " + role)
         cmds.setAttr(bone + ".offsetParentMatrix", *cmds.getAttr(guide + ".matrix"), type="matrix")
         result[role] = bone

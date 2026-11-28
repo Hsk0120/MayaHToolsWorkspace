@@ -82,6 +82,11 @@ class SimpleClothNode(om.MPxNode):
             register(name, function.create(name, name, om.MFnData.kString, om.MFnStringData().create(default)))
         function = om.MFnTypedAttribute()
         register("maxDistanceMap", function.create("maxDistanceMap", "maxDistanceMap", om.MFnData.kDoubleArray))
+        field_attr = om.MFnTypedAttribute()
+        attr = field_attr.create("fieldForces", "fieldForces", om.MFnData.kVectorArray)
+        field_attr.array = True
+        field_attr.storable = False
+        register("fieldForces", attr)
         for name in ("inputMesh", "outputMesh"):
             function = om.MFnTypedAttribute()
             attribute = function.create(name, name, om.MFnData.kMesh)
@@ -191,6 +196,13 @@ class SimpleClothNode(om.MPxNode):
         start = data.inputValue(attrs["startFrame"]).asTime().asUnits(om.MTime.kSeconds)
         time = data.inputValue(attrs["time"]).asTime().asUnits(om.MTime.kSeconds)
         signature = repr((reference_text, weights, settings, kinds, start))
+        function = om.MFnDependencyNode(self.thisMObject())
+        field_plug = function.findPlug("fieldForces", False)
+        if any(field_plug.elementByLogicalIndex(i).isDestination for i in field_plug.getExistingArrayAttributeIndices()):
+            # Static Maya field parameters and world transforms take part in replay/checkpoint validation.
+            import mayaParticleFields
+            settings["sceneFields"], field_signature = mayaParticleFields.samplers(function)
+            signature += repr(field_signature)
         if self._signature != signature:
             self._cache = []
             self._signature = signature

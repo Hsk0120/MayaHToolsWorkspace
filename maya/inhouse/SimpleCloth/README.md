@@ -162,3 +162,7 @@ baked = api.bake(cloth, 1, 120)
 99頂点・固定辺・球・入力の左右往復・距離上限の維持・球を離した後の復帰を145フレームで確認します。
 赤は入力、緑は出力、青はコライダー。HUDは固定値と実出力の数値を区別して表示します。
 動画・診断JSON・検証シーンは`.maya-output/`に保存し、Gitへ登録しません。
+
+## Mayaフィールドで布を動かす
+
+ワークスペースのSimplePhysicsモジュールが提供する共通フィールド評価を使います。**3 Forces / Backstop** でシーンの静的なradialField、uniformField、gravityField、vortexFieldを選び、**Attach Selected Static Maya Field** を押します。登録した各場を粒子のワールド位置・速度・質量で評価し、距離減衰などMaya側の設定を反映します。**Detach Selected Maya Field** で選択した場を外せます。固定頂点の拘束は維持されます。フィールドと親のアニメーションは対象外です。

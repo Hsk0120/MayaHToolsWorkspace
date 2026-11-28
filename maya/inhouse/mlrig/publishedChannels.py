@@ -2,12 +2,16 @@
 
 import json
 import re
+import tempfile
+from pathlib import Path
 
+import mlib
 import maya.cmds as cmds
-from mlib.decorator import undoChunk
+from mlib.decorator import undoChunk, undoTransaction
 
 
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_ATTRIBUTE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\[[0-9]+\])?")
 
 
 def resolveChannels(root, definitions):
@@ -21,7 +25,7 @@ def resolveChannels(root, definitions):
     Returns:
         tuple: 役割名からフルPlug名への辞書と、解決できなかった役割名から理由への辞書。
     """
-    matches = cmds.ls(root, long=True, type="transform") or []
+    matches = mlib.ls(root, long=True, type="transform").getNames(full=True)
     if len(matches) != 1 or matches[0].split("|")[-1] != root.split("|")[-1]:
         raise ValueError("対象リグのルートを一意に指定してください")
     root_path = matches[0]
@@ -31,7 +35,7 @@ def resolveChannels(root, definitions):
     missing = {}
     for role, (relative, attribute) in definitions.items():
         parts = relative.split("|") if relative else []
-        if not role or not all(_IDENTIFIER.fullmatch(part) for part in [attribute] + parts):
+        if not role or not _ATTRIBUTE.fullmatch(attribute) or not all(_IDENTIFIER.fullmatch(part) for part in parts):
             raise ValueError("相対パスと属性名に無効な名前があります: {}".format(role))
         node = root_path + "".join("|" + prefix + part for part in parts)
         plug = node + "." + attribute
@@ -57,7 +61,7 @@ def _validatedPorts(root, ports):
             raise ValueError("公開チャンネルの役割名と定義を確認してください")
         if set(port) != {"path", "attribute", "kind"} or not all(isinstance(value, str) for value in port.values()):
             raise ValueError("path、attribute、kindを文字列で指定してください")
-        if port["kind"] not in ("default", "static", "constraint", "deformer", "externalRig", "irregular"):
+        if port["kind"] not in ("default", "static", "constraint", "deformer", "externalRig", "irregular", "geometry"):
             raise ValueError("不明な公開チャンネル種別です: " + port["kind"])
         definitions[role] = (port["path"], port["attribute"])
     return resolveChannels(root, definitions)
@@ -93,7 +97,7 @@ def setPorts(root, ports):
 
 def showEditor():
     """選択したルートの公開チャンネルを表示し、定義を編集する。"""
-    roots = cmds.ls(selection=True, long=True, type="transform") or []
+    roots = mlib.ls(selection=True, long=True, type="transform").getNames(full=True)
     if len(roots) != 1:
         raise ValueError("リグのルートを1つ選択してください")
     root = roots[0]
@@ -135,15 +139,61 @@ def selectRole(root, role):
         raise ValueError(missing[role])
     plug = resolved[role]
     node = plug.rsplit(".", 1)[0]
-    cmds.select(node, replace=True)
+    mlib.select(node, replace=True)
     if cmds.channelBox("mainChannelBox", exists=True):
         def highlight():
             """選択変更がChannel Boxへ反映された後に対象属性を選ぶ。"""
-            if cmds.ls(selection=True, long=True) == [node] and cmds.objExists(plug):
+            if [item.getName(full=True) for item in mlib.ls(selection=True, long=True)] == [node] and cmds.objExists(plug):
                 cmds.channelBox("mainChannelBox", edit=True, select=plug)
 
         cmds.evalDeferred(highlight, lowestPriority=True)
     return plug
+
+
+@undoTransaction("mlrigCaptureChannelDefaults")
+def captureDefaults(root, roles):
+    """選択した公開スカラーチャンネルの現在値を役割別に記録する。"""
+    ports = getPorts(root)
+    found, missing = _validatedPorts(root, {role: ports[role] for role in roles})
+    if missing:
+        raise ValueError(str(missing))
+    plug = root + ".mlrigChannelDefaults"
+    values = json.loads(cmds.getAttr(plug)) if cmds.objExists(plug) else {}
+    for role, source in found.items():
+        value = cmds.getAttr(source)
+        if not isinstance(value, (bool, int, float)):
+            raise ValueError("数値チャンネルを選択してください: " + role)
+        values[role] = value
+    if not cmds.objExists(plug):
+        cmds.addAttr(root, longName="mlrigChannelDefaults", dataType="string")
+    cmds.setAttr(plug, json.dumps(values, ensure_ascii=False), type="string")
+    return values
+
+
+def updatePortLibrary(root, path, roles, *, remove=False):
+    """ライブラリの指定役割だけを書き換え、他の登録・別ライブラリを保持する。"""
+    path = Path(path)
+    ports = getPorts(root)
+    saved = {}
+    if path.exists():
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if record.get("schema") != 1:
+            raise ValueError("未対応の定義ファイルです")
+        saved = record["ports"]
+        _validatedPorts(root, saved)
+    for role in roles:
+        if remove:
+            if role not in saved:
+                raise ValueError("ライブラリに役割がありません: " + role)
+            del saved[role]
+        else:
+            saved[role] = ports[role]
+    data = json.dumps({"schema": 1, "ports": saved}, ensure_ascii=False, indent=2)
+    with tempfile.TemporaryDirectory(dir=str(path.parent)) as directory:
+        temp = Path(directory) / path.name
+        temp.write_text(data, encoding="utf-8")
+        temp.replace(path)
+    return saved
 
 
 def showPicker(root):
@@ -159,6 +209,58 @@ def showPicker(root):
     for role in ports:
         cmds.button(label=role, annotation=resolved.get(role) or missing[role], enable=role in resolved,
                     command=lambda *_, role=role: selectRole(root, role))
+    if ports:
+        listing = cmds.textScrollList(allowMultiSelection=True, append=list(ports))
+
+        def move(offset):
+            indices = cmds.textScrollList(listing, query=True, selectIndexedItem=True) or []
+            if len(indices) != 1:
+                raise ValueError("移動する役割を1つ選択してください")
+            index = indices[0] - 1
+            order = list(ports)
+            if 0 <= index + offset < len(order):
+                if list(getPorts(root).items()) != list(ports.items()):
+                    raise ValueError("定義が変更されました。ピッカーを開き直してください")
+                order.insert(index + offset, order.pop(index))
+                setPorts(root, {role: ports[role] for role in order})
+                showPicker(root)
+
+        def chosen():
+            roles = cmds.textScrollList(listing, query=True, selectItem=True) or []
+            if not roles:
+                raise ValueError("対象の役割を選択してください")
+            return roles
+
+        def library(action):
+            paths = cmds.fileDialog2(fileMode=0 if action == "save" else 1, fileFilter="JSON (*.json)") or []
+            if not paths:
+                return
+            path = Path(paths[0])
+            if action in ("save", "remove"):
+                updatePortLibrary(root, path, chosen(), remove=action == "remove")
+                return
+            record = json.loads(path.read_text(encoding="utf-8"))
+            if record.get("schema") != 1:
+                raise ValueError("未対応の定義ファイルです")
+            imported = record["ports"]
+            found, absent = _validatedPorts(root, imported)
+            lines = [role + " → " + target + ("（一致）" if ports.get(role) == imported[role] else "（定義差あり）")
+                     for role, target in {**found, **absent}.items()]
+            cmds.confirmDialog(title="公開定義の照合", message="\n".join(lines), button=["閉じる"])
+            if action == "restore":
+                selected = chosen()
+                if any(role not in found for role in selected):
+                    raise ValueError("選択した役割の復元先が見つかりません")
+                setPorts(root, {**getPorts(root), **{role: imported[role] for role in selected}})
+                showPicker(root)
+
+        cmds.button(label="上へ移動", command=lambda *_: move(-1))
+        cmds.button(label="下へ移動", command=lambda *_: move(1))
+        cmds.button(label="選択した役割の現在値を初期値に記録", command=lambda *_: captureDefaults(root, chosen()))
+        cmds.button(label="選択した定義を書き出す", command=lambda *_: library("save"))
+        cmds.button(label="ライブラリから選択した登録を外す", command=lambda *_: library("remove"))
+        cmds.button(label="外部定義の解決先を確認", command=lambda *_: library("compare"))
+        cmds.button(label="選択した役割の定義を復元", command=lambda *_: library("restore"))
     if not ports:
         cmds.text(label="登録された役割がありません")
     cmds.showWindow(window)
@@ -171,7 +273,7 @@ def inspectExternalPorts(sourceRoot, destinationRoot):
     destination = getPorts(destinationRoot)
     sources, source_missing = _validatedPorts(sourceRoot, source)
     destinations, destination_missing = _validatedPorts(destinationRoot, destination)
-    roles = {role for ports in (source, destination) for role, port in ports.items() if port["kind"] == "externalRig"}
+    roles = {role for ports in (source, destination) for role, port in ports.items() if port["kind"] in ("externalRig", "geometry")}
     result = {}
     for role in sorted(roles):
         src = sources.get(role)
@@ -179,7 +281,7 @@ def inspectExternalPorts(sourceRoot, destinationRoot):
         incoming = cmds.connectionInfo(dst, sourceFromDestination=True) if dst else ""
         if not src or not dst:
             state = source_missing.get(role) or destination_missing.get(role) or "役割が片側にありません"
-        elif any(ports[role]["kind"] != "externalRig" for ports in (source, destination)):
+        elif source[role]["kind"] != destination[role]["kind"]:
             state = "外部ポートの種別が一致しません"
         elif src == dst:
             state = "同一のポートです"
@@ -187,14 +289,23 @@ def inspectExternalPorts(sourceRoot, destinationRoot):
             state = "接続済み"
         elif incoming:
             state = "別の入力があります"
-        elif not cmds.attributeQuery(src.split(".")[-1], node=src.split(".")[0], readable=True):
+        elif not cmds.attributeQuery(src.split(".")[-1].partition("[")[0], node=src.split(".")[0], readable=True):
             state = "送り側から読み取れません"
-        elif not cmds.attributeQuery(dst.split(".")[-1], node=dst.split(".")[0], writable=True):
+        elif not cmds.attributeQuery(dst.split(".")[-1].partition("[")[0], node=dst.split(".")[0], writable=True):
             state = "宛先を書き換えられません"
         elif not cmds.getAttr(dst, settable=True):
             state = "宛先を書き換えられません"
         elif cmds.getAttr(src, type=True) != cmds.getAttr(dst, type=True):
             state = "属性型が一致しません"
+        elif source[role]["kind"] == "geometry":
+            source_node, target_node = src.split(".")[0], dst.split(".")[0]
+            history = [item.getName(full=True) for item in mlib.ls(cmds.listHistory(source_node, pruneDagObjects=False) or [], long=True)]
+            if cmds.getAttr(src, type=True) not in ("mesh", "nurbsCurve"):
+                state = "未対応の形状型です"
+            elif target_node == source_node or target_node in history:
+                state = "形状の履歴が循環します"
+            else:
+                state = "接続可能"
         elif cmds.getAttr(src, type=True) not in ("double", "float", "doubleLinear", "doubleAngle", "bool", "long", "short", "byte"):
             state = "未対応の属性型です"
         else:
@@ -206,7 +317,7 @@ def inspectExternalPorts(sourceRoot, destinationRoot):
 
 @undoChunk("mlrigConnectExternalPorts")
 def connectExternalPorts(sourceRoot, destinationRoot, roles):
-    """明示した役割のスカラーポートを、全件の入力状態を検査してから接続する。"""
+    """明示した役割の外部ポートを、全件の入力状態を検査してから接続する。"""
     rows = inspectExternalPorts(sourceRoot, destinationRoot)
     chosen = [rows[role] for role in dict.fromkeys(roles)]
     edges = {}
@@ -229,6 +340,20 @@ def connectExternalPorts(sourceRoot, destinationRoot, roles):
     return added
 
 
+@undoTransaction("mlrigDisconnectExternalPorts")
+def disconnectExternalPorts(sourceRoot, destinationRoot, roles):
+    """指定した役割の現在の直接接続だけを解除する。"""
+    rows = inspectExternalPorts(sourceRoot, destinationRoot)
+    edges = set()
+    for role in roles:
+        row = rows[role]
+        if row["state"] != "接続済み":
+            raise ValueError("直接接続を確認できません: " + role)
+        edges.add((row["source"], row["destination"]))
+    for src, dst in sorted(edges):
+        cmds.disconnectAttr(src, dst)
+
+
 @undoChunk("mlrigBakeExternalPorts")
 def bakeExternalPorts(sourceRoot, destinationRoot, roles, startFrame, endFrame):
     """選択した直接接続の宛先を指定した整数フレーム範囲で毎コマベイクする。"""
@@ -239,7 +364,7 @@ def bakeExternalPorts(sourceRoot, destinationRoot, roles, startFrame, endFrame):
     for role in dict.fromkeys(roles):
         row = rows[role]
         dst = row["destination"]
-        if row["state"] != "接続済み" or cmds.getAttr(dst, lock=True):
+        if row["state"] != "接続済み" or cmds.getAttr(dst, lock=True) or cmds.getAttr(dst, type=True) in ("mesh", "nurbsCurve"):
             raise ValueError("ベイクできる直接接続がありません: " + role)
         if dst not in destinations:
             destinations.append(dst)
@@ -251,7 +376,7 @@ def bakeExternalPorts(sourceRoot, destinationRoot, roles, startFrame, endFrame):
 
 def showExternalPorts():
     """送り側、受け側の順に選んだリグの外部ポートを確認・接続する。"""
-    roots = cmds.ls(selection=True, long=True, type="transform") or []
+    roots = mlib.ls(selection=True, long=True, type="transform").getNames(full=True)
     if len(roots) != 2:
         raise ValueError("送り側、受け側の順にリグのルートを2つ選択してください")
     window = "mlrigExternalPortEditor"
@@ -274,14 +399,19 @@ def showExternalPorts():
                 text += "  入力: " + row["incoming"]
             cmds.textScrollList(listing, edit=True, append=text)
 
-    def connect(*_):
+    def connect(*_, disconnect=False):
         indices = cmds.textScrollList(listing, query=True, selectIndexedItem=True) or []
         if not indices:
             raise ValueError("接続する役割を選択してください")
-        connectExternalPorts(*roots, roles=[roles[index - 1] for index in indices])
+        selected = [roles[index - 1] for index in indices]
+        if disconnect:
+            disconnectExternalPorts(*roots, selected)
+        else:
+            connectExternalPorts(*roots, roles=selected)
         refresh()
 
     cmds.button(label="選択した役割を接続", command=connect)
+    cmds.button(label="選択した直接接続を解除", command=lambda *_: connect(disconnect=True))
     frames = cmds.intFieldGrp(numberOfFields=2, label="ベイク開始・終了", value1=int(cmds.playbackOptions(query=True, minTime=True)),
                               value2=int(cmds.playbackOptions(query=True, maxTime=True)))
 

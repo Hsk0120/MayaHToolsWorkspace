@@ -2,6 +2,7 @@
 
 import re
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -26,7 +27,7 @@ def inspect(target):
 
 
 @undoTransaction("mlrigVisibilitySwitch")
-def connect(control, targets, name):
+def connect(control, targets, name, parentPlug=None, invert=False):
     """用途別boolを登録し、既存入力のない対象のvisibilityへまとめて接続する。"""
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) or not targets:
         raise ValueError("用途名と表示対象を指定してください")
@@ -40,8 +41,21 @@ def connect(control, targets, name):
             continue
         if target == control or control.startswith(target + "|") or cmds.connectionInfo(dest, isDestination=True) or not cmds.getAttr(dest, settable=True):
             raise ValueError("既存入力・階層・ロックを確認してください: " + dest)
+    if parentPlug and (not cmds.objExists(parentPlug) or cmds.getAttr(parentPlug, type=True) != "bool" or parentPlug == source):
+        raise ValueError("異なる親グループのbool Plugを指定してください")
+    if (parentPlug or invert) and any(cmds.connectionInfo(target + ".visibility", isDestination=True) for target in targets):
+        raise ValueError("対象に既存の表示入力があります")
     if not exists:
         cmds.addAttr(control, longName=name, attributeType="bool", defaultValue=True, keyable=True)
+    if invert:
+        reverse = mlib.createNode("reverse", name="visibilityInvert#").getName()
+        cmds.connectAttr(source, reverse + ".inputX")
+        source = reverse + ".outputX"
+    if parentPlug:
+        condition = mlib.createNode("multDoubleLinear", name="visibilityParent#").getName()
+        cmds.connectAttr(parentPlug, condition + ".input1")
+        cmds.connectAttr(source, condition + ".input2")
+        source = condition + ".output"
     for target in targets:
         if not cmds.isConnected(source, target + ".visibility"):
             cmds.connectAttr(source, target + ".visibility")
@@ -50,7 +64,7 @@ def connect(control, targets, name):
 
 def show():
     """選択順にスイッチの所有者と対象を確定し、現在の表示配線を確認する。"""
-    nodes = cmds.ls(selection=True, long=True, transforms=True) or []
+    nodes = mlib.ls(selection=True, long=True, transforms=True).getNames(full=True)
     if len(nodes) < 2:
         raise ValueError("コントローラー、表示対象の順に2つ以上選択してください")
     window = "mlrigVisibilitySwitch"
@@ -59,13 +73,16 @@ def show():
     cmds.window(window, title="表示の配線と検査")
     cmds.columnLayout(adjustableColumn=True)
     name = cmds.textFieldGrp(label="用途名", text="showControls")
+    parent = cmds.textFieldGrp(label="親表示のPlug（任意）")
+    invert = cmds.checkBox(label="子スイッチを反転")
     field = cmds.scrollField(editable=False, height=180)
 
     def refresh(*_):
         cmds.scrollField(field, edit=True, text="\n".join(line for target in nodes[1:] for line in inspect(target)))
 
     def wire(*_):
-        connect(nodes[0], nodes[1:], cmds.textFieldGrp(name, query=True, text=True))
+        connect(nodes[0], nodes[1:], cmds.textFieldGrp(name, query=True, text=True),
+                cmds.textFieldGrp(parent, query=True, text=True).strip() or None, cmds.checkBox(invert, query=True, value=True))
         refresh()
 
     cmds.button(label="配線を確認", command=refresh)

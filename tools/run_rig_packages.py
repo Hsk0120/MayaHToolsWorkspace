@@ -68,7 +68,7 @@ def _main():
         if args.suite in ('all','standard'):
             files += [rig+'unit/setups/test_softIK_tiny.py', rig+'unit/root/test_limb_ikOrigin.py']
             files += [rig+name+'.py' for name in (
-                'integration/test_workflow_standard', 'unit/root/test_spaceLayer', 'unit/root/test_twistLayer',
+                'integration/test_workflow_standard', 'unit/root/test_rigEditing', 'unit/root/test_spaceLayer', 'unit/root/test_twistLayer',
                 'unit/root/test_bendLayer', 'unit/root/test_drivenLayer', 'unit/root/test_skirtRig',
                 'unit/root/test_followLayer', 'unit/root/test_secondaryLayer', 'unit/root/test_splineRig',
                 'integration/test_workflow_stretch', 'integration/test_workflow_controls')]

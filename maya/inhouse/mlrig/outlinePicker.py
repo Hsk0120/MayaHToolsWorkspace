@@ -1,14 +1,13 @@
 """表示輪郭とクリック領域を個別の線形カーブで指定するXYピッカー。"""
 
-from maya import cmds, OpenMayaUI
-from maya.api import OpenMaya as om2
+import mlib
+from maya import cmds, mel
+from mlib import getNode
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
-    from shiboken6 import wrapInstance
 except ImportError:
     from PySide2 import QtCore, QtGui, QtWidgets
-    from shiboken2 import wrapInstance
 
 
 def _outline(node):
@@ -46,17 +45,18 @@ class _Region(QtWidgets.QGraphicsPathItem):
 
     def mousePressEvent(self, event):
         if self.target.isValid():
-            node = self.target.fullPathName()
+            node = self.target.getName(full=True)
             if event.modifiers() & QtCore.Qt.ShiftModifier:
-                cmds.select(node, add=True)
+                mlib.select(node, add=True)
             else:
-                cmds.select(node, replace=True)
+                mlib.select(node, replace=True)
         event.accept()
 
 
 def show():
     """現在のウィンドウに複数の輪郭を登録し、クリックで対象を選択する。"""
-    parent = wrapInstance(int(OpenMayaUI.MQtUtil.mainWindow()), QtWidgets.QWidget)
+    name = mel.eval("$mlrigMainWindow = $gMainWindow")
+    parent = next((widget for widget in QtWidgets.QApplication.topLevelWidgets() if widget.objectName() == name), None)
     window = QtWidgets.QDialog(parent)
     window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
     window.setWindowTitle("輪郭ピッカー")
@@ -70,11 +70,11 @@ def show():
     layout.addWidget(status)
 
     def add():
-        nodes = cmds.ls(selection=True, long=True, transforms=True) or []
+        nodes = mlib.ls(selection=True, long=True, transforms=True).getNames(full=True)
         try:
             if len(nodes) != 3:
                 raise ValueError("対象・表示輪郭・クリック輪郭の3つを選んでください")
-            item = _Region(_outline(nodes[1]), _outline(nodes[2]), om2.MSelectionList().add(nodes[0]).getDagPath(0))
+            item = _Region(_outline(nodes[1]), _outline(nodes[2]), getNode(nodes[0]))
         except ValueError as exc:
             status.setText(str(exc))
             return

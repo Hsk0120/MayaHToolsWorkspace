@@ -23,7 +23,7 @@ class ModuleRegistry:
         def refresh(*_):
             """現在の選択と親階層から表示を更新する。"""
             lines = []
-            for item in cmds.ls(selection=True, long=True, objectsOnly=True) or []:
+            for item in mlib.ls(selection=True, long=True, objectsOnly=True).getNames(full=True):
                 root = item
                 while root.startswith("|"):
                     if any(cmds.objExists(root + "." + marker) for marker in ModuleRegistry.MARKERS):

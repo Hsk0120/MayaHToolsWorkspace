@@ -60,3 +60,49 @@ def bakeSelected(distanceScale=1.0, inputOffset=0.0):
             cmds.setKeyframe(target, attribute="t" + axis, time=start + index // 2, value=value,
                              inTangentType="linear", outTangentType="linear")
     return max(_position(target, start + i / 2.0).distanceTo(positions[i]) for i in range(1, len(positions), 2))
+
+@undoTransaction("animBarAddPathHandles")
+def addSelectedHandles():
+    """選択した軌道CVごとに独立したクラスターハンドルを追加する。"""
+    components = cmds.ls(selection=True, flatten=True, long=True) or []
+    if not components:
+        raise ValueError("Select NURBS curve CVs.")
+    for item in components:
+        shape, separator, number = item.partition(".cv[")
+        if not separator or not number.endswith("]") or not number[:-1].isdigit():
+            raise ValueError("Select NURBS curve CVs only.")
+        if cmds.nodeType(shape) == "transform":
+            shapes = cmds.listRelatives(shape, shapes=True, noIntermediate=True, fullPath=True) or []
+            if len(shapes) != 1:
+                raise ValueError("Select CVs on a single curve shape.")
+            shape = shapes[0]
+        if cmds.nodeType(shape) != "nurbsCurve" or cmds.referenceQuery(shape, isNodeReferenced=True):
+            raise ValueError("Choose editable NURBS curve CVs.")
+    handles = []
+    for item in components:
+        cluster, handle = cmds.cluster(item, name="animBarPathCV#")
+        cmds.addAttr(handle, longName="animBarPathCluster", attributeType="message")
+        cmds.connectAttr(cluster + ".message", handle + ".animBarPathCluster")
+        handles.append(handle)
+    cmds.select(handles, replace=True)
+    return handles
+
+
+@undoTransaction("animBarRemovePathHandles")
+def removeSelectedHandles():
+    """選択した専用ハンドルとその単点クラスターを取り外す。"""
+    handles = cmds.ls(selection=True, type="transform", long=True) or []
+    if not handles:
+        raise ValueError("Select path CV handles to remove.")
+    clusters = []
+    for handle in handles:
+        plug = handle + ".animBarPathCluster"
+        source = cmds.listConnections(plug, source=True, destination=False, type="cluster") if cmds.objExists(plug) else []
+        children = cmds.listRelatives(handle, children=True, fullPath=True) or []
+        if len(source or []) != 1 or any(cmds.nodeType(child) != "clusterHandle" for child in children):
+            raise ValueError("Select only AnimBar path CV handles without child transforms.")
+        clusters.append(source[0])
+    cmds.delete(clusters)
+    remaining = [handle for handle in handles if cmds.objExists(handle)]
+    if remaining:
+        cmds.delete(remaining)

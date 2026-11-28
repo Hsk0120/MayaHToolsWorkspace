@@ -117,6 +117,10 @@ def step(state, targets, normals, weights, constraints, colliders, settings, dt)
     acceleration = om.MVector(settings["gravity"]) + om.MVector(settings["wind"])
     points = [point + velocity * (decay * dt) + acceleration * (dt * dt)
               for point, velocity in zip(old_points, velocities)]
+    if settings.get("sceneFields"):
+        import mayaParticleFields
+        field_accel = mayaParticleFields.accelerations(settings["sceneFields"], old_points, velocities, settings["particleMass"], dt)
+        points = [point + acc * dt * dt for point, acc in zip(points, field_accel)]
     inverse_mass = [1.0 / settings["particleMass"] if weight * settings["maxDistance"] > PIN_DISTANCE else 0.0
                     for weight in weights]
     drive = 1 - math.exp(-settings["animDrive"] * dt)

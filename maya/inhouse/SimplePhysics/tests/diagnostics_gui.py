@@ -38,10 +38,11 @@ def main(output_dir, finished):
     checks["positive_speed"] = cmds.getAttr(node + ".maxParticleSpeed") > 0
     checks["fixed_count"] = cmds.getAttr(node + ".fixedRootCount") == 1
     # コールバックをMayaの実ボタンから呼び、現在選択の根元が編集対象になることを確かめる。
-    buttons = {cmds.button(item, query=True, label=True): item for item in cmds.lsUI(type="button", long=True) or []
-               if item.startswith(window + "|")}
     def click(label):
-        control = wrapInstance(int(omui.MQtUtil.findControl(buttons[label])), QtWidgets.QPushButton)
+        # Setups and Undo may rebuild the panel. Resolve the current control at click time.
+        control_name = next(item for item in cmds.lsUI(type="button", long=True) or []
+                            if item.startswith(window + "|") and cmds.button(item, query=True, label=True) == label)
+        control = wrapInstance(int(omui.MQtUtil.findControl(control_name)), QtWidgets.QPushButton)
         control.click()
     cmds.select(clear=True)
     other = cmds.joint(position=(0, 10, 2))
@@ -80,6 +81,24 @@ def main(output_dir, finished):
     checks["curve_capsules_undo"] = cmds.ls(selection=True) == [curve] and not any(cmds.objExists(guide) for guide in guides)
     cmds.redo()
     checks["curve_capsules_redo"] = cmds.ls(selection=True, long=True) == guides
+    cmds.select(clear=True)
+    field = cmds.radial(position=(0, 4, 0), magnitude=10, attenuation=1)[0]
+    cmds.select(field)
+    click("Attach Selected Static Maya Field")
+    checks["field_attached"] = bool(cmds.listConnections(node + ".fieldForces", source=True, destination=False))
+    click("Detach Selected Maya Field")
+    checks["field_detached"] = not cmds.listConnections(node + ".fieldForces", source=True, destination=False)
+    cmds.select(api.connections(node, "outputBones")[1])
+    click("選択出力にヒンジを設定")
+    checks["hinge_attached"] = "1" in json.loads(cmds.getAttr(node + ".hingeLimits"))
+    click("選択出力のヒンジを解除")
+    checks["hinge_removed"] = not json.loads(cmds.getAttr(node + ".hingeLimits"))
+    click("選択粒子の速度を線で表示 (cm/s)")
+    checks["indicator"] = bool(cmds.listConnections(node + ".velocityEndpoint", source=False, destination=True))
+    click("現在の姿勢を開始状態に設定（初速0）")
+    checks["settled"] = bool(cmds.getAttr(node + ".settledOffsets"))
+    click("元の開始姿勢に戻す")
+    checks["reset_settled"] = not cmds.getAttr(node + ".settledOffsets")
     result = {"status": "passed" if all(checks.values()) else "failed", "checks": checks}
     (Path(output_dir) / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     finished(result)

@@ -524,14 +524,16 @@ def inspectChannels(channelBoxOnly=False, *, nodes=None):
     return rows
 
 
-def inspectPublishedChannels():
+def inspectPublishedChannels(roots=None):
     """選択ルートの宣言、解決できない役割、実際のチャンネル状態を返す。"""
     # 公開ポートを使う操作だけがmlrigに依存する。
     from mlrig import publishedChannels
 
     ports = {}
     excluded = {}
-    for root in cmds.ls(selection=True, long=True, type="transform") or []:
+    if roots is None:
+        roots = cmds.ls(selection=True, long=True, type="transform") or []
+    for root in roots:
         definitions = publishedChannels.getPorts(root)
         if not definitions:
             excluded[root] = "No published ports"

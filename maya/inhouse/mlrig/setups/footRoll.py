@@ -125,7 +125,8 @@ class FootRoll(TwistDistribution):
             return Matrix([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, position.x, position.y, position.z, 1])
 
         pivots = {
-            role: Vector(local(node).translate)
+            role: (to_control.transformPoint(node.getPivot(ws=True)) if node.hasAttr("mlrigFootPivot") and node.getPlug("mlrigFootPivot").get()
+                   else Vector(local(node).translate))
             for role, node in zip(("ball", "toe", "heel", "inner", "outer"), nodes[2:])
         }
         # swivelとtoeTapは母指球を中心に回す。

@@ -1,5 +1,6 @@
 """回転の合成に影響する入力を読み取り表示する。"""
 
+import mlib
 from maya import cmds
 
 
@@ -15,7 +16,7 @@ def show():
     def refresh(*_):
         """値はシーンの角度単位で表示する。"""
         lines = []
-        for node in cmds.ls(selection=True, long=True, transforms=True) or []:
+        for node in mlib.ls(selection=True, long=True, transforms=True).getNames(full=True):
             lines.append(node)
             for attr in ("rotateOrder", "rotate", "rotateAxis", "jointOrient"):
                 plug = node + "." + attr

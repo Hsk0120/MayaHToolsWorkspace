@@ -3,6 +3,7 @@
 import re
 
 import maya.cmds as cmds
+from mlib.decorator import undoTransaction
 
 
 def preview(nodes, search, replacement):
@@ -56,6 +57,52 @@ def preview(nodes, search, replacement):
     return rows
 
 
+def shapeNames(nodes):
+    """形状の用途から候補を作成し、参照・ロック・衝突を報告する。"""
+    rows = {}
+    for path in cmds.ls(nodes, long=True) if nodes else []:
+        shapes = cmds.listRelatives(path, shapes=True, fullPath=True) if cmds.objectType(path, isAType="transform") else [path]
+        for shape in shapes or []:
+            if not cmds.objectType(shape, isAType="shape"):
+                continue
+            parent = shape.rsplit("|", 1)[0]
+            base = parent.rsplit("|", 1)[-1]
+            intermediate = cmds.getAttr(shape + ".intermediateObject")
+            new = base + ("ShapeOrig" if intermediate else "Shape")
+            status = []
+            if cmds.referenceQuery(shape, isNodeReferenced=True):
+                status.append("Referenced")
+            if cmds.lockNode(shape, query=True, lock=True)[0]:
+                status.append("Locked")
+            if len(cmds.listRelatives(shape, allParents=True, fullPath=True) or []) > 1:
+                status.append("Instanced")
+            if shape == parent + "|" + new:
+                status.append("Unchanged")
+            elif cmds.objExists(parent + "|" + new):
+                status.append("Name collision")
+            rows[shape] = (new, status)
+    targets = [path.rsplit("|", 1)[0] + "|" + row[0] for path, row in rows.items()]
+    for path, (new, status) in rows.items():
+        if targets.count(path.rsplit("|", 1)[0] + "|" + new) > 1 and "Name collision" not in status:
+            status.append("Name collision")
+    return rows
+
+
+@undoTransaction("Rename Shapes by Purpose")
+def renameShapes(plan):
+    """表示した候補のうち選択された行を、再検査してから適用する。"""
+    if not plan or not cmds.undoInfo(query=True, state=True):
+        raise ValueError("Select preview rows and enable Undo.")
+    for path, expected in plan.items():
+        if not cmds.objExists(path):
+            raise ValueError("Shape was removed: " + path)
+        siblings = shapeNames([path.rsplit("|", 1)[0]])
+        if path not in siblings or siblings[path] != (expected, []):
+            raise ValueError("Refresh the preview: " + path)
+    for path, new in plan.items():
+        cmds.rename(path, ":" + new)
+
+
 def run():
     """文字列置換を適用した場合のパスと参照先を表示する。"""
     window = "HToolsRenamePreview"
@@ -74,6 +121,26 @@ def run():
         cmds.scrollField(report, edit=True, text="\n".join(rows) or "Select rig transforms.")
 
     cmds.button(label="Preview names and dependencies", command=inspect)
+    listing = cmds.textScrollList(allowMultiSelection=True, height=130)
+    plan = {}
+
+    def shapePreview(*_):
+        plan.clear()
+        plan.update(shapeNames(cmds.ls(selection=True, long=True) or []))
+        cmds.textScrollList(listing, edit=True, removeAll=True)
+        for path, (new, flags) in plan.items():
+            cmds.textScrollList(listing, edit=True, append="{} -> {}  {}".format(path, new, ", ".join(flags)))
+
+    def applyRows(*_):
+        picks = cmds.textScrollList(listing, query=True, selectIndexedItem=True) or []
+        chosen = [list(plan)[i - 1] for i in picks]
+        if any(plan[path][1] for path in chosen):
+            raise ValueError("Select editable rows without collisions.")
+        renameShapes({path: plan[path][0] for path in chosen})
+        shapePreview()
+
+    cmds.button(label="Preview selected shapes by purpose", command=shapePreview)
+    cmds.button(label="Rename selected preview rows", command=applyRows)
     cmds.showWindow(window)
 
 

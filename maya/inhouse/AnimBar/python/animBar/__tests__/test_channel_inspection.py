@@ -60,6 +60,22 @@ class ChannelInspectionTest(unittest.TestCase):
         self.assertEqual(cmds.getAttr(root + ".gain"), 7)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
 
+    def test_captured_defaults_are_scoped_per_rig(self):
+        """同名役割の初期値をリグごとに読み出す。"""
+        from mlrig import publishedChannels
+
+        cmds.file(new=True, force=True)
+        roots = [cmds.createNode("transform", name=name) for name in ("first", "second")]
+        for root, value in zip(roots, (3.0, 5.0)):
+            publishedChannels.setPorts(root, {"lift": dict(path="", attribute="translateY", kind="default")})
+            cmds.setAttr(root + ".translateY", value)
+            publishedChannels.captureDefaults(root, ["lift"])
+            cmds.setAttr(root + ".translateY", 0)
+        cmds.select(roots, replace=True)
+        rows, missing = timing.inspectPublishedDefaults()
+        self.assertFalse(missing)
+        self.assertEqual({row[0]: row[1] for row in rows}, {"|first.translateY": 3.0, "|second.translateY": 5.0})
+
     def test_selected_reset_key_scope(self):
         """飛び選択の監査結果を実際のリセットとUndoに照合する。"""
         cmds.file(new=True, force=True)

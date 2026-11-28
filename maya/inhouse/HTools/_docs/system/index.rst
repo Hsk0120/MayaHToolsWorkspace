@@ -7,3 +7,6 @@ HToolsメニューの ``system`` にあるツールです。
    :maxdepth: 1
 
    checkWorkspacePluginTrust
+   compareProjectSettings
+   diagnosticLaunchPreview
+   rigPackageInspection

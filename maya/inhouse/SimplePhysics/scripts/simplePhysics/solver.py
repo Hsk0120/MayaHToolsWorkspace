@@ -99,6 +99,19 @@ def _restore(points, pose_points, poses, parents, settings, planar):
             if difference > limit:
                 rotation = rest.rotateTo(current)
                 current = rest.rotateBy(om.MQuaternion.slerp(om.MQuaternion(), rotation, limit / difference))
+        if "hinge" in settings[index] and length > EPSILON:
+            axis, minimum, maximum = settings[index]["hinge"]
+            normal = direction(om.MVector(axis) * poses[parent])
+            rest = reference.normal()
+            axial = rest * normal
+            tangent = rest - normal * axial
+            projected = current - normal * (current * normal)
+            if tangent.length() > EPSILON and projected.length() > EPSILON:
+                angle = math.atan2(normal * (tangent ^ projected), tangent * projected)
+                clipped = min(math.radians(maximum), max(math.radians(minimum), angle))
+                current = rest.rotateBy(om.MQuaternion(clipped, normal))
+            else:
+                current = rest
         points[index] = points[parent] + current * length
 
 
@@ -140,6 +153,11 @@ def step(state, previous_poses, poses, parents, settings, colliders, constraints
         tuple: 次の位置と前回位置。
     """
     points, previous = copy_state(state)
+    field_accel = None
+    if options.get("sceneFields"):
+        import mayaParticleFields
+        velocities = [(p-q) / options["previousDt"] for p, q in zip(points, previous)]
+        field_accel = mayaParticleFields.accelerations(options["sceneFields"], points, velocities, 1.0, dt)
     pose_points = [position(matrix) for matrix in poses]
     roots = []
     for index, parent in enumerate(parents):
@@ -161,6 +179,8 @@ def step(state, previous_poses, poses, parents, settings, colliders, constraints
         damping = (1.0 - params["damping"]) ** (options["targetFramerate"] * dt)
         velocity = (points[index] - previous[index]) / options["previousDt"] * damping
         points[index] += velocity * dt + om.MVector(options["gravity"]) * dt * dt
+        if field_accel is not None:
+            points[index] += field_accel[index] * dt * dt
         points[index] += om.MVector(options["wind"]) * dt
         points[index] += (new_root - old_root) * (1.0 - params["worldDampingLocation"])
         relative = old_point - old_root

@@ -2,25 +2,27 @@
 
 import math
 
+import mlib
 from maya import cmds
-from maya.api import OpenMaya as om2
+from mlib import getNode, getPlug
+from mlib.maths import Matrix
 from mlib.decorator import undoTransaction
 
 
 def meshPath(node):
-    """単一の表示用メッシュのDAGパスを返す。"""
+    """単一の表示用メッシュを選択したインスタンスのパスで返す。"""
     if cmds.nodeType(node) != "mesh":
         shapes = cmds.listRelatives(node, shapes=True, noIntermediate=True, type="mesh", fullPath=True) or []
         if len(shapes) != 1:
             raise ValueError("メッシュを1つ持つトランスフォームを指定してください")
         node = shapes[0]
-    return om2.MSelectionList().add(node).getDagPath(0)
+    return getNode(node)
 
 
 def _validate_uv(fn, uvSet, shell, u, v):
     if uvSet not in fn.getUVSetNames() or not all(math.isfinite(x) for x in (u, v)):
         raise ValueError("UVセットまたは座標が無効です")
-    faces, _ = fn.getPointsAtUV(u, v, om2.MSpace.kObject, uvSet, 1e-7)
+    faces, _ = fn.getPointsAtUV(u, v, uvSet=uvSet, tolerance=1e-7)
     if len(set(faces)) != 1:
         raise ValueError("UV位置の面が見つからないか、複数の面が重なっています")
     face = faces[0]
@@ -41,15 +43,15 @@ def _validate_uv(fn, uvSet, shell, u, v):
 def create(mesh, uvSet, shell, u, v):
     """UVセット・シェルを検査し、面の内側に標準follicleのガイドを作成する。"""
     path = meshPath(mesh)
-    _validate_uv(om2.MFnMesh(path), uvSet, shell, u, v)
-    node = path.fullPathName()
-    guide = cmds.createNode("transform", name="surfaceGuide#", skipSelect=True)
-    follicle = cmds.createNode("follicle", parent=guide, skipSelect=True)
+    _validate_uv(path.mfn(), uvSet, shell, u, v)
+    node = path.getName(full=True)
+    guide = mlib.createNode("transform", name="surfaceGuide#", skipSelect=True).getName()
+    follicle = mlib.createNode("follicle", parent=guide, skipSelect=True).getName()
     cmds.setAttr(follicle + ".mapSetName", uvSet, type="string")
     cmds.setAttr(follicle + ".parameterU", u)
     cmds.setAttr(follicle + ".parameterV", v)
     cmds.connectAttr(node + ".outMesh", follicle + ".inputMesh")
-    cmds.connectAttr("{}.worldMatrix[{}]".format(node, path.instanceNumber()), follicle + ".inputWorldMatrix")
+    cmds.connectAttr("{}.worldMatrix[{}]".format(node, path.getInstanceIndex()), follicle + ".inputWorldMatrix")
     cmds.setAttr(guide + ".inheritsTransform", False)
     cmds.connectAttr(follicle + ".outTranslate", guide + ".translate")
     cmds.connectAttr(follicle + ".outRotate", guide + ".rotate")
@@ -67,10 +69,17 @@ def rebind(guide, shell, u, v):
         plug = follicle + "." + attr
         if cmds.connectionInfo(plug, isDestination=True) or not cmds.getAttr(plug, settable=True):
             raise ValueError("UVの入力接続またはロックを確認してください")
-    fn = om2.MFnMesh(om2.MSelectionList().add(follicle + ".inputMesh").getPlug(0).asMObject())
+    source = getPlug(follicle + ".inputWorldMatrix").getConnections(source=True, destination=False, index=0)
+    if source is None:
+        source = getPlug(follicle + ".inputMesh").getConnections(source=True, destination=False, index=0)
+    if source is None:
+        raise ValueError("面追従ガイドの入力メッシュを確認してください")
+    mesh = meshPath(source.getNode().getName(full=True))
+    fn = mesh.mfn()
+    fn.setObject(getPlug(follicle + ".inputMesh").mplug().asMObject())
     _validate_uv(fn, cmds.getAttr(follicle + ".mapSetName"), shell, u, v)
     opm = guide + ".offsetParentMatrix"
-    current = om2.MMatrix(cmds.getAttr(guide + ".worldMatrix[0]"))
+    current = Matrix(cmds.getAttr(guide + ".worldMatrix[0]"))
     marker = guide + ".mlrigUVOffset"
     if cmds.objExists(marker):
         mm = cmds.connectionInfo(marker, sourceFromDestination=True).rsplit(".", 1)[0]
@@ -84,8 +93,8 @@ def rebind(guide, shell, u, v):
             cmds.isConnected(follicle + ".out" + a.capitalize(), guide + "." + a) for a in ("translate", "rotate")
         ):
             raise ValueError("面追従の直接接続を確認してください")
-        compose = cmds.createNode("composeMatrix", name="uvGuideFrame#")
-        mm = cmds.createNode("multMatrix", name="uvGuideOffset#")
+        compose = mlib.createNode("composeMatrix", name="uvGuideFrame#").getName()
+        mm = mlib.createNode("multMatrix", name="uvGuideOffset#").getName()
         for a in ("translate", "rotate"):
             src = follicle + ".out" + a.capitalize()
             cmds.disconnectAttr(src, guide + "." + a)
@@ -97,8 +106,8 @@ def rebind(guide, shell, u, v):
         cmds.connectAttr(mm + ".message", marker)
     cmds.setAttr(follicle + ".parameterU", u)
     cmds.setAttr(follicle + ".parameterV", v)
-    frame = om2.MMatrix(cmds.getAttr(compose + ".outputMatrix"))
-    local = om2.MMatrix(cmds.getAttr(guide + ".matrix"))
+    frame = Matrix(cmds.getAttr(compose + ".outputMatrix"))
+    local = Matrix(cmds.getAttr(guide + ".matrix"))
     if local.isSingular() or frame.isSingular():
         raise ValueError("逆マトリクスを求められない姿勢です")
     cmds.setAttr(mm + ".matrixIn[0]", *list(local.inverse() * current * frame.inverse()), type="matrix")
@@ -107,7 +116,7 @@ def rebind(guide, shell, u, v):
 
 def showRebind():
     """ガイドの現在UVを表示し、新しいシェルと面内座標を指定する。"""
-    nodes = cmds.ls(selection=True, long=True, transforms=True) or []
+    nodes = mlib.ls(selection=True, long=True, transforms=True).getNames(full=True)
     shapes = cmds.listRelatives(nodes[0], shapes=True, type="follicle", fullPath=True) if len(nodes) == 1 else []
     if not shapes or len(shapes) != 1:
         raise ValueError("対象の面追従ガイドを1点選択してください")
@@ -136,7 +145,7 @@ def showRebind():
 
 def show():
     """選択メッシュのUVセット・シェル番号・座標を指定する。"""
-    nodes = cmds.ls(selection=True, long=True) or []
+    nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
     if len(nodes) != 1:
         raise ValueError("メッシュを1つ選択してください")
     path = meshPath(nodes[0])
@@ -146,20 +155,20 @@ def show():
     cmds.window(window, title="UV面追従ガイド")
     cmds.columnLayout(adjustableColumn=True)
     menu = cmds.optionMenu(label="UVセット")
-    for name in om2.MFnMesh(path).getUVSetNames():
+    for name in path.getSetNames(kind="uv"):
         cmds.menuItem(label=name, parent=menu)
     shell = cmds.intFieldGrp(label="シェル番号", value1=0)
     uv = cmds.floatFieldGrp(label="U・V", numberOfFields=2, precision=6, value1=0.5, value2=0.5)
 
     def build(*_):
         guide = create(
-            path.fullPathName(),
+            path.getName(full=True),
             cmds.optionMenu(menu, query=True, value=True),
             cmds.intFieldGrp(shell, query=True, value1=True),
             cmds.floatFieldGrp(uv, query=True, value1=True),
             cmds.floatFieldGrp(uv, query=True, value2=True),
         )
-        cmds.select(guide, replace=True)
+        mlib.select(guide, replace=True)
 
     cmds.button(label="追従ガイドを作成", command=build)
     cmds.showWindow(window)

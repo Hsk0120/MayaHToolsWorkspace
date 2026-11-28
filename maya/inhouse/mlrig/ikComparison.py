@@ -2,8 +2,10 @@
 
 import math
 
+import mlib
 from maya import cmds, mel
-from maya.api import OpenMaya as om2
+from mlib import getNode
+from mlib.maths import Transformation
 from mlib.decorator import undoTransaction
 
 
@@ -20,8 +22,8 @@ def _points(guides):
 
 
 def _chain(points, solver, target, twist):
-    group = cmds.createNode("transform", name="ikComparison#")
-    cmds.select(group)
+    group = mlib.createNode("transform", name="ikComparison#").getName()
+    mlib.select(group)
     joints = [cmds.joint(position=p, name="ikComparisonBone#") for p in points]
     cmds.joint(joints[0], edit=True, orientJoint="xyz", secondaryAxisOrient="yup", children=True, zeroScaleOrient=True)
     if solver == "ikSpringSolver":
@@ -51,7 +53,7 @@ def compare(guides, delta, twist=0, keep=None):
     target = [v + d for v, d in zip(points[-1], delta)]
     if len(target) != 3 or not all(math.isfinite(v) for v in target + [twist]):
         raise ValueError("有限の移動量3成分とねじり角を指定してください")
-    saved = cmds.ls(selection=True, long=True) or []
+    saved = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
     reference = None
     rows = {}
     for label, solver in _SOLVERS.items():
@@ -64,7 +66,7 @@ def compare(guides, delta, twist=0, keep=None):
         group, joints = _chain(points, solver, target, twist)
         solved = [cmds.xform(n, query=True, worldSpace=True, translation=True) for n in joints]
         quats = [
-            om2.MTransformationMatrix(om2.MMatrix(cmds.xform(n, query=True, worldSpace=True, matrix=True))).rotation(asQuaternion=True)
+            Transformation(getNode(n).getMatrix(ws=True)).quaternion
             for n in joints
         ]
         if reference is None:
@@ -80,19 +82,19 @@ def compare(guides, delta, twist=0, keep=None):
             switchDegrees=max(angles),
         )
         if keep:
-            cmds.select(group)
+            mlib.select(group)
             return group
-        cmds.delete(group)
+        mlib.delete(group)
     if saved:
-        cmds.select(saved, replace=True)
+        mlib.select(saved, replace=True)
     else:
-        cmds.select(clear=True)
+        mlib.select(clear=True)
     return rows
 
 
 def show():
     """選択ガイドの試験条件を入力して結果を表示し、選んだ方式の鎖を作成する。"""
-    guides = cmds.ls(selection=True, long=True) or []
+    guides = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
     _points(guides)
     window = "mlrigIKComparison"
     if cmds.window(window, exists=True):

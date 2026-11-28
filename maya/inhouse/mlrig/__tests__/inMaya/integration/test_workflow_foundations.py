@@ -1,7 +1,10 @@
 """mlrigから還元した基礎APIを独立したMayaシーンで検証する。"""
 
+import ast
 import math
 import unittest
+from pathlib import Path
+
 from maya import cmds
 import mlib
 from mlrig.setups import ControlShape, SoftIK
@@ -9,6 +12,56 @@ from mlib.common.scalarGraph import ScalarGraph
 from mlib.nodes import Container
 from mlib.common import units
 from mlib.decorator import nativeUnits
+
+
+def _maya_boundary_errors(source):
+    """直接importと呼出を調べ、行番号と違反したMaya入口を返す。"""
+    tree = ast.parse(source)
+    names = {}
+    errors = []
+    for item in ast.walk(tree):
+        if not isinstance(item, (ast.Import, ast.ImportFrom)):
+            continue
+        if isinstance(item, ast.ImportFrom) and (not item.module or item.level):
+            continue
+        for alias in item.names:
+            if isinstance(item, ast.ImportFrom):
+                imported = item.module + "." + alias.name
+                local = alias.asname or alias.name
+                bound = imported
+            else:
+                imported = alias.name
+                root_name = imported.split(".")[0]
+                local = alias.asname or root_name
+                bound = imported if alias.asname else root_name
+            if not imported.startswith("maya.") and imported != "maya":
+                continue
+            names[local] = bound
+            if imported == "maya.utils" or imported.startswith("maya.utils.") or any(
+                part.startswith("OpenMaya") for part in imported.split(".")
+            ) or imported == "maya.cmds.*":
+                errors.append((item.lineno, imported))
+
+    core = {"getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select"}
+    for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+        attr = call.func
+        parts = []
+        while isinstance(attr, ast.Attribute):
+            parts.append(attr.attr)
+            attr = attr.value
+        if not isinstance(attr, ast.Name) or attr.id not in names:
+            continue
+        name = ".".join([names[attr.id]] + list(reversed(parts)))
+        if name.rpartition(".")[0] != "maya.cmds" or name.rpartition(".")[2] not in core:
+            continue
+        # ヒストリの削除はノードを残すMaya専用の操作。mlib.deleteは対象自体を削除する。
+        if name == "maya.cmds.delete" and len(call.keywords) == 1 and any(
+            kw.arg in ("constructionHistory", "ch") and isinstance(kw.value, ast.Constant) and kw.value.value is True
+            for kw in call.keywords
+        ):
+            continue
+        errors.append((call.lineno, name))
+    return sorted(errors)
 
 
 class RigFoundationsTest(unittest.TestCase):
@@ -156,53 +209,33 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertFalse(node.getPlug("tx").isSettable())
 
     def test_maya_command_boundary_in_mlrig(self):
-        """mlibに入口が無い環境照会・UIだけcmds直接使用を許可する。"""
-        import ast
-        from pathlib import Path
-
-        root = Path(__file__).resolve().parents[4] / "mlrig"
-        # 廃止したコマンドラッパーの代替は、実際の使用ファイルに限定する。
-        direct_commands = {}
+        """基礎7入口はmlib、標準UI・他のMayaコマンドは利用側で扱う。"""
+        root = Path(__file__).resolve().parents[3]
         violations = []
-        for path in root.rglob("*.py"):
+        for path in sorted(root.rglob("*.py")):
             if "__tests__" in path.parts:
                 continue
-            tree = ast.parse(path.read_text(encoding="utf-8-sig"))
-            for item in ast.walk(tree):
-                if isinstance(item, ast.Import):
-                    if any(
-                        a.name == "maya.utils" or "OpenMaya" in a.name
-                        for a in item.names
-                    ):
-                        violations.append(str(path))
-                elif isinstance(item, ast.ImportFrom):
-                    if (
-                        item.module == "maya.utils"
-                        or "OpenMaya" in (item.module or "")
-                        or (
-                            item.module in ("maya", "maya.api")
-                            and any(
-                                a.name == "utils" or "OpenMaya" in a.name
-                                for a in item.names
-                            )
-                        )
-                    ):
-                        violations.append(str(path))
-                if (
-                    isinstance(item, ast.Call)
-                    and isinstance(item.func, ast.Attribute)
-                    and isinstance(item.func.value, ast.Name)
-                    and item.func.value.id == "cmds"
-                    and item.func.attr
-                    not in {
-                        "menu",
-                        "about",
-                        "deleteUI",
-                        "menuItem",
-                    } | direct_commands.get(path.relative_to(root).as_posix(), set())
-                ):
-                    violations.append(str(path) + ":" + item.func.attr)
-        self.assertEqual(violations, [])
+            violations.extend(
+                "{}:{} {}".format(path.relative_to(root), line, name)
+                for line, name in _maya_boundary_errors(path.read_text(encoding="utf-8-sig"))
+            )
+        self.assertFalse(violations, "\n".join(violations))
+
+    def test_maya_command_boundary_examples(self):
+        """許可する標準操作と、別名を含む禁止入口を個別に確認する。"""
+        allowed = "from maya import cmds as mc\nmc.listRelatives('a')\nmc.window()\nmc.delete('a', constructionHistory=True)"
+        self.assertEqual(_maya_boundary_errors(allowed), [])
+        cases = {
+            "import maya.cmds as mc\nmc.ls()": "maya.cmds.ls",
+            "from maya.cmds import select as choose\nchoose('a')": "maya.cmds.select",
+            "import maya.cmds\nmaya.cmds.delete('a', ch=False)": "maya.cmds.delete",
+            "from maya.api import OpenMaya as om2": "maya.api.OpenMaya",
+            "import maya.OpenMayaUI": "maya.OpenMayaUI",
+            "from maya import utils": "maya.utils",
+        }
+        for example, expected in cases.items():
+            with self.subTest(example=example):
+                self.assertEqual([name for _, name in _maya_boundary_errors(example)], [expected])
 
     def test_menu_batch_guard(self):
         """GUIを持たない場合、mlrigのメニューを作成しない。"""

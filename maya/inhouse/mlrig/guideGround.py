@@ -2,6 +2,7 @@
 
 import math
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -11,7 +12,7 @@ def align(root, left, right, height):
     """ワールドの上方向だけにルートを移動し、子のローカル姿勢を保持する。"""
     nodes = []
     for name in (root, left, right):
-        matches = cmds.ls(name, long=True, transforms=True) or []
+        matches = mlib.ls(name, long=True, transforms=True).getNames(full=True)
         if len(matches) != 1:
             raise ValueError("ルートと左右の接地点を一意に指定してください")
         nodes.append(matches[0])
@@ -35,7 +36,7 @@ def align(root, left, right, height):
 
 def show():
     """ルート・左・右の順に選択したガイドの地面の高さを指定する。"""
-    selected = cmds.ls(selection=True, long=True, transforms=True) or []
+    selected = mlib.ls(selection=True, long=True, transforms=True).getNames(full=True)
     if len(selected) != 3:
         raise ValueError("ガイドのルート、左、右の接地点を順に選んでください")
     window = "mlrigGuideGround"

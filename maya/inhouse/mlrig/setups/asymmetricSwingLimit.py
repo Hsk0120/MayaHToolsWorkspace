@@ -2,6 +2,7 @@
 
 import math
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -22,7 +23,7 @@ class AsymmetricSwingLimit(SwingLimit):
     @undoTransaction("mlrig.AsymmetricSwingLimit.eye")
     def createEyeOutput(cls):
         """選択した+Z正面の眼球入力骨に対して、同じ親空間の制限済み出力を作る。"""
-        selected = cmds.ls(selection=True, long=True, type="joint") or []
+        selected = mlib.ls(selection=True, long=True, type="joint").getNames(full=True)
         if len(selected) != 1:
             raise ValueError("視線入力のジョイントを1つ選択してください")
         joint = selected[0]
@@ -32,9 +33,9 @@ class AsymmetricSwingLimit(SwingLimit):
         name = joint.rsplit("|", 1)[-1].replace(":", "_")
         graph = cls.create(joint, name=name + "_eyeLimit", axis="z", limit1Positive=40, limit1Negative=40,
                            limit2Positive=30, limit2Negative=25, softness=0.15)
-        output = cmds.createNode("transform", name=name + "_limited", parent=parent[0], skipSelect=True)
+        output = mlib.createNode("transform", name=name + "_limited", parent=parent[0], skipSelect=True).getName()
         cmds.connectAttr(graph.container.getName() + ".matrix", output + ".offsetParentMatrix")
-        cmds.select(graph.container.getName(), replace=True)
+        mlib.select(graph.container.getName(), replace=True)
         return output
 
     @classmethod

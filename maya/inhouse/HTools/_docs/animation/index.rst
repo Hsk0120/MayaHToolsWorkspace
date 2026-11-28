@@ -8,4 +8,5 @@ HToolsメニューの ``animation`` にあるツールです。
 
    animBar
    create_pbd_overlap_rotation_bake
+   footContact
    framePlayerSync

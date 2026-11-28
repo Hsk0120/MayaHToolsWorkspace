@@ -61,7 +61,8 @@ def set_layer_enabled(self, layer, enabled):
   移動時は使用側を新しいAPIへ更新し、旧import用アダプターは残さない。
 - 基礎コマンドは`getNode/getPlug/createNode/ls/delete/duplicate/select`を使う。
   その他はMaya標準cmdsを直接呼び、Node/Plugが必要な境界だけ明示変換する。
-  標準コマンドの引数へは必要に応じて`getFullName()`を渡し、shape/transform/履歴/effectorを区別する。
+  標準コマンドの引数へは必要に応じて`getName(full=True)`を渡し、shape/transform/履歴/effectorを区別する。
+  例えばノード削除は`mlib.delete(node)`、形状を残して構築履歴を削除する操作は`cmds.delete(node, constructionHistory=True)`を使う。
 
 - mlrigからOpenMaya/OpenMayaUIを直接importしない。数学型は `mlib.maths` の
   Matrix/Vector/EulerRotate等、位置変換は `Matrix.transformPoint`、回転分解は

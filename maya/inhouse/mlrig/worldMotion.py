@@ -1,5 +1,6 @@
 """既存リグの1関節の移動・回転を別リグの1関節へ整数フレームで転写する。"""
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -9,7 +10,7 @@ def transfer(source, target, first, last):
     """両者のワールドマトリクスが一致する移動・回転キーを指定範囲に作成する。"""
     if type(first) is not int or type(last) is not int or first > last:
         raise ValueError("開始・終了に昇順の整数フレームを指定してください")
-    src, dst = [cmds.ls(n, long=True, transforms=True) or [] for n in (source, target)]
+    src, dst = [mlib.ls(n, long=True, transforms=True).getNames(full=True) for n in (source, target)]
     if len(src) != 1 or len(dst) != 1:
         raise ValueError("送り側と受け側を一意に指定してください")
     source, target = src[0], dst[0]
@@ -29,7 +30,7 @@ def transfer(source, target, first, last):
         plug = target + "." + attr
         if cmds.objExists(plug) and cmds.listConnections(plug, source=True, destination=False):
             raise ValueError("宛先の姿勢設定に接続があります: " + plug)
-    temp = cmds.duplicate(target, parentOnly=True, name="worldMotionSample#", returnRootsOnly=True)[0]
+    temp = mlib.duplicate(target, parentOnly=True, name="worldMotionSample#", returnRootsOnly=True).getName()
     constraint = cmds.parentConstraint(source, temp, maintainOffset=False)[0]
     samples = []
     for frame in range(first, last + 1):
@@ -38,7 +39,7 @@ def transfer(source, target, first, last):
         if max(abs(a - b) for a, b in zip(expected, actual)) > 1e-5:
             raise ValueError("移動・回転で宛先の姿勢を再現できません: {}F".format(frame))
         samples.append((expected, [cmds.getAttr(temp + "." + attr, time=frame) for attr in attrs]))
-    cmds.delete(constraint, temp)
+    mlib.delete([constraint, temp])
     cmds.cutKey(target, attribute=attrs, time=(first, last), clear=True)
     for frame, (_, values) in enumerate(samples, first):
         for attr, value in zip(attrs, values):
@@ -52,7 +53,7 @@ def transfer(source, target, first, last):
 
 def show():
     """選択した旧・新コントローラーの転写範囲を指定する。"""
-    nodes = cmds.ls(selection=True, long=True, transforms=True) or []
+    nodes = mlib.ls(selection=True, long=True, transforms=True).getNames(full=True)
     if len(nodes) != 2:
         raise ValueError("旧・新コントローラーの順に選択してください")
     window = "mlrigWorldMotion"

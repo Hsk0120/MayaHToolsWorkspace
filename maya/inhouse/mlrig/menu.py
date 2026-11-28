@@ -122,6 +122,13 @@ class Menu:
         cmds.menuItem(
             label="選択骨へ局所Tweakを追加", parent=cls.NAME, command=partial(cls.run, "tweak")
         )
+        cmds.menuItem(label="プレビューリグの接続経路", parent=cls.NAME, command=partial(cls.run, "previewRoutes"))
+        cmds.menuItem(label="部位別ブロックを生成", parent=cls.NAME, command=partial(cls.run, "blockGeometry"))
+        cmds.menuItem(label="補正ターゲットの所属と共有", parent=cls.NAME, command=partial(cls.run, "correctionOwnership"))
+        cmds.menuItem(label="面追従クラスタの再バインド", parent=cls.NAME, command=partial(cls.run, "clusterRebind"))
+        cmds.menuItem(label="サブリグ部品の保存・読込", parent=cls.NAME, command=partial(cls.run, "branchLibrary"))
+        cmds.menuItem(label="ガイドと形状の編集", parent=cls.NAME, command=partial(cls.run, "guideEdit"))
+        cmds.menuItem(label="スキン分布の補正先", parent=cls.NAME, command=partial(cls.run, "skinDriverTargets"))
         return cls.NAME
 
     @staticmethod
@@ -162,6 +169,27 @@ class Menu:
         from .sampleBuilder import SampleBuilder
 
         try:
+            if action == "previewRoutes":
+                from .previewRoutes import show
+                return show()
+            if action == "blockGeometry":
+                from .blockGeometry import show
+                return show()
+            if action == "correctionOwnership":
+                from .correctionTargets import showOwnership
+                return showOwnership()
+            if action == "clusterRebind":
+                from .surfaceClusters import showRebind
+                return showRebind()
+            if action == "branchLibrary":
+                from .branchUnit import showLibrary
+                return showLibrary()
+            if action == "guideEdit":
+                from .guideEdit import show
+                return show()
+            if action == "skinDriverTargets":
+                from .skinDriverTargets import show
+                return show()
             if action == "uvRebind":
                 from .surfaceGuide import showRebind
 
@@ -173,7 +201,7 @@ class Menu:
             if action.startswith("influenceMode:"):
                 from .influenceModes import create
 
-                return create(cmds.ls(selection=True,long=True) or [],action.split(":")[1])
+                return create([item.getName(full=True) for item in mlib.ls(selection=True,long=True)],action.split(":")[1])
             if action == "buildStages":
                 from .buildStages import show
 
@@ -187,7 +215,7 @@ class Menu:
 
                 kind = action.split(":")[1]
                 if kind == "build":
-                    nodes = cmds.ls(selection=True, long=True) or []
+                    nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                     if len(nodes) != 1:
                         raise ValueError("プリセットのルートを選択してください")
                     return animalGuides.build(nodes[0])
@@ -200,19 +228,19 @@ class Menu:
                 from . import layerExtract
 
                 key = action.split(":")[1]
-                nodes = cmds.ls(selection=True, long=True) or []
+                nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                 return layerExtract.merge(nodes) if key == "merge" else layerExtract.extract(nodes, key)
             if action in ("twistBefore", "twistAfter"):
                 from .twistInfluence import create
 
-                joints = cmds.ls(selection=True, long=True, type="joint") or []
+                joints = mlib.ls(selection=True, long=True, type="joint").getNames(full=True)
                 if len(joints) != 1:
                     raise ValueError("親のあるジョイントを1個選択してください")
                 return create(joints[0], action == "twistBefore")
             if action in ("fourPoint", "releaseFourPoint"):
                 from . import fourPointGuide
 
-                nodes = cmds.ls(selection=True, long=True) or []
+                nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                 if action == "releaseFourPoint" and len(nodes) == 1:
                     return fourPointGuide.release(nodes[0])
                 if action == "fourPoint" and len(nodes) in (4, 5):
@@ -221,21 +249,21 @@ class Menu:
             if action == "guideRibbon":
                 from .guideRibbon import bind
 
-                nodes = cmds.ls(selection=True, long=True) or []
+                nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                 if len(nodes) < 3:
                     raise ValueError("カーブ2本、メッシュ、必要な小物の順に選択してください")
                 return bind(*nodes[:3], nodes[3:])
             if action == "surfaceDifference":
                 from .bindComparison import bindSurfaceDifference
 
-                nodes = cmds.ls(selection=True, long=True) or []
+                nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                 if len(nodes) != 3:
                     raise ValueError("参照面、評価面、宛先を順に選択してください")
                 return bindSurfaceDifference(*nodes)
             if action in ("addDirectionCone", "removeDirectionCone"):
                 from . import directionCones
 
-                nodes = cmds.ls(selection=True, long=True) or []
+                nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                 if action == "removeDirectionCone":
                     return directionCones.remove(nodes)
                 if len(nodes) != 2:
@@ -264,14 +292,14 @@ class Menu:
             if action in ("keepCurveLength", "polylineChain"):
                 from . import curveLengthTools
 
-                selected = cmds.ls(selection=True, long=True) or []
+                selected = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                 if len(selected) != 1:
                     raise ValueError("カーブを1本選択してください")
                 return curveLengthTools.keepLength(selected[0]) if action == "keepCurveLength" else curveLengthTools.polylineChain(selected[0])
             if action == "virtualFk":
                 from .virtualFk import create
 
-                return create(cmds.ls(selection=True, long=True, transforms=True) or [])
+                return create(mlib.ls(selection=True, long=True, transforms=True).getNames(full=True))
             if action == "surfaceClusters":
                 from .surfaceClusters import show
 
@@ -295,7 +323,7 @@ class Menu:
             if action == "orientPair":
                 from .setups.jointHierarchy import JointHierarchy
 
-                joints = cmds.ls(selection=True, long=True, type="joint") or []
+                joints = mlib.ls(selection=True, long=True, type="joint").getNames(full=True)
                 if len(joints) != 1:
                     raise ValueError("親骨を1つ選択してください")
                 return JointHierarchy.orientPair(joints[0])
@@ -330,7 +358,7 @@ class Menu:
             if action == "switchCorrectionCamera":
                 from .setups.cameraAngleReader import CameraAngleReader
 
-                selected = cmds.ls(selection=True, long=True) or []
+                selected = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                 if len(selected) != 2:
                     raise ValueError("補正のコンテナ、カメラの順に選択してください")
                 CameraAngleReader(selected[0]).setCamera(selected[1])
@@ -342,7 +370,7 @@ class Menu:
             if action.startswith("geometry:"):
                 from . import geometryRoles
 
-                selected = cmds.ls(selection=True, long=True) or []
+                selected = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
                 role = action.split(":", 1)[1]
                 if role == "register":
                     return geometryRoles.register(selected)

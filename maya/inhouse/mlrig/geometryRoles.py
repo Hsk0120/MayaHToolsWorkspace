@@ -1,5 +1,6 @@
 """ブロック・バインド・レンダーの3表現を同じ組に登録して表示を切り替える。"""
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -17,11 +18,11 @@ def register(nodes):
             raise ValueError("メッシュ形状を持つトランスフォームを選択してください: " + node)
         if any(other.startswith(node + "|") for other in nodes):
             raise ValueError("親子関係にある表現は切り替えられません")
-    group = cmds.createNode("network", name="mlrigGeometryRoles#", skipSelect=True)
+    group = mlib.createNode("network", name="mlrigGeometryRoles#", skipSelect=True).getName()
     for node, role in zip(nodes, _ROLES):
         cmds.addAttr(group, longName=role + "Geometry", attributeType="message")
         cmds.connectAttr(node + ".message", group + "." + role + "Geometry")
-    cmds.select(group, replace=True)
+    mlib.select(group, replace=True)
     return group
 
 

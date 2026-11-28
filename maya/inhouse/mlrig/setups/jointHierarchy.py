@@ -4,7 +4,7 @@ from contextlib import nullcontext
 
 import mlib
 from maya import cmds
-from maya.api import OpenMaya as om2
+from mlib.maths import Vector
 from mlib.decorator import undoChunk, undoTransaction
 
 
@@ -39,7 +39,7 @@ class JointHierarchy:
             raise ValueError("親骨の回転チャンネルをゼロにしてから実行してください")
         before = cmds.xform(child, query=True, matrix=True, worldSpace=True)
         parent_world = cmds.xform(parent_name, query=True, matrix=True, worldSpace=True)
-        direction = om2.MVector(*before[12:15]) - om2.MVector(*parent_world[12:15])
+        direction = Vector(*before[12:15]) - Vector(*parent_world[12:15])
         if direction.length() <= 1e-8:
             raise ValueError("骨の長さが不足しています")
         # MayaのorientJointは子骨に回転値があると向きを変更しない。
@@ -48,7 +48,7 @@ class JointHierarchy:
         cmds.xform(child, matrix=before, worldSpace=True)
         after = cmds.xform(child, query=True, matrix=True, worldSpace=True)
         aligned = cmds.xform(parent_name, query=True, matrix=True, worldSpace=True)
-        if max(abs(a - b) for a, b in zip(before, after)) > 1e-6 or om2.MVector(*aligned[:3]).normal() * direction.normal() < 1 - 1e-6:
+        if max(abs(a - b) for a, b in zip(before, after)) > 1e-6 or Vector(*aligned[:3]).normal() * direction.normal() < 1 - 1e-6:
             raise ValueError("この姿勢で軸合わせと子の姿勢保持を両立できません")
         return child
 

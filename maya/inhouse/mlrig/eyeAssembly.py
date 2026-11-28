@@ -1,5 +1,6 @@
 """片眼のコントロールを親に、瞳・ハイライトの設計骨の本数を調整する。"""
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -41,7 +42,7 @@ def rebuild(control, pupils, highlights):
                 raise ValueError("使用中の設計骨を削除できません: {} / {}".format(dest, source))
             remove.append(joint)
     if remove:
-        cmds.delete(remove)
+        mlib.delete(remove)
     result = []
     prefix = control.rpartition("|")[2]
     for role, count in counts.items():
@@ -49,7 +50,7 @@ def rebuild(control, pupils, highlights):
             if index in current[role]:
                 result.append(current[role][index])
                 continue
-            joint = cmds.createNode("joint", parent=control, name=":{}_{}{:02d}".format(prefix, role, index + 1))
+            joint = mlib.createNode("joint", parent=control, name=":{}_{}{:02d}".format(prefix, role, index + 1)).getName()
             cmds.addAttr(joint, longName="mlrigEyeOwner", attributeType="message")
             cmds.connectAttr(control + ".message", joint + ".mlrigEyeOwner")
             cmds.addAttr(joint, longName="eyePartRole", dataType="string")
@@ -62,7 +63,7 @@ def rebuild(control, pupils, highlights):
 
 def show():
     """選択した片眼について現在の本数を表示し、必要な設計骨だけを更新する。"""
-    nodes = cmds.ls(selection=True, transforms=True, long=True) or []
+    nodes = mlib.ls(selection=True, transforms=True, long=True).getNames(full=True)
     if len(nodes) != 1:
         raise ValueError("組み立て先の片眼コントロールを選択してください")
     control = nodes[0]

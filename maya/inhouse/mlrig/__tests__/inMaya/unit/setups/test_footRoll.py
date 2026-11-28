@@ -93,6 +93,20 @@ class FootRollTest(unittest.TestCase):
         """出力のワールド行列。"""
         return [om.MMatrix(cmds.getAttr(str(owner) + "." + attr)) for attr in ("ankleMatrix", "ballMatrix")]
 
+    def test_saved_heel_pivot_is_used_at_build(self):
+        """再配置した支点を使って構築した逆足の出力が参照階層と一致する。"""
+        from mlrig.guideEdit import placePivot
+
+        marker = cmds.spaceLocator()[0]
+        cmds.xform(marker, worldSpace=True, translation=(2.5, 1.0, -4.0))
+        placePivot(self.pivots["heel"], marker)
+        owner = self.build()
+        cmds.setAttr(str(owner) + ".roll", -25)
+        self.pivots["heel"] = marker
+        expected, _ = self.reference(-25, 0, 30)
+        for actual, node in zip(self.outputs(owner), expected):
+            self.assertMatrix(actual, _world(node))
+
     def test_angles(self):
         """rollとbankを各支点へ分ける。"""
         self.assertEqual(FootRoll.angles(-20, 0, 30)["heel"], -20)

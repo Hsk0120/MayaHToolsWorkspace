@@ -43,6 +43,52 @@ class PhysicsTests(unittest.TestCase):
         cmds.currentTime(frame, edit=True)
         return [om.MVector(cmds.xform(node, query=True, worldSpace=True, translation=True)) for node in self.outputs]
 
+    def test_settled_pose_indicator_and_hinge(self):
+        """開始速度0、粒子の表示端点、非対称ヒンジ範囲とUndoを実DGで確認する。"""
+        middle = self.outputs[1]
+        api.setHinge(self.node, middle, "Z", -2, 4)
+        curve = api.createVelocityIndicator(self.node, middle)
+        points = self.points(13)
+        v = cmds.getAttr(self.node + ".particlePosition[1]")[0]
+        self.assertLess((om.MVector(v) - points[1]).length(), 1e-5)
+        self.assertLess((om.MVector(cmds.pointPosition(curve+".cv[0]", world=True)) - points[1]).length(), 1e-5)
+        end = om.MVector(cmds.pointPosition(curve+".cv[1]", world=True))
+        # Frame 13 lands on a fixed step at 60 Hz in a 24-fps scene.
+        earlier = om.MVector(cmds.getAttr(self.node+".particlePosition[1]", time=12.6)[0])
+        self.assertLess(((points[1]-earlier)*60 - (end-points[1])).length(), 1e-5)
+        direction = points[1] - points[0]
+        import math
+        self.assertLess(abs(direction.z), 1e-5)
+        self.assertAlmostEqual(math.degrees(math.atan2(direction.y, direction.x)), -2, delta=0.001)
+        api.captureSettledPose(self.node)
+        start = self.points(1)
+        self.assertLess(((points[1]-points[0]) - (start[1]-start[0])).length(), 1e-6)
+        self.assertAlmostEqual(cmds.getAttr(self.node + ".maxParticleSpeed"), 0)
+        before = self.points(6)
+        self.points(1)
+        self.assertLess((before[-1]-self.points(6)[-1]).length(), 1e-6)
+        self.points(1)
+        api.resetSettledPose(self.node)
+        self.assertGreater((om.MVector(cmds.getAttr(self.node + ".particlePosition[1]")[0])-start[1]).length(), 1e-3)
+        cmds.undo()
+        self.assertLess((self.points(1)[1]-start[1]).length(), 1e-6)
+
+    def test_static_maya_field(self):
+        """Mayaフィールドを接続、変更、切断した際に過去キャッシュが残らない。"""
+        import mayaParticleFields
+        original = self.points(12)[1]
+        field = cmds.radial(position=(5, 20, 0), magnitude=2000, attenuation=1)[0]
+        cmds.select(field)
+        mayaParticleFields.selected(self.node)
+        changed = self.points(12)[1]
+        self.assertGreater((changed-original).length(), 1e-3)
+        cmds.setAttr(field+".magnitude", 0)
+        self.assertLess((original-self.points(12)[1]).length(), 1e-5)
+        cmds.setAttr(field+".magnitude", 2000)
+        self.assertLess((changed-self.points(12)[1]).length(), 1e-5)
+        mayaParticleFields.selected(self.node, disconnect=True)
+        self.assertLess((original-self.points(12)[1]).length(), 1e-5)
+
     def test_edit_active_chains(self):
         """追加・除外しても既存出力・通常設定を保ち、旧構成の再開を拒否する。"""
         from simplePhysics import checkpoint

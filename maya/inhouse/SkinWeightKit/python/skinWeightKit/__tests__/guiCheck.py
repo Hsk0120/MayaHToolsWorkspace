@@ -174,10 +174,34 @@ def _check_weight_previews(widget, geo, skin, joints):
     bind_mesh_ok = "Topology matches" in title and "Local maximum:" in title and "World maximum:" in title and "vtx[21]" in title
     title, details = dialog_text(buttons["Compare Cage Output"].click)
     cage_ok = "Open boundary:" in title and "vtx[21]" in details
+    from unittest.mock import patch
+    import tempfile
+    driver = cmds.polyPlane(sx=2, sy=1)[0]
+    driven = cmds.polyPlane(sx=3, sy=2)[0]
+    cmds.select(driver, driven)
+    buttons["Bind Triangle Cage"].click()
+    binding = cmds.ls(cmds.listHistory(driven), type="swkTriangleCage")[0]
+    before = json.loads(cmds.getAttr(binding + ".binding"))
+    cmds.select(driver + ".f[0]", driven + ".vtx[3]")
+    buttons["Rebind Cage Vertices"].click()
+    after = json.loads(cmds.getAttr(binding + ".binding"))
+    repair_ok = [i for i, (a,b) in enumerate(zip(before["rows"], after["rows"])) if a != b] == [3]
+    with tempfile.TemporaryDirectory() as folder:
+        path = str(Path(folder) / "cage.json")
+        cmds.select(driven)
+        with patch.object(QtWidgets.QFileDialog, "getSaveFileName", return_value=(path, "")):
+            buttons["Save Cage Binding..."].click()
+        cmds.delete(binding)
+        cmds.select(driver, driven)
+        with patch.object(QtWidgets.QFileDialog, "getOpenFileName", return_value=(path, "")):
+            buttons["Restore Cage Binding..."].click()
+        restored = cmds.ls(cmds.listHistory(driven), type="swkTriangleCage")[0]
+        restore_ok = json.loads(cmds.getAttr(restored + ".binding")) == after
+    cmds.delete(driver, driven)
     cmds.delete(other, other_joint)
     select(20)
 
-    return dict(cage_output=cage_ok, bind_mesh_comparison=bind_mesh_ok, move_preview=move_ok, paste_preview=paste_ok, locked_paste=locked_ok, missing_paste=missing_ok,
+    return dict(cage_vertex_repair=repair_ok, cage_json_restore=restore_ok, cage_output=cage_ok, bind_mesh_comparison=bind_mesh_ok, move_preview=move_ok, paste_preview=paste_ok, locked_paste=locked_ok, missing_paste=missing_ok,
                 posed_mesh=pose_ok, source_matches=match_ok, seam_distances=seam_ok, bind_settings=bind_ok, cluster_transfer=cluster_ok)
 
 
@@ -415,7 +439,7 @@ def main(output_dir=None, finished=None):
             checks["toggle_hides"] = not cmds.workspaceControl(panel.CONTROL, exists=True)
             skinWeightKit.toggle()
             checks["toggle_shows"] = bool(cmds.workspaceControl(panel.CONTROL, exists=True))
-            expected = {"posed_mesh": True, "bind_settings": True, "cluster_transfer": True, "seam_distances": True, "locked_paste": True, "missing_paste": True, "source_matches": True, "move_preview": True, "paste_preview": True, "control_exists": True, "window_menu_item": True, "window_menu_icon": True, "widget_built": True, "docked": True, "on_right_side": True,
+            expected = {"cage_vertex_repair": True, "cage_json_restore": True, "posed_mesh": True, "bind_settings": True, "cluster_transfer": True, "seam_distances": True, "locked_paste": True, "missing_paste": True, "source_matches": True, "move_preview": True, "paste_preview": True, "control_exists": True, "window_menu_item": True, "window_menu_icon": True, "widget_built": True, "docked": True, "on_right_side": True,
                         "panels_in_control": 1, "tooltips_missing": [], "influence_rows": 3, "preset_value": 0.5,
                         "preset_sum": 1.0, "undo_restored": True, "menu_items_without_tips": [],
                         "paint_context": "artAttrSkin", "toggle_hides": True, "toggle_shows": True,

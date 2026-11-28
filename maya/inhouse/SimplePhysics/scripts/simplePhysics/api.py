@@ -563,3 +563,71 @@ def remove(node):
     owned = connections(node, "ownedObjects") + connections(node, "colliderObjects")
     with _transaction("Simple Physics: Remove"):
         cmds.delete([item for item in owned if cmds.objExists(item)] + [node])
+
+def particleIndex(node, output):
+    """出力ジョイントに対応するパーティクル番号を取得する。"""
+    _solver(node)
+    match = _joint(output)
+    for index in cmds.getAttr(node + ".outputBones", multiIndices=True) or []:
+        name = cmds.connectionInfo(f"{node}.outputBones[{index}]", sourceFromDestination=True)
+        if name and _joint(name.rsplit(".", 1)[0]) == match:
+            return index
+    raise ValueError("このSolverの出力ジョイントを選択してください")
+
+
+def setHinge(node, output, axis=None, minimum=-30, maximum=30):
+    """出力ボーンの親ローカル軸と負・正の角度制限を設定する。axis=Noneで解除する。"""
+    index = particleIndex(node, output)
+    topology = json.loads(cmds.getAttr(node + ".topology"))
+    if topology[index]["parent"] < 0:
+        raise ValueError("固定ルートにはヒンジを設定できません")
+    limits = json.loads(cmds.getAttr(node + ".hingeLimits") or "{}")
+    if axis is None:
+        limits.pop(str(index), None)
+    else:
+        if axis not in ("X", "Y", "Z") or not -180 <= minimum <= 0 <= maximum <= 180:
+            raise ValueError("X/Y/Zと、0を含む-180〜180度の範囲を指定してください")
+        limits[str(index)] = [[int(axis == name) for name in "XYZ"], minimum, maximum]
+    cmds.setAttr(node + ".hingeLimits", json.dumps(limits), type="string")
+
+
+def createVelocityIndicator(node, output):
+    """粒子位置から速度ベクトル(cm/s)の先端までを結ぶ表示カーブを作る。"""
+    index = particleIndex(node, output)
+    with _transaction("Simple Physics velocity indicator"):
+        curve = cmds.curve(degree=1, point=[(0, 0, 0), (0, 0, 0)], name="particleVelocity#")
+        shape = cmds.listRelatives(curve, shapes=True, fullPath=True)[0]
+        cmds.setAttr(curve + ".inheritsTransform", False)
+        for plug in ("translate", "rotate", "scale"):
+            cmds.setAttr(curve + "." + plug, lock=True)
+        for end, attribute in enumerate(("particlePosition", "velocityEndpoint")):
+            cmds.connectAttr(f"{node}.{attribute}[{index}]", f"{shape}.controlPoints[{end}]")
+    return curve
+
+
+def captureSettledPose(node):
+    """現在の粒子位置を各根元の空間で保存し、開始時の速度をゼロとする。"""
+    _solver(node)
+    topology_text = cmds.getAttr(node + ".topology")
+    topology = json.loads(topology_text)
+    if cmds.getAttr(node + ".time") < cmds.getAttr(node + ".startFrame"):
+        raise ValueError("開始時刻以降の姿勢を選択してください")
+    roots = []
+    points = []
+    for index, bone in enumerate(topology):
+        parent = bone["parent"]
+        root = index if parent < 0 or bone.get("excluded") else roots[parent]
+        roots.append(root)
+        point = om.MPoint(cmds.getAttr(f"{node}.particlePosition[{index}]")[0])
+        # ダミー点には入力マトリクスがない。固定点自身の相対位置は常にゼロ。
+        if root == index:
+            points.append([0, 0, 0])
+        else:
+            matrix = om.MMatrix(cmds.getAttr(f"{node}.inputMatrix[{root}]"))
+            points.append(list(point * matrix.inverse())[:3])
+    cmds.setAttr(node + ".settledOffsets", json.dumps(dict(topology=topology_text, points=points), allow_nan=False), type="string")
+
+
+def resetSettledPose(node):
+    """取り込んだ初期姿勢を解除し、入力姿勢とウォームアップに戻す。"""
+    cmds.setAttr(_solver(node) + ".settledOffsets", "", type="string")

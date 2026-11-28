@@ -32,6 +32,25 @@ class ClothTests(unittest.TestCase):
         cmds.setAttr(self.node + ".gravity", 0, -98, 0, type="float3")
         cmds.setAttr(self.node + ".solverRate", 48)
 
+    def test_static_maya_field(self):
+        """布の質点に放射場を加え、切断とUndoで軌道が復帰する。"""
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "SimplePhysics" / "scripts"))
+        try:
+            import mayaParticleFields
+        finally:
+            sys.path.pop(0)
+        baseline = self.points(6)
+        field = cmds.radial(position=(0, 8, 0), magnitude=25, attenuation=1)[0]
+        cmds.select(field)
+        mayaParticleFields.selected(self.node)
+        changed = self.points(6)
+        self.assertGreater((changed[-1] - baseline[-1]).length(), 1e-3)
+        self.assertLess((changed[0] - baseline[0]).length(), 1e-6)
+        mayaParticleFields.selected(self.node, disconnect=True)
+        self.assertLess((om.MVector(cmds.pointPosition(self.output+".vtx[8]", world=True))-baseline[-1]).length(), 1e-6)
+        cmds.undo()
+        self.assertLess((self.points(6)[-1] - changed[-1]).length(), 1e-6)
+
     def points(self, frame, mesh=None):
         """実メッシュのワールド頂点位置を取得する。"""
         cmds.currentTime(frame)

@@ -27,10 +27,13 @@ HToolsメニューの ``rigging`` にあるツールです。
    extrudeFaceAlongCurveEven
    getMaxInfluencesFromSelection
    inspectCycles
+   knotRangePreview
    mlrigLayerEditor
    obbJointFromSelection
    parentScaleConstraintOffset0
    removeSelectedJoints
+   renamePreview
+   rigFinish
    selectSkinningJoints
    setScaleFromSelection
    simpleCollisionFromSelection

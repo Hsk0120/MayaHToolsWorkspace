@@ -3,7 +3,7 @@
 import json
 
 import maya.cmds as cmds
-from mlib.decorator import undoChunk
+from mlib.decorator import undoChunk, undoTransaction
 from mlib.json import NodeRef, PoseSnapshot
 
 _ATTRIBUTE = "animBarPoseSnapshotV1"
@@ -173,3 +173,35 @@ def restoreShortcut():
     if not entries:
         raise ValueError("No selected control matches a recorded control in its original namespace.")
     return PoseSnapshot({"nodes": entries}).apply()
+
+@undoTransaction("animBarRegisterSidedClips")
+def registerClips(group, clips, side, resetWeight=False):
+    """既存クリップを指定グループへ登録し、選択分の側ラベルと任意のウェイト初期化を適用する。"""
+    if side not in ("Left", "Right", "Center"):
+        raise ValueError("Choose Left, Right or Center.")
+    groups = cmds.ls(group, long=True, type="transform") or []
+    if len(groups) != 1 or cmds.attributeQuery(_ATTRIBUTE, node=groups[0], exists=True):
+        raise ValueError("Choose one pose group.")
+    group = groups[0]
+    paths = []
+    for clip in clips:
+        matches = cmds.ls(clip, long=True, type="transform") or []
+        if len(matches) != 1 or not cmds.attributeQuery(_ATTRIBUTE, node=matches[0], exists=True):
+            raise ValueError("Choose pose clip transforms.")
+        node = matches[0]
+        if group.startswith(node + "|") or cmds.referenceQuery(node, isNodeReferenced=True):
+            raise ValueError("Choose local clips outside the group's ancestry.")
+        paths.append(node)
+    if not paths or any(a.startswith(b + "|") for a in paths for b in paths):
+        raise ValueError("Choose independent pose clips.")
+    for clip in dict.fromkeys(paths):
+        if clip.rsplit("|", 1)[0] != group:
+            new_name = cmds.parent(clip, group)[0]
+            clip = group + "|" + new_name.rsplit("|", 1)[-1]
+        if not cmds.attributeQuery("animBarPoseSide", node=clip, exists=True):
+            cmds.addAttr(clip, longName="animBarPoseSide", dataType="string")
+        cmds.setAttr(clip + ".animBarPoseSide", side, type="string")
+        if resetWeight:
+            if not cmds.attributeQuery(_WEIGHT, node=clip, exists=True):
+                cmds.addAttr(clip, longName=_WEIGHT, attributeType="double", minValue=0, maxValue=1, defaultValue=1)
+            cmds.setAttr(clip + "." + _WEIGHT, 0)

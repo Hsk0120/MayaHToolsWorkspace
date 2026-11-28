@@ -103,6 +103,14 @@ class ClothWindow:
         for attr, label in (("gravity", "Gravity (cm/s2)"), ("wind", "Wind Acceleration (cm/s2)"),
                             ("backstopRadius", "Backstop Radius (cm)"), ("backstopDistance", "Backstop Distance (cm)")):
             self._attr(attr, label)
+        def field_action(remove):
+            try:
+                import mayaParticleFields
+            except ImportError as error:
+                raise RuntimeError("Load the SimplePhysics module to evaluate Maya fields.") from error
+            mayaParticleFields.selected(self.solver, remove)
+        cmds.button(label="Attach Selected Static Maya Field", command=lambda *_: self._call(lambda: field_action(False)))
+        cmds.button(label="Detach Selected Maya Field", command=lambda *_: self._call(lambda: field_action(True)))
         self._section("4  Collisions", collapsed=True)
         for attr, label in (("collisionThickness", "Collision Thickness (cm)"), ("friction", "Friction"),
                             ("selfCollision", "Particle Self Collision"), ("selfCollisionThickness", "Self Thickness (cm)")):

@@ -4,8 +4,9 @@ import json
 import math
 import re
 
+import mlib
 from maya import cmds
-from maya.api import OpenMaya as om2
+from mlib.common.units import convertDistance
 from mlib.decorator import undoTransaction
 
 from .animalGuides import _member, _record
@@ -47,16 +48,16 @@ def run(root, entries, stage, role, parent):
             target = _member(root, attr)
             kind = entry["kind"]
             if target is None:
-                target = cmds.createNode("transform" if kind == "locator" else kind, parent=parent, name=key + "#")
+                target = mlib.createNode("transform" if kind == "locator" else kind, parent=parent, name=key + "#").getName()
                 if kind == "locator":
-                    cmds.createNode("locator", parent=target)
+                    mlib.createNode("locator", parent=target)
                 _record(root, attr, target)
             else:
                 actual = "locator" if cmds.listRelatives(target, shapes=True, type="locator") else cmds.nodeType(target)
-                if actual != kind or cmds.listRelatives(target, parent=True, fullPath=True) != cmds.ls(parent, long=True):
+                if actual != kind or cmds.listRelatives(target, parent=True, fullPath=True) != [item.getName(full=True) for item in mlib.ls(parent, long=True)]:
                     raise ValueError("作成済みの部品型または親が宣言と異なります")
             matrix = [float(i % 5 == 0) for i in range(16)]
-            matrix[12:15] = [om2.MDistance(x, om2.MDistance.uiUnit()).asCentimeters() for x in entry["offset"]]
+            matrix[12:15] = [convertDistance(x, toUnit="cm") for x in entry["offset"]]
             cmds.setAttr(target + ".offsetParentMatrix", *matrix, type="matrix")
         except (ValueError, RuntimeError) as error:
             raise ValueError("構築拡張 {} / {} / {}: {}".format(stage, role, key, error)) from error
@@ -66,7 +67,7 @@ def show():
     """選択した非人型プリセットに対して工程の宣言を保存して構築する。"""
     from .animalGuides import build
 
-    nodes = cmds.ls(selection=True, long=True) or []
+    nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
     if len(nodes) != 1 or not cmds.objExists(nodes[0] + ".mlrigAnimalPreset"):
         raise ValueError("非人型プリセットのルートを選択してください")
     root = nodes[0]

@@ -51,3 +51,13 @@ python maya\inhouse\AnimBar\python\animBar\__tests__\run_gui.py --versions 2027
 
 `run_tests.py` は処理のテスト(mayapy)、`run_gui.py` は使い捨ての Maya GUI でバーの表示・ドックの位置・操作を確かめ、
 画像を `__tests__/_output/`(Git 対象外)へ残します。どちらも作業中の Maya GUI では実行しません。
+
+### リグ単位のアニメーション操作
+
+- Sets の **Match curve control color under root** は、見本のカーブコントロール、探索するリグのルートの順に選択し、RGB距離の許容値を指定します。
+- Copy の **Preview rig / unit / published key removal** は、再生範囲内で直接つながった時間カーブと対象キー数を表示します。リグや部位の子孫、選択ノードのみ、公開チャンネルのみを選べます。共有カーブ、リファレンス自身に属するカーブ、ロック済みチャンネルは保護します。
+- Copy の **Add live handles to selected path CVs** は選択CVに移動可能なクラスターハンドルを追加します。軌道の調整後は既存の距離ベイクを使えます。**Remove selected path handles** は選択した専用ハンドルの変形効果を取り外します。
+- Copy の **Bake wheel roll, yaw and heave** は車輪を選び、車軸が別なら続けてその親の車軸を選びます。車輪のX回転、車軸のY回転・XYZ移動から必要な成分を選び、評価済みの動きを再生範囲でベイクします。
+- Copy の **Register pose clips with left / right / center label** は既存のポーズクリップと登録先グループを選び、側ラベルとウェイト保持・ゼロ初期化を指定します。
+
+公開チャンネルの初期値監査では、mlrigで選択役割の初期値を記録した場合はその値を優先し、未記録の役割ではMayaのアトリビュート既定値を表示します。

@@ -135,6 +135,22 @@ class PhysicsWindow:
         cmds.button(label="Save Simulation State", command=lambda *_: self._run(lambda: self._checkpoint(False)))
         cmds.button(label="Resume Simulation State", command=lambda *_: self._run(lambda: self._checkpoint(True)))
         cmds.button(label="Compare Saved State", command=lambda *_: self._run(self._compare_state))
+        cmds.button(label="現在の姿勢を開始状態に設定（初速0）", command=lambda *_: self._run(lambda: api.captureSettledPose(node)))
+        cmds.button(label="元の開始姿勢に戻す", command=lambda *_: self._run(lambda: api.resetSettledPose(node)))
+        self.hinge_axis = cmds.optionMenuGrp(label="Hinge local axis")
+        for axis in ("X", "Y", "Z"):
+            cmds.menuItem(label=axis)
+        self.hinge_angles = cmds.floatFieldGrp(label="Hinge min / max degrees", numberOfFields=2, value1=-30, value2=30)
+        cmds.button(label="選択出力にヒンジを設定", command=lambda *_: self._run(lambda: api.setHinge(
+            node, self._selected_output(), cmds.optionMenuGrp(self.hinge_axis, query=True, value=True),
+            cmds.floatFieldGrp(self.hinge_angles, query=True, value1=True), cmds.floatFieldGrp(self.hinge_angles, query=True, value2=True))))
+        cmds.button(label="選択出力のヒンジを解除", command=lambda *_: self._run(lambda: api.setHinge(node, self._selected_output())))
+        cmds.button(label="選択粒子の速度を線で表示 (cm/s)", command=lambda *_: self._run(lambda: api.createVelocityIndicator(node, self._selected_output())))
+        def field_action(remove):
+            import mayaParticleFields
+            mayaParticleFields.selected(node, remove)
+        cmds.button(label="Attach Selected Static Maya Field", command=lambda *_: self._run(lambda: field_action(False)))
+        cmds.button(label="Detach Selected Maya Field", command=lambda *_: self._run(lambda: field_action(True)))
         self._section("5  Collision Limits")
         self.attach = cmds.checkBox(label="選択した入力ジョイントに追従させる", value=True)
         cmds.rowLayout(numberOfColumns=3, adjustableColumn=3)
@@ -177,6 +193,13 @@ class PhysicsWindow:
             cmds.confirmDialog(title="Compare Saved State", message=(
                 f"Maximum position difference: {result['maxPositionDifference']:.8g} cm\n"
                 f"Maximum velocity difference: {result['maxVelocityDifference']:.8g} cm/s"))
+
+    def _selected_output(self):
+        """パーティクル操作の対象ジョイントを取得する。"""
+        selected = cmds.ls(selection=True, long=True, type="joint") or []
+        if len(selected) != 1:
+            raise ValueError("出力ジョイントを1つ選択してください")
+        return selected[0]
 
     def _checkpoint(self, reading):
         """選択したファイルへ計算状態を保存、または検証して読み込む。"""

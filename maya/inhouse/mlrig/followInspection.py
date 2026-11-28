@@ -1,5 +1,6 @@
 """標準multMatrix追従の親逆マトリクスを除いた場合の結果を照合する。"""
 
+import mlib
 from maya import cmds
 from mlib.maths import Matrix
 
@@ -18,7 +19,7 @@ def compare(target):
     indices = sorted(cmds.getAttr(inputs, multiIndices=True) or [])
     if not indices or not cmds.isConnected(parent[0] + ".worldInverseMatrix[0]", "{}[{}]".format(inputs, indices[-1])):
         raise ValueError("末尾の入力が実親の逆マトリクスではありません")
-    if any(len(cmds.ls(node, allPaths=True, long=True) or []) != 1 for node in (target, parent[0])):
+    if any(mlib.getNode(node).isInstanced() for node in (target, parent[0])):
         raise ValueError("インスタンスには対応していません")
     predicted = Matrix(cmds.getAttr(target + ".matrix"))
     for index in indices[:-1]:
@@ -29,7 +30,7 @@ def compare(target):
 
 def show():
     """選択した追従先の比較結果を表示する。"""
-    selected = cmds.ls(selection=True, long=True, type="transform") or []
+    selected = mlib.ls(selection=True, long=True, type="transform").getNames(full=True)
     if len(selected) != 1:
         raise ValueError("追従先を1つ選んでください")
     actual, predicted = compare(selected[0])

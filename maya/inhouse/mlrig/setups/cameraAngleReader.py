@@ -3,7 +3,6 @@
 import math
 
 from maya import cmds
-from maya.api import OpenMaya as om2
 import mlib
 from mlib.decorator import undoTransaction
 from mlib.maths import Vector
@@ -37,7 +36,7 @@ class CameraAngleReader(TwistDistribution):
             raise ValueError("カメラ入力を一意に特定できません")
         relative = matrices[0]
         node = mlib.getNode(camera)
-        if not isinstance(node, mlib.Transform) or om2.MSelectionList().add(node.getName(full=True)).getDagPath(0).isInstanced():
+        if not isinstance(node, mlib.Transform) or node.isInstanced():
             raise ValueError("単一のパスを持つカメラのトランスフォームを指定してください")
         head = cmds.connectionInfo(relative + ".matrixIn[1]", sourceFromDestination=True).rsplit(".", 1)[0]
         if node == mlib.getNode(head) or owner in (cmds.listHistory(node.getName(full=True), allConnections=True) or []):

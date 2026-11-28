@@ -82,7 +82,7 @@ class SimplePhysicsNode(om.MPxNode):
             function.default = default
             cls._register(name, attribute)
             inputs.append(attribute)
-        for name, default in (("topology", "[]"), ("boneConstraints", "[]"), ("colliderTypes", "[]"), ("resumeState", "")):
+        for name, default in (("topology", "[]"), ("boneConstraints", "[]"), ("colliderTypes", "[]"), ("resumeState", ""), ("settledOffsets", ""), ("hingeLimits", "{}")):
             function = om.MFnTypedAttribute()
             attribute = function.create(name, name, om.MFnData.kString, om.MFnStringData().create(default))
             cls._register(name, attribute)
@@ -93,6 +93,12 @@ class SimplePhysicsNode(om.MPxNode):
             function.addField(name, index)
         cls._register("planarConstraint", attribute)
         inputs.append(attribute)
+        field_attr = om.MFnTypedAttribute()
+        attr = field_attr.create("fieldForces", "fieldForces", om.MFnData.kVectorArray)
+        field_attr.array = True
+        field_attr.storable = False
+        cls._register("fieldForces", attr)
+        inputs.append(attr)
         for name in ("inputMatrix", "colliderMatrix", "outputMatrix"):
             function = om.MFnMatrixAttribute()
             attribute = function.create(name, name)
@@ -114,6 +120,14 @@ class SimplePhysicsNode(om.MPxNode):
             attribute = om.MRampAttribute.createCurveRamp(name + "Curve", name + "Curve")
             cls._register(name + "Curve", attribute)
             inputs.append(attribute)
+        for name in ("particlePosition", "velocityEndpoint"):
+            function = om.MFnNumericAttribute()
+            attribute = function.create(name, name, om.MFnNumericData.k3Double)
+            function.array = True
+            function.usesArrayDataBuilder = True
+            function.writable = False
+            function.storable = False
+            cls._register(name, attribute)
         for name, kind in (("residualPenetration", om.MFnNumericData.kDouble), ("maxParticleSpeed", om.MFnNumericData.kDouble),
                            ("fixedRootCount", om.MFnNumericData.kInt), ("contactParticleCount", om.MFnNumericData.kInt)):
             function = om.MFnNumericAttribute()
@@ -122,7 +136,7 @@ class SimplePhysicsNode(om.MPxNode):
             function.storable = False
             cls._register(name, attribute)
         for attribute in inputs:
-            for output in ("outputMatrix", "residualPenetration", "maxParticleSpeed", "fixedRootCount", "contactParticleCount"):
+            for output in ("particlePosition", "velocityEndpoint", "outputMatrix", "residualPenetration", "maxParticleSpeed", "fixedRootCount", "contactParticleCount"):
                 cls.attributeAffects(attribute, cls.attributes[output])
 
     def schedulingType(self):
@@ -171,7 +185,7 @@ class SimplePhysicsNode(om.MPxNode):
 
     def compute(self, plug, data):
         """要求時刻まで固定刻みで評価し、同じ時刻の要求で状態を進めない。"""
-        if plug.attribute() not in (self.attributes["outputMatrix"], self.attributes["residualPenetration"],
+        if plug.attribute() not in (self.attributes["particlePosition"], self.attributes["velocityEndpoint"], self.attributes["outputMatrix"], self.attributes["residualPenetration"],
                                     self.attributes["maxParticleSpeed"], self.attributes["fixedRootCount"], self.attributes["contactParticleCount"]):
             return None
         attrs = self.attributes
@@ -213,7 +227,21 @@ class SimplePhysicsNode(om.MPxNode):
             settings.append(values)
         time = data.inputValue(attrs["time"]).asTime().asUnits(om.MTime.kSeconds)
         start = data.inputValue(attrs["startFrame"]).asTime().asUnits(om.MTime.kSeconds)
+        settled = json.loads(data.inputValue(attrs["settledOffsets"]).asString() or "null")
+        hinges = json.loads(data.inputValue(attrs["hingeLimits"]).asString() or "{}")
+        for index, bone in enumerate(topology):
+            if str(index) in hinges:
+                settings[index]["hinge"] = hinges[str(index)]
         signature = repr((topology_text, settings, options, constraints, collider_types, start))
+        if settled:
+            signature += repr(settled)
+        function = om.MFnDependencyNode(self.thisMObject())
+        field_plug = function.findPlug("fieldForces", False)
+        if any(field_plug.elementByLogicalIndex(i).isDestination for i in field_plug.getExistingArrayAttributeIndices()):
+            # Static Maya field parameters and world transforms take part in replay/checkpoint validation.
+            import mayaParticleFields
+            options["sceneFields"], field_signature = mayaParticleFields.samplers(function)
+            signature += repr(field_signature)
         if signature != self._signature:
             self._signature = signature
             self._cache = []
@@ -257,7 +285,16 @@ class SimplePhysicsNode(om.MPxNode):
                     state = tuple([om.MVector(value) for value in array] for array in saved["state"])
                 elif index == 0:
                     state = solver.initial_state(sample_poses)
-                    for _ in range(options["warmupSteps"]):
+                    if settled and settled["topology"] == topology_text:
+                        roots = []
+                        for i, parent in enumerate(simulation_parents):
+                            root = i if parent < 0 else roots[parent]
+                            roots.append(root)
+                            if i != root:
+                                point = om.MPoint(settled["points"][i]) * sample_poses[root]
+                                state[0][i] = om.MVector(point)
+                                state[1][i] = om.MVector(point)
+                    for _ in range(0 if settled and settled["topology"] == topology_text else options["warmupSteps"]):
                         state = solver.step(state, sample_poses, sample_poses, simulation_parents, settings, sample_colliders, constraints, options, dt)
                 elif options["teleportDistance"] > 0 and any((solver.position(sample_poses[i]) - solver.position(poses[i])).length() > options["teleportDistance"] for i, parent in enumerate(parents) if parent < 0 and active[i]):
                     state = solver.initial_state(sample_poses)
@@ -284,6 +321,14 @@ class SimplePhysicsNode(om.MPxNode):
         data.outputValue(attrs["residualPenetration"]).setDouble(residual)
         data.outputValue(attrs["contactParticleCount"]).setInt(contacts)
         step_seconds = remainder if remainder > 1.0e-7 else dt
+        for name in ("particlePosition", "velocityEndpoint"):
+            array = data.outputArrayValue(attrs[name])
+            builder = array.builder()
+            for index, (now, past) in enumerate(zip(*state)):
+                value = now if name == "particlePosition" else now + (now - past) / step_seconds
+                builder.addElement(index).set3Double(*value)
+            array.set(builder)
+            array.setAllClean()
         speed = max(((now - previous).length() for now, previous, enabled in zip(*state, active) if enabled), default=0.0) / step_seconds
         data.outputValue(attrs["maxParticleSpeed"]).setDouble(speed)
         data.outputValue(attrs["fixedRootCount"]).setInt(sum(parent == -1 and enabled for parent, enabled in zip(parents, active)))

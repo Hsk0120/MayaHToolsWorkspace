@@ -3,6 +3,7 @@
 import json
 import math
 
+import mlib
 from maya import cmds
 from mlib.decorator import undoTransaction
 
@@ -14,7 +15,7 @@ _CHANNELS = tuple(attr + axis for attr in ("translate", "rotate", "scale", "join
 @undoTransaction("mlrigJointDesignPose")
 def apply(action):
     """選択ジョイントごとの記録・復帰・記録削除を1回のUndoにまとめる。"""
-    nodes = cmds.ls(selection=True, long=True) or []
+    nodes = [item.getName(full=True) for item in mlib.ls(selection=True, long=True)]
     if not nodes or any(cmds.nodeType(n) != "joint" or cmds.referenceQuery(n, isNodeReferenced=True) for n in nodes):
         raise ValueError("設計するローカルジョイントだけを選択してください")
     if action not in ("save", "restore", "delete"):
