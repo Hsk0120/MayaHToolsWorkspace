@@ -160,9 +160,9 @@ class ApiArgumentsTest(unittest.TestCase):
         self.assertEqual(weight.get(), .5)
         self.assertIsNone(node.addAttr("noReturn", getPlug=False))
         self.assertEqual(node.getPlug("weight").get(), .5)
-        text = node.addAttr("label", "string", dv="control")
+        text = node.addAttr("label", type="string", dv="control")
         self.assertEqual(text.get(), "control")
-        vector = node.addAttr("offset", "double3", subType="doubleLinear",
+        vector = node.addAttr("offset", type="double3", subType="doubleLinear",
                               childNames=("offsetA", "offsetB", "offsetC"),
                               dv=(1, 2, 3))
         self.assertValues(tuple(vector.get()), (1, 2, 3))
@@ -184,7 +184,7 @@ class ApiArgumentsTest(unittest.TestCase):
         cmds.undo()
         self.assertEqual(tuple(node.getPlug("translate").get()), before)
         # 複数形は各要素の同名メソッドへ転送し、戻り値を要素順のリストで返す。
-        values = Nodes([node]).setTranslation((4, 5, 6), False, 1, safe=False, get=True)
+        values = Nodes([node]).setTranslation((4, 5, 6), False, at=1, safe=False, get=True)
         self.assertEqual([list(value) for value in values], [[4, 5, 6]])
         self.assertEqual(tuple(node.getPlug("translate").get()), before)
 
