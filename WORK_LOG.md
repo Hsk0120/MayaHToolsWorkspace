@@ -202,6 +202,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-29): mlrig 夜間。`mlrig/setups/beltDrive.py` の BeltDrive(ベルト伝動)を追加した。駆動プーリーの回転 rotation から、2つのプーリーとベルトの上下の直線部(2円の共通接線)のワールド行列、直線部の長さ・接点の角度・巻き付け角・ベルトの長さ・回転の比・送り量を出力する。平行掛けと十字掛けを crossed で切り替え(k = r1 ∓ r2 の同じ式)、共通接線が引けない近さは端で止めて excess へ出す。標準ノードのみ。テスト9件(`test_beltDrive.py`)、文書(`docs/belt_drive.rst`)、サンプル、検証デモ(`tools/demo_belt_drive.py`)。Maya 2027 の隔離mayapy: standard 79件OK、setups 846件OK、Sphinx -W 成功。検証動画480フレーム合格。コミット・プッシュ(このコミット)。
+
 - Claude Code (2026-11-28): mlib の引数の検査とテストを強化した。既定値つきの引数を maya.cmds と同じくキーワード専用に(A008。65個の署名。位置で渡せるのは必須の引数・最初の引数・worldSpace・state)、同じ名前の引数の型の並びを統一(A016)、公開の関数・メソッドすべてに網羅テストの行(209個を追加。`noMaya/test_argumentSweep_coverage.py` が検査)、呼び方の段に unknownKeyword・aliasConflict を追加。行を足して見つかった本体の食い違い(EulerRotate の unit=None、BlendShape.mirrorTarget がシンメトリを残す、getSoftSelection、型の未確認、Raises の書き漏れ)を修正。利用側は mlrig・HTools byMlib・AnimBar・SimpleCloth byMlib の呼び出しを直した。format_mlib --check OK、mlib テスト 2022/2025/2027 成功、Sphinx 成功、run_rig_packages 979件中失敗1件(以前からのコマンド境界監査)、AnimBar 76件・SkinWeightKit 99件・HTools byMlib OK。
 
 - Claude Code (2026-11-28): mlrig 夜間。`mlrig/setups/umbrella.py` の Umbrella(傘の骨)を追加した。中棒を滑るランナーの位置 slide から、付け根・ランナー・つなぎ目の三角形(余弦定理)で親骨と受け骨の角度を求め、放射状に並べた親骨・受け骨・ランナーのワールド行列を出力する。三角形ができる範囲 |a-b|〜a+b の外は端で止めて excess へ出す。標準ノードのみ。テスト8件(`test_umbrella.py`)、文書(`docs/umbrella.rst`)、サンプル、検証デモ(`tools/demo_umbrella.py`)。Maya 2027 の隔離mayapy: standard 76件OK、setups 835件中834件OK(失敗1件は以前からのコマンド境界監査で、今回のファイルは含まれない)、Sphinx -W 成功。検証動画372フレーム合格。コミット・プッシュ(このコミット)。

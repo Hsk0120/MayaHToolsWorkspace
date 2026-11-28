@@ -74,6 +74,7 @@ class SetupSamples:
         ("patellaFollow", "PatellaFollow - kneecap pulled by the patellar tendon"),
         ("scissorLift", "ScissorLift - three-stage scissor lift"),
         ("umbrella", "Umbrella - eight ribs opened by the runner"),
+        ("beltDrive", "BeltDrive - two pulleys and a belt"),
         ("cableSag", "CableSag - hanging cable between two posts"),
         ("rotationMinimizingFrames", "RotationMinimizingFrames - points"),
         ("rotationMinimizingFramesCurve", "RotationMinimizingFrames - curve"),
@@ -628,6 +629,24 @@ class SetupSamples:
                     ((4.0, 0.0, 0.0), (7.0, 0.0, 0.0)))
             _output("{}_stretcher{}Out".format(name, index), root, "{}.stretcher{}Matrix".format(owner, index),
                     ((5.0, 0.0, 0.0),))
+        return setup, setup.container
+
+    @classmethod
+    def _beltDrive(cls, name, root):
+        """2つのプーリー(緑、駆動側の半径2・従動側の半径1、十字の先が円周)と、ベルトの上下の直線部(緑、先の子jointが
+        従動側の接点)。containerの ``rotation`` で駆動プーリーを回すと、従動プーリーが半径の比(2倍)で同じ向きに回る。
+        ``distance`` (軸間距離)・半径を変えると直線部が両方の円に接したまま動き、 ``crossed`` で十字掛け(逆回り)になる。"""
+        from .setups import BeltDrive
+
+        base = _transform(name + "_base", root, translate=(0, 10, 0))
+        setup = BeltDrive.create(base, driverRadius=2.0, drivenRadius=1.0, distance=6.0, name=name)
+        owner = str(setup.container)
+        for role, radius in (("driver", 2.0), ("driven", 1.0)):
+            _output("{}_{}Out".format(name, role), root, "{}.{}Matrix".format(owner, role),
+                    ((radius, 0.0, 0.0), (0.0, radius, 0.0), (-radius, 0.0, 0.0), (0.0, -radius, 0.0)))
+        span = BeltDrive.evaluate(6.0, 2.0, 1.0)[3]
+        for role in ("upperSpan", "lowerSpan"):
+            _output("{}_{}Out".format(name, role), root, "{}.{}Matrix".format(owner, role), ((span, 0.0, 0.0),))
         return setup, setup.container
 
     @classmethod

@@ -117,6 +117,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    patella_follow
    scissor_lift
    umbrella
+   belt_drive
    chain_net
    cable_sag
    leaf_joints

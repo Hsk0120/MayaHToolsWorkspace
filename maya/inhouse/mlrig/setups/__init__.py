@@ -79,6 +79,7 @@ from .rotationFollow import RotationFollow
 from .rotationMinimizingFrames import RotationMinimizingFrames
 from .scissorLift import ScissorLift
 from .umbrella import Umbrella
+from .beltDrive import BeltDrive
 from .comboWeight import ComboWeight
 from .rootDirectionLimit import RootDirectionLimit
 from .softIK import SoftIK
@@ -184,6 +185,7 @@ __all__ = [
     "RotationMinimizingFrames",
     "ScissorLift",
     "Umbrella",
+    "BeltDrive",
     "ComboWeight",
     "RootDirectionLimit",
     "SoftIK",
