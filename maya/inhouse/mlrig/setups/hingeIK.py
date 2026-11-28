@@ -15,7 +15,7 @@ def worldPosition(node):
         Vector: 位置(シーンの長さの単位)。
     """
     translate = mlib.Node(node).getTranslation(worldSpace=True, at=4)
-    return Vector(*(mlib.common.units.convertDistance(value, "cm") for value in translate))
+    return Vector(*(mlib.common.units.convertDistance(value, fromUnit="cm") for value in translate))
 
 
 def worldMatrix(node):
@@ -29,7 +29,7 @@ def worldMatrix(node):
     """
     matrix = Matrix(mlib.Node(node).getMatrix(worldSpace=True))
     for column in range(3):
-        matrix.setElement(3, column, mlib.common.units.convertDistance(matrix.getElement(3, column), "cm"))
+        matrix.setElement(3, column, mlib.common.units.convertDistance(matrix.getElement(3, column), fromUnit="cm"))
     return matrix
 
 

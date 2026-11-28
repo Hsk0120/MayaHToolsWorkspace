@@ -547,7 +547,7 @@ def _create_obb_collision(name, use_hull_points, hull_direction_count, return_ob
 	cube.setMatrix(matrix, fast=True)
 
 	# 表示用に内部単位から UI 単位へ変換する。
-	size_ui = [units.convertDistance(value, "cm") for value in (size_x, size_y, size_z)]
+	size_ui = [units.convertDistance(value, fromUnit="cm") for value in (size_x, size_y, size_z)]
 
 	# Keep transform orientation from OBB so pivot orientation follows the collision box.
 	# Explicitly place rotate/scale pivots at the OBB center in world space.

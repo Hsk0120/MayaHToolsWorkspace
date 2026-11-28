@@ -55,7 +55,7 @@ def tween(ratio):
             value = tweenValue(values[previous], values[following], ratio)
             index = keys.keyIndexAt(curve, now)
             if index is None:
-                curve.addKey(now, value, *_new_key_tangents(curve, previous))
+                curve.addKey(now, value, **dict(zip(("inTangentType", "outTangentType"), _new_key_tangents(curve, previous))))
             else:
                 keys.setKeyValue(curve, index, value)
             count += 1
@@ -141,7 +141,7 @@ def tweenLinear(direction):
             value = values[first] + (values[second] - values[first]) * (now - inputs[first]) / span
             index = keys.keyIndexAt(curve, now)
             if index is None:
-                curve.addKey(now, value, *_new_key_tangents(curve, around[-1] if direction < 0 else around[0]))
+                curve.addKey(now, value, **dict(zip(("inTangentType", "outTangentType"), _new_key_tangents(curve, around[-1] if direction < 0 else around[0]))))
             else:
                 keys.setKeyValue(curve, index, value)
             count += 1

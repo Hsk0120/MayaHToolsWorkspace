@@ -24,7 +24,7 @@ class SecondaryMathTest(unittest.TestCase):
         result = DampedSpring.solve(samples, 1 / 24, frequency=2, damping=0.4, limit=20)
         self.assertTrue(40 <= result[5][0] < 60)
         self.assertAlmostEqual(result[-1][0], 60, places=5)
-        self.assertEqual(result, DampedSpring.solve(samples, 1 / 24, 2, 0.4, 20))
+        self.assertEqual(result, DampedSpring.solve(samples, 1 / 24, frequency=2, damping=0.4, limit=20))
         self.assertTrue(all(abs(v[0] - goal[0]) <= 20.00001 for v, goal in zip(result, samples)))
         for kwargs in ({"frequency": 0}, {"damping": -1}, {"limit": 0}):
             with self.assertRaises(ValueError):

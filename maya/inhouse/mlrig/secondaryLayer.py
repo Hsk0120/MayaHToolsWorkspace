@@ -199,7 +199,7 @@ class SecondaryLayer:
             for frame in frames:
                 Time.setCurrent(frame)
                 row = [
-                    mlib.common.units.convertAngle(v, None, "deg")
+                    mlib.common.units.convertAngle(v, fromUnit=None, toUnit="deg")
                     for source in sources
                     for v in mlib.getPlug(source.getPlug('rotate')).get(uiUnits=True)
                 ]
@@ -213,7 +213,7 @@ class SecondaryLayer:
             }
             interval = mlib.common.units.convertTime(1.0, toUnit="sec")
             solved = DampedSpring.solve(
-                rows, interval, settings["frequency"], settings["damping"], settings["angleLimit"]
+                rows, interval, frequency=settings["frequency"], damping=settings["damping"], limit=settings["angleLimit"]
             )
             for column, curve in enumerate(self._members(group, "curves")):
                 # カーブと接続を残したまま、焼いた範囲のキーへ置き換える。

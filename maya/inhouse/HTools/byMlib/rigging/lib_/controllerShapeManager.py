@@ -135,7 +135,7 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
     for shape in shapes:
         positions = []
         for pos in shape.getPoints():
-            pos = [units.convertDistance(value, "cm") for value in pos]
+            pos = [units.convertDistance(value, fromUnit="cm") for value in pos]
             new_pos = _transform_point(pos, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
             positions.append([units.convertDistance(value, toUnit="cm") for value in new_pos])
         shape.setPoints(positions)

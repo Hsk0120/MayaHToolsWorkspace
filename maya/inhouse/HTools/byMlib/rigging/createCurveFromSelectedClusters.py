@@ -77,7 +77,7 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
     degree = min(degree, len(points) - 1)
 
     # 表示は元と同じく UI の距離単位で出す。
-    print("points:", [tuple(units.convertDistance(value, "cm") for value in point) for point in points])
+    print("points:", [tuple(units.convertDistance(value, fromUnit="cm") for value in point) for point in points])
     curve = mlib.createCurve(points, degree=degree, name="clusterPath_crv").getTransform()
     curve.select()
     return curve.getName()

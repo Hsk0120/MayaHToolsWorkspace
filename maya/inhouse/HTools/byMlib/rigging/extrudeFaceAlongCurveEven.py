@@ -27,7 +27,7 @@ def extrude_face_along_curve_even(face, curve, divisions=3, curve_spans=12):
     # 元の cmds.rebuildCurve(rt=0, kr=0, kep=True, kt=True, rpo=True, ch=False) と同じ結果になる。
     curve_node = mlib.getNode(curve)
     curve_shape = curve_node.getShape() if isinstance(curve_node, mlib.Transform) else curve_node
-    curve_shape.rebuild(curve_spans, 3, keepRange="unit", keepTangents=True)
+    curve_shape.rebuild(curve_spans, degree=3, keepRange="unit", keepTangents=True)
     # 元の cmds.rebuildCurve(replaceOriginal=True) は選択を外すので、同じく外す(押し出しが対象のフェースを選ぶ)。
     mlib.select(clear=True)
 

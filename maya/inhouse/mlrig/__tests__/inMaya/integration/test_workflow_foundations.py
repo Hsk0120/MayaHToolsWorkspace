@@ -100,10 +100,10 @@ class RigFoundationsTest(unittest.TestCase):
     def test_conversion(self):
         """距離・角度・FPSの変換はシーン単位を変更しない。"""
         cmds.currentUnit(linear="m", angle="rad", time="ntsc")
-        self.assertEqual(units.convertDistance(100, "cm"), 1)
+        self.assertEqual(units.convertDistance(100, fromUnit="cm"), 1)
         self.assertEqual(units.convertDistance(1, toUnit="cm"), 100)
-        self.assertAlmostEqual(units.convertAngle(math.pi, "rad", None), math.pi)
-        self.assertAlmostEqual(units.convertAngle(math.pi, None, "rad"), math.pi)
+        self.assertAlmostEqual(units.convertAngle(math.pi, fromUnit="rad", toUnit=None), math.pi)
+        self.assertAlmostEqual(units.convertAngle(math.pi, fromUnit=None, toUnit="rad"), math.pi)
         self.assertAlmostEqual(units.convertTime(1.0, toUnit="sec"), 1 / 30)
         self.assertEqual(cmds.currentUnit(query=True, linear=True), "m")
         self.assertEqual(cmds.currentUnit(query=True, angle=True), "rad")

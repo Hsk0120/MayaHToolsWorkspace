@@ -96,7 +96,7 @@ class DrivenLayer:
         relation = DrivenKey(owner.getPlug(component), driven)
         for x, y in pairs:
             if kind == "doubleAngle":
-                y = mlib.common.units.convertAngle(y, None, "deg")
+                y = mlib.common.units.convertAngle(y, fromUnit=None, toUnit="deg")
             elif kind == "doubleLinear":
                 y = mlib.common.units.convertDistance(y, toUnit="cm")
             relation.setKey(x, y)

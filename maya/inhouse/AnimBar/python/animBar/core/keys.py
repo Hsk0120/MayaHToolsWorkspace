@@ -323,7 +323,7 @@ def applySnapshot(curve, snapshot, offset=0.0, transform=None, replace="range"):
         if curve.getKeyCount():
             curve.getKeyframes(time=(min(times), max(times))).delete()
         for time, value, pair in zip(times, values, types):
-            curve.addKey(time, value, *pair)
+            curve.addKey(time, value, **dict(zip(("inTangentType", "outTangentType"), pair)))
     else:
         raise ValueError("replace must be 'range' or 'all'")
     if snapshot.get("weighted") and curve.getKeyCount():

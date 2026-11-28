@@ -341,7 +341,7 @@ class SplineRig:
             for target, joint in zip(points, joints):
                 matrix = joint.getMatrix(worldSpace=True)
                 errors.append(math.sqrt(sum((target[i] - matrix[12 + i]) ** 2 for i in range(3))))
-            error = mlib.common.units.convertDistance(max(errors), "cm")
+            error = mlib.common.units.convertDistance(max(errors), fromUnit="cm")
         finally:
             self.set_mode(mode)
         if tolerance is not None and error > tolerance:

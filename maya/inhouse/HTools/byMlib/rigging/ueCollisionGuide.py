@@ -87,7 +87,7 @@ def _uiFactor():
     Returns:
         float: 1cm がシーンの単位でいくつか。
     """
-    return units.convertDistance(1.0, "cm")
+    return units.convertDistance(1.0, fromUnit="cm")
 
 
 def uniqueName(shape, target=None):

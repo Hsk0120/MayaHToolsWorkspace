@@ -89,7 +89,7 @@ def _to_ui_point(point):
     Args:
         point: cm の位置。
     """
-    return [units.convertDistance(point.x, "cm"), units.convertDistance(point.y, "cm"), units.convertDistance(point.z, "cm")]
+    return [units.convertDistance(point.x, fromUnit="cm"), units.convertDistance(point.y, fromUnit="cm"), units.convertDistance(point.z, fromUnit="cm")]
 
 
 def _world_points(mesh):
@@ -536,7 +536,7 @@ def _build_vertex_graph(mesh):
     # 頂点ID順の隣接リスト。各要素は(隣接頂点ID, UI 単位のエッジ長)で、
     # エッジID順に格納する。孤立頂点は空リスト、重複エッジは別々に保持する。
     adjacency = [
-        [(neighbor, units.convertDistance(length, "cm")) for neighbor, length in row]
+        [(neighbor, units.convertDistance(length, fromUnit="cm")) for neighbor, length in row]
         for row in mesh_node.getVertexAdjacency(ws=True)
     ]
 

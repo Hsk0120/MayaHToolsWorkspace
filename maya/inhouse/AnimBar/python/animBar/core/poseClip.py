@@ -12,7 +12,7 @@ _WEIGHT = "animBarPoseWeight"
 
 def _node_ref(data):
     """保存データのノードの参照(``name``・``path``・``type`` の辞書)から NodeRef を作る。"""
-    return NodeRef(data["name"], data.get("path"), data.get("type"))
+    return NodeRef(data["name"], dagPath=data.get("path"), type=data.get("type"))
 
 
 def _selection():

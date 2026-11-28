@@ -44,7 +44,7 @@ class JointHierarchy:
             raise ValueError("骨の長さが不足しています")
         # MayaのorientJointは子骨に回転値があると向きを変更しない。
         cmds.setAttr(child + ".rotate", 0, 0, 0)
-        root.orient("xyz", "yup", children=False)
+        root.orient("xyz", secondaryAxisOrient="yup", children=False)
         cmds.xform(child, matrix=before, worldSpace=True)
         after = cmds.xform(child, query=True, matrix=True, worldSpace=True)
         aligned = cmds.xform(parent_name, query=True, matrix=True, worldSpace=True)

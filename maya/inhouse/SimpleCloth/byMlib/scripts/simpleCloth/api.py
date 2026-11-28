@@ -275,7 +275,7 @@ def addCollider(solverNode, kind="sphere", radius=3.0, height=6.0, attachTo=None
         mlib.select(mesh)
         mesh.setParent(guide, relative=True)
         # ガイドの形状は計算単位cm。シーン表示単位によるpolyプリミティブ倍率を打ち消す。
-        unit_scale = units.convertDistance(1.0, "cm")
+        unit_scale = units.convertDistance(1.0, fromUnit="cm")
         mesh.getPlug("scale").set((unit_scale, unit_scale, unit_scale))
         guide.setColor((0.2, 0.65, 1.0))
         guide.setShadingOverride(True)

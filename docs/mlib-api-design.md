@@ -1537,3 +1537,46 @@ bool を位置で受ける引数が `worldSpace`・`state` のほかに約40個�
   シーンが変わらない。ツール自身は `noMaya/test_checkMlibArguments.py`。
 - **試して入れなかったもの**: 呼び出し側(利用側のツール)が古い引数名・位置引数を渡していないかを、名前だけで調べる検査。ツール自身の同じ名前の関数と
   区別できず誤検出が多い(mlib で約2500件)。型スタブと pyright の役目とした。
+
+## 引数の検査とテストの強化(2026-11-28)
+
+2026-11-28のユーザー指定(引数に関するフォーマッターとテストを強くしたい)で入れた。maya.cmds・ほかのラッパーと比べたうえで、
+ユーザーが「既定値つきの引数は cmds と同じくキーワード専用」「網羅テストの表に無い公開メソッドは全部足す」と決めた。
+
+- **比べた結果**: maya.cmds は、位置で渡せるのが対象の名前だけで、フラグはすべてキーワード。PyMEL は、フラグを `**kwargs` で受け、API 由来のメソッドだけ
+  主な値の後ろに1〜2個を位置で渡せる(`setTranslation(vector, space='object')`)。cymel は、すべて位置でも渡せる(`setTranslation(v, ws=False, at=2, safe=False, get=False)`。
+  キーワード専用は使っていない)。
+- **A008**: 既定値つきの位置引数は、最初の引数と `worldSpace`・`state` だけ(必須の引数は位置でよい)。65個の署名を変えた(互換の別名なし)。主なもの:
+  `createCurve(points, *, degree=)`・`createCircle(radius, *, normal=, sections=, degree=)`・`createNurbsPlane(width, *, …)`・`createIkHandle(startJoint, endJoint, *, solver=)`・
+  `bindSkin(joints, geometry, *, maximumInfluences=)`・`bakeResults(nodes, *, attributes=, time=, sampleBy=)`・`bakeDeformer(source, skeleton, *, destination=, …)`・
+  `createReference(path, *, namespace=)`・`Namespace.create(name, *, parent=)`・`convertDistance`/`convertAngle`/`convertTime(value, *, fromUnit=, toUnit=)`・
+  `DampedSpring.solve(samples, secondsPerSample, *, frequency=, damping=, limit=)`・`DrivenKey.setKey(driverValue, value, *, inTangentType=, outTangentType=)`・
+  `PluginPackage(name, *, plugins=, …)`・`NodeRef(name, *, dagPath=, type=)`・`Header(format, version, *, mlib=, maya=, fps=)`・`NameMapping(nameMap, *, replace=, namespaceMap=)`・
+  `Snapshot(data, *, header=)`・`AttributesSnapshot.capture(nodes, *, attributes=)`・`ease(t, *, curve=)`・`measure(operation, *, samples=, warmup=)`・
+  `Matrix.compose(translate, *, rotate=, scale=, shear=)`・`Matrix.fromAxes(x, y, z, *, position=)`・`Matrix.mirror`/`Vector.mirror(axis, *, pivot=)`・
+  `Quaternion.slerp`/`Vector.slerp(other, t, *, spin=)`・`EulerRotate.fromYawPitch(direction, *, order=)`・`Node.addAttr(longName, *, type=, subType=, …)`・
+  `Transform.getTranslation(worldSpace, *, at=)`・`setTranslation(value, worldSpace, *, at=)`・形状の `mirror(axis, worldSpace, *, pivot=, indices=)`・
+  `scaleGeometry(scale, worldSpace, *, pivot=, indices=)`・`AnimCurve.scaleKey(inputScale, *, valueScale=, inputPivot=, valuePivot=)`・`AnimCurve.addKey(input, value, *, inTangentType=, outTangentType=)`・
+  BlendShape の `base`(12メソッド)・`Joint.orient(orientation, *, secondaryAxisOrient=)`・`Container.createNode(type, *, name=)`・`NurbsCurve.rebuild(spans, *, degree=)`・
+  `SkinCluster.getInfluenceVertices(influence, *, threshold=)`。`NurbsCurve.getMatricesAlong` は `(count, worldSpace, *, up=)` へ並べ替えた(`up` を位置で渡すと bool の TypeError になる)。
+  位置のまま残したもの(`POSITIONAL_ALLOWED` に理由): 数学型の `isEquivalent(other, tolerance)`・`Vector.isPlanar(points, tolerance)`、`Components.index(value, start, stop)`、
+  `Components(shape, indices)`、`Plug.setRange(minimum, maximum)`、`SkinCluster.setWeights(joints, weights)`、`AnimCurve.addKey(input, value)`、
+  `BlendShape.resetTargetVertices(target, vertices)`、`createIkHandle(startJoint, endJoint)`、`createBlendShape(base, targets)`。
+- **A016**: 同じ名前の引数で、型の中身が同じなら並びも同じにする(`--fix` が多い方へ揃える)。
+- **網羅テストの行**: `noMaya/test_argumentSweep_coverage.py` が、公開の関数・メソッドのすべてに `Method("名前", …)` の行があることを確かめる
+  (無いものは理由つきの除外表)。行が無かった209個(引数の無い取得メソッド・コンストラクター・数学型の om2 と同じ名前のメソッド・logger の関数など)へ行を足した。
+- **呼び方の段の追加**: `unknownKeyword`(どのメソッドも受けない名前のキーワードは TypeError。`**kwargs` で黙って捨てない)、`aliasConflict`(長い名前と短縮名の同時指定は TypeError)。
+- **書き換えで起きたこと**: 名前だけで呼び出しを書き換えたため、mlib の中の OpenMaya の同じ名前のメソッド(`MFnAnimCurve.addKey`・`MDagModifier.createNode`・
+  `MQuaternion.slerp`・`MFnNurbsCurve.removeKnot`)まで書き換わり、テストで見つけて戻した。クラスメソッドの呼び出しでは引数名が1つずれた(`Matrix.compose`)。
+  どちらも Maya のテストが検出した。
+- **行を足して見つかった本体の食い違い(直したもの)**: `EulerRotate(..., unit=None)` が度として読まれていた(既定のラジアンにした)、
+  `BlendShape.mirrorTarget` が Maya のシーン全体のシンメトリ(symmetricModelling)をオンにしたまま残していた(呼ぶ前の状態へ、Undo に残さずに戻す)、
+  `Selection.getSoftSelection` がシンメトリ中に空を返していた(リッチ選択が頂点を含まないときは通常の選択を使う)、
+  `PluginPackage` の `installHint`・`Header` の `mlib`/`maya`・`Snapshot` の `header` の型を確かめていなかった(TypeError)、`Header` の `fps` が無限大を受けていた(ValueError)、
+  Raises の書き漏れ(`DrivenKey`・`ScalarGraph`・`Matrix`・`ScriptJob` のコンストラクター、`Constraint.getWeights`、`ScriptJobs.add`)、`Nodes` の説明の既定値。
+- **残した食い違い(テストの `known=` に理由つきで記録)**: `Plug.__init__(node, mplug)` は内部の作り方で、型を確かめない(呼ばれる回数が多い)。logger の
+  `debug`/`info`/`warning`/`error` は、書式の `%s` と引数の数が合わないと TypeError がそのまま出る(直すと、Formatter の失敗時に元の詳細を残す既存の動きとぶつかったので戻した)。
+  `logger.print` は標準の print へそのまま渡す。`raiseWithNotify` は message の型を確かめない。
+- **テストの順番で見つかったこと**: `mirrorTarget` のシンメトリの件は、単独のテストでは出ず、integration の Undo のテストの後に走る選択のテストだけが失敗して分かった。
+  コールバックの登録の ID のように呼ぶたびに変わる戻り値は、呼び方の段の比較から理由つきで外す(`skipCalling`)。
+
